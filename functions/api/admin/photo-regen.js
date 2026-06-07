@@ -62,7 +62,7 @@ async function loadSource(env, sourceUrl) {
 // Налаштування через env: CF_IMAGE_MODEL, CF_IMG_STRENGTH (0..1), CF_IMG_STEPS (<=20).
 async function runCloudflare(env, src, prompt, width, height) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
-  const model = env.CF_IMAGE_MODEL || '@cf/stabilityai/stable-diffusion-xl-base-1.0';
+  const model = env.CF_IMAGE_MODEL || '@cf/runwayml/stable-diffusion-v1-5-img2img';
   let strength = env.CF_IMG_STRENGTH ? parseFloat(env.CF_IMG_STRENGTH) : 0.6;
   if (!(strength > 0 && strength <= 1)) strength = 0.6;
   let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 20;
