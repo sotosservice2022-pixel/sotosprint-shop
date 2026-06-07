@@ -346,6 +346,16 @@
         }
         a.card .tile-controls button:hover { background: #f3f4f6; color: #1c2129; }
         a.card .tile-controls button:disabled { opacity: 0.3; cursor: not-allowed; }
+        a.card[draggable="true"] .tile-grip {
+          position: absolute; top: 8px; left: 8px; font-size: 15px; line-height: 1;
+          color: #c0c4cc; opacity: 0; transition: opacity .15s; cursor: grab;
+          user-select: none; padding: 2px;
+        }
+        a.card:hover .tile-grip { opacity: 1; }
+        a.card .tile-grip:active { cursor: grabbing; }
+        a.card.tile-dragging { opacity: 0.4; outline: 2px dashed #0b8aff; outline-offset: -2px; }
+        a.card.tile-drop-before { box-shadow: -4px 0 0 0 #0b8aff; }
+        a.card.tile-drop-after { box-shadow: 4px 0 0 0 #0b8aff; }
       `;
       const style = document.createElement('style');
       style.id = 'tile-reorder-styles';
@@ -372,6 +382,20 @@
       ordered.forEach(t => parent.appendChild(t));
     }
 
+    let draggedTile = null;
+
+    function saveCurrentOrder() {
+      const parent = document.querySelector('a.card')?.parentNode;
+      if (!parent) return;
+      const order = Array.from(parent.querySelectorAll(':scope > a.card')).map(tileId);
+      localStorage.setItem(orderKey, JSON.stringify(order));
+    }
+
+    function clearDropHints() {
+      document.querySelectorAll('a.card.tile-drop-before, a.card.tile-drop-after')
+        .forEach(t => t.classList.remove('tile-drop-before', 'tile-drop-after'));
+    }
+
     function refresh() {
       const all = Array.from(document.querySelectorAll('a.card'));
       all.forEach((tile, idx) => {
@@ -394,9 +418,55 @@
             e.preventDefault(); e.stopPropagation();
             move(tile, 1);
           });
+          // --- перетягування мишею ---
+          if (!tile.querySelector(':scope > .tile-grip')) {
+            const grip = document.createElement('span');
+            grip.className = 'tile-grip';
+            grip.textContent = '⠿';
+            grip.title = 'Перетягни щоб змінити порядок';
+            tile.appendChild(grip);
+          }
+          setupTileDrag(tile);
         }
         ctrl.querySelector('.tile-up').disabled = idx === 0;
         ctrl.querySelector('.tile-down').disabled = idx === all.length - 1;
+      });
+    }
+
+    function setupTileDrag(tile) {
+      tile.setAttribute('draggable', 'true');
+
+      tile.addEventListener('dragstart', e => {
+        draggedTile = tile;
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', tileId(tile)); } catch {}
+        // невелика затримка, щоб клас застосувався після створення drag-image
+        setTimeout(() => tile.classList.add('tile-dragging'), 0);
+      });
+
+      tile.addEventListener('dragend', () => {
+        tile.classList.remove('tile-dragging');
+        clearDropHints();
+        if (draggedTile) saveCurrentOrder();
+        draggedTile = null;
+        refresh();
+      });
+
+      tile.addEventListener('dragover', e => {
+        if (!draggedTile || draggedTile === tile) return;
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = 'move'; } catch {}
+        const rect = tile.getBoundingClientRect();
+        const after = (e.clientX - rect.left) > rect.width / 2;
+        clearDropHints();
+        tile.classList.add(after ? 'tile-drop-after' : 'tile-drop-before');
+        const parent = tile.parentNode;
+        if (after) parent.insertBefore(draggedTile, tile.nextSibling);
+        else parent.insertBefore(draggedTile, tile);
+      });
+
+      tile.addEventListener('drop', e => {
+        e.preventDefault();
+        clearDropHints();
       });
     }
 
@@ -409,9 +479,7 @@
       const parent = tile.parentNode;
       if (dir < 0) parent.insertBefore(tile, sibling);
       else parent.insertBefore(tile, sibling.nextSibling);
-      // Зберігаємо новий порядок
-      const order = Array.from(parent.querySelectorAll(':scope > a.card')).map(tileId);
-      localStorage.setItem(orderKey, JSON.stringify(order));
+      saveCurrentOrder();
       refresh();
     }
 
