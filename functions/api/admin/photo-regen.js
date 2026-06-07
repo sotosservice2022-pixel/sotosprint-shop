@@ -57,47 +57,55 @@ async function loadSource(env, sourceUrl) {
   return { buf, contentType };
 }
 
-// --- Безкоштовний рушій: Cloudflare Workers AI FLUX (img2img) ---
-// Вхідне фото вже зменшене до <=1024px на фронтенді (Pages не підтримує Images binding).
+// --- Безкоштовний рушій: Cloudflare Workers AI — Stable Diffusion XL (img2img) ---
+// Стабільна GA-модель (на відміну від beta FLUX, що віддавав 3043). Вхід — байти фото <=1024px.
+// Налаштування через env: CF_IMAGE_MODEL, CF_IMG_STRENGTH (0..1), CF_IMG_STEPS (<=20).
 async function runCloudflare(env, src, prompt, width, height) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
-  const norm = { buf: src.buf, contentType: src.contentType || 'image/jpeg' };
+  const model = env.CF_IMAGE_MODEL || '@cf/stabilityai/stable-diffusion-xl-base-1.0';
+  let strength = env.CF_IMG_STRENGTH ? parseFloat(env.CF_IMG_STRENGTH) : 0.6;
+  if (!(strength > 0 && strength <= 1)) strength = 0.6;
+  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 20;
+  if (!(steps >= 1 && steps <= 20)) steps = 20;
+
+  const imageBytes = Array.from(new Uint8Array(src.buf)); // сирі байти файлу (JPEG/PNG)
 
   const callOnce = async () => {
-    const form = new FormData();
-    form.append('input_image_0', new Blob([norm.buf], { type: norm.contentType }), 'src.jpg');
-    form.append('prompt', prompt);
-    form.append('width', String(width));
-    form.append('height', String(height));
-    // менше кроків = швидше, менший ризик тайм-ауту Workers AI (часта причина 3043)
-    form.append('steps', String(env.FLUX_STEPS ? parseInt(env.FLUX_STEPS, 10) : 8));
-    // FLUX.2 на Workers AI приймає вхідні зображення лише через multipart-обгортку.
-    const res = await env.AI.run('@cf/black-forest-labs/flux-2-dev', {
-      multipart: { body: form, contentType: 'multipart/form-data' },
-    });
-    let b64 = null;
-    if (typeof res === 'string') b64 = res;
-    else if (res && typeof res.image === 'string') b64 = res.image;
-    else if (res && res.result && typeof res.result.image === 'string') b64 = res.result.image;
-    if (!b64) throw new Error('FLUX не повернув зображення (несподіваний формат відповіді)');
-    return b64;
+    const inputs = {
+      prompt,
+      negative_prompt: 'blurry, low quality, distorted, deformed, watermark, text, logo, extra objects, cropped',
+      image: imageBytes,
+      strength,
+      num_steps: steps,
+      guidance: 7.5,
+    };
+    // SDXL повертає бінарний потік PNG
+    const res = await env.AI.run(model, inputs);
+    let ab;
+    if (res instanceof ArrayBuffer) ab = res;
+    else if (res && typeof res.arrayBuffer === 'function') ab = await res.arrayBuffer();
+    else if (res && (res.body || typeof res.getReader === 'function')) ab = await new Response(res).arrayBuffer();
+    else if (typeof res === 'string') return { bytes: b64ToBytes(res), contentType: 'image/png' };
+    else if (res && typeof res.image === 'string') return { bytes: b64ToBytes(res.image), contentType: 'image/png' };
+    else ab = await new Response(res).arrayBuffer();
+    if (!ab || ab.byteLength === 0) throw new Error('Порожня відповідь від моделі');
+    return { bytes: new Uint8Array(ab), contentType: 'image/png' };
   };
 
   // Ретраї на тимчасові помилки моделі (3043 Internal server error тощо)
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const b64 = await callOnce();
-      return { bytes: b64ToBytes(b64), contentType: 'image/png' };
+      return await callOnce();
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
       // не ретраїмо явно фатальні помилки конфігурації
-      if (/binding|multipart|required propert/i.test(msg)) break;
+      if (/binding|no such model|invalid|required propert/i.test(msg)) break;
       if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * attempt));
     }
   }
-  throw new Error('Cloudflare FLUX не зміг обробити фото після кількох спроб: ' + (lastErr && lastErr.message || lastErr) + '. Спробуй ще раз або переключись на Преміум.');
+  throw new Error('Cloudflare Stable Diffusion не зміг обробити фото після кількох спроб: ' + (lastErr && lastErr.message || lastErr) + '. Спробуй ще раз або переключись на Преміум.');
 }
 
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
