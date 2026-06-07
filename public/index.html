@@ -849,7 +849,7 @@
       <div style="display:flex; gap:6px; align-items:stretch;">
         <input type="text" id="cartPromoInput" placeholder="🎟 Промокод" autocomplete="off"
           style="flex:1; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; text-transform:uppercase;"
-          oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter'){event.preventDefault();applyCartPromo();}" />
+          oninput="this.value=this.value.toUpperCase()" onclick="pastePromoOnClick(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();applyCartPromo();}" />
         <button type="button" onclick="applyCartPromo()"
           style="padding:0 14px; border:1px solid #e5e7eb; border-radius:8px; background:#f3f4f6; font-weight:600; cursor:pointer; font-size:13px;">Застосувати</button>
       </div>
@@ -1816,7 +1816,19 @@ function promoBadgesHtml(p) {
     return `<span class="product-badge promo-badge" title="Натисни щоб скопіювати промокод" style="background:${promo.badgeColor || '#7c3aed'};color:#fff;cursor:pointer;" onclick="event.stopPropagation(); copyPromoChip('${escapeAttr(code)}', this)">🎟 ${escapeHtml(code)}</span>`;
   }).join('');
 }
+// Останній скопійований промокод — щоб вставити його в поле кошика одним кліком.
+window.__lastCopiedPromo = window.__lastCopiedPromo || '';
+// Клік по полю промокоду вставляє останній скопійований код (якщо поле порожнє).
+window.pastePromoOnClick = function(inp) {
+  if (window.__lastCopiedPromo && !inp.value) {
+    inp.value = window.__lastCopiedPromo;
+    inp.dispatchEvent(new Event('input'));
+  }
+};
 window.copyPromoCode = function(code, silent) {
+  window.__lastCopiedPromo = code;
+  const pin = document.getElementById('cartPromoInput');
+  if (pin && !pin.value) pin.placeholder = '🎟 Натисни, щоб вставити ' + code;
   const done = () => { if (!silent && typeof showToast === 'function') showToast('✅ Промокод скопійовано: ' + code); };
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
