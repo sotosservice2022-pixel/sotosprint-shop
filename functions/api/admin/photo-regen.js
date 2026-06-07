@@ -57,32 +57,70 @@ async function loadSource(env, sourceUrl) {
   return { buf, contentType };
 }
 
+// Нормалізуємо вхідне фото: зменшуємо до <=1024px і перекодовуємо у JPEG.
+// FLUX.2 на Workers AI чутливий до великих/нестандартних вхідних зображень (часта причина 3043).
+async function normalizeInput(env, buf, contentType) {
+  if (!env.IMAGES) return { buf, contentType: contentType || 'image/jpeg' };
+  try {
+    const out = (await env.IMAGES.input(buf)
+      .transform({ width: 1024, height: 1024, fit: 'scale-down' })
+      .output({ format: 'image/jpeg', quality: 90 })).response();
+    const ab = await out.arrayBuffer();
+    if (ab && ab.byteLength > 0) return { buf: ab, contentType: 'image/jpeg' };
+  } catch (_) { /* fallback на оригінал */ }
+  return { buf, contentType: contentType || 'image/jpeg' };
+}
+
 // --- Безкоштовний рушій: Cloudflare Workers AI FLUX (img2img) ---
-async function runCloudflare(env, { buf, contentType }, prompt, width, height) {
+async function runCloudflare(env, src, prompt, width, height) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
-  const form = new FormData();
-  form.append('input_image_0', new Blob([buf], { type: contentType || 'image/jpeg' }), 'src');
-  form.append('prompt', prompt);
-  form.append('width', String(width));
-  form.append('height', String(height));
-  form.append('steps', '25');
-  // FLUX.2 на Workers AI приймає вхідні зображення лише через multipart-обгортку.
-  const res = await env.AI.run('@cf/black-forest-labs/flux-2-dev', {
-    multipart: { body: form, contentType: 'multipart/form-data' },
-  });
-  // Відповідь: base64 у полі image (різні версії можуть віддавати по-різному)
-  let b64 = null;
-  if (typeof res === 'string') b64 = res;
-  else if (res && typeof res.image === 'string') b64 = res.image;
-  else if (res && res.result && typeof res.result.image === 'string') b64 = res.result.image;
-  if (!b64) throw new Error('FLUX не повернув зображення (несподіваний формат відповіді)');
-  return { bytes: b64ToBytes(b64), contentType: 'image/png' };
+  // зменшуємо вхідне фото до 1024px (FLUX приймає вхідні зображення до 512–1024px)
+  const norm = await normalizeInput(env, src.buf, src.contentType);
+
+  const callOnce = async () => {
+    const form = new FormData();
+    form.append('input_image_0', new Blob([norm.buf], { type: norm.contentType }), 'src.jpg');
+    form.append('prompt', prompt);
+    form.append('width', String(width));
+    form.append('height', String(height));
+    form.append('steps', '25');
+    // FLUX.2 на Workers AI приймає вхідні зображення лише через multipart-обгортку.
+    const res = await env.AI.run('@cf/black-forest-labs/flux-2-dev', {
+      multipart: { body: form, contentType: 'multipart/form-data' },
+    });
+    let b64 = null;
+    if (typeof res === 'string') b64 = res;
+    else if (res && typeof res.image === 'string') b64 = res.image;
+    else if (res && res.result && typeof res.result.image === 'string') b64 = res.result.image;
+    if (!b64) throw new Error('FLUX не повернув зображення (несподіваний формат відповіді)');
+    return b64;
+  };
+
+  // Ретраї на тимчасові помилки моделі (3043 Internal server error тощо)
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const b64 = await callOnce();
+      return { bytes: b64ToBytes(b64), contentType: 'image/png' };
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      // не ретраїмо явно фатальні помилки конфігурації
+      if (/binding|multipart|required propert/i.test(msg)) break;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * attempt));
+    }
+  }
+  throw new Error('Cloudflare FLUX не зміг обробити фото після кількох спроб: ' + (lastErr && lastErr.message || lastErr) + '. Спробуй ще раз або переключись на Преміум.');
 }
 
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
 async function runPremium(env, { buf, contentType }, prompt) {
-  const apiKey = env.IMAGE_API_KEY;
-  if (!apiKey) throw new Error('Преміум-рушій не налаштовано: додай секрет IMAGE_API_KEY (ключ Google AI Studio).');
+  // Ключ: спочатку секрет IMAGE_API_KEY, інакше — збережений в адмінці (KV ai_image_key)
+  let apiKey = env.IMAGE_API_KEY;
+  if (!apiKey && env.SHOP_KV) {
+    try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
+  }
+  if (!apiKey) throw new Error('Преміум-рушій не налаштовано: введи ключ Google AI Studio на сторінці (блок «Ключ Gemini») або додай секрет IMAGE_API_KEY.');
   const model = env.IMAGE_API_MODEL || 'gemini-2.5-flash-image';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const body = {
