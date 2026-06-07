@@ -156,6 +156,15 @@
       border-radius: 12px; box-shadow: 0 4px 20px rgba(20,30,60,.15);
       display: flex; gap: 10px; align-items: center; z-index: 100; }
     .save-bar .left { flex: 1; font-size: 13px; color: #6b7280; }
+    /* Єдине поле кольору з палітрою збережених пресетів */
+    .color-field { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .color-field input[type="color"] { width: 30px; height: 26px; padding: 1px; border: 1px solid #e5e7eb; border-radius: 5px; cursor: pointer; }
+    .color-field .presets { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .color-preset-add { width: 18px; height: 18px; border: 1px dashed #9ca3af; background: #f9fafb; border-radius: 4px; cursor: pointer; font-size: 13px; line-height: 1; color: #6b7280; padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .color-preset-add:hover { background: #eef2f7; }
+    .cp-wrap { position: relative; display: inline-flex; }
+    .color-preset-swatch { width: 18px; height: 18px; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer; padding: 0; }
+    .color-preset-del { position: absolute; top: -6px; right: -6px; width: 13px; height: 13px; line-height: 12px; text-align: center; font-size: 10px; font-weight: 700; color: #fff; background: #ef4444; border-radius: 50%; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.3); }
     .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
       padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
       transition: opacity .2s; pointer-events: none; z-index: 200; }
@@ -235,14 +244,13 @@
 
   <!-- #7: Редактор товару — окремий екран (overlay) поверх списку. -->
   <div id="editorView" style="display:none; position:fixed; inset:0; background:#f3f4f6; z-index:1000; overflow-y:auto; -webkit-overflow-scrolling:touch;">
-    <div style="position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; z-index:5; box-shadow:0 1px 6px rgba(20,30,60,.06);">
-      <div style="max-width:1000px; margin:0 auto; padding:10px 16px; display:flex; gap:10px; align-items:center;">
+    <div class="wrap" style="padding:14px 16px 24px;">
+      <!-- Верхня панель — плаваюча «таблетка» (як панель збереження), по ширині сайту -->
+      <div class="save-bar" style="position:sticky; top:14px; margin-bottom:14px;">
         <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад до списку</button>
         <strong id="editorViewTitle" style="font-size:15px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#374151;">Редагування товару</strong>
         <button class="btn btn-primary" type="button" onclick="saveFromEditor()">💾 Зберегти</button>
       </div>
-    </div>
-    <div class="wrap" style="padding:16px 16px 24px;">
       <div id="editorWrap"></div>
       <!-- #7b: плаваюча панель збереження (як у Налаштуваннях) — по ширині сайту -->
       <div class="save-bar" style="margin-top:16px;">
@@ -894,14 +902,14 @@ function renderGallery(p) {
           🔍 Дозволити збільшення
         </label>
         <input type="url" value="${escapeAttr(img.link)}" placeholder="Посилання (опц.) — клік відкриє цю URL" oninput="setImgLink(${i}, this.value)" />
-        <label style="display:block; font-size:12px; color:#6b7280; margin:4px 0 2px;">🏷️ Шильдик на ЦЕ фото (текст з'явиться на самому фото в галереї):</label>
+        <label style="display:block; font-size:12px; color:#6b7280; margin:4px 0 2px;">🏷️ Шильдик</label>
         <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="напр.: Розмір А4 / Вид збоку — порожньо = без шильдика" oninput="setImgCaption(${i}, this.value)" />
         <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:11px; color:#6b7280;">
           <label style="display:flex; align-items:center; gap:3px;">Фон:
-            <input type="color" value="${img.capBg || '#dc2626'}" onchange="setImgCapBg(${i}, this.value)" style="width:30px; height:26px; padding:1px; border-radius:5px; cursor:pointer;" />
+            ${colorFieldHtml(img.capBg || '#dc2626', `onchange="setImgCapBg(${i}, this.value)"`)}
           </label>
           <label style="display:flex; align-items:center; gap:3px;">Текст:
-            <input type="color" value="${img.capColor || '#ffffff'}" onchange="setImgCapColor(${i}, this.value)" style="width:30px; height:26px; padding:1px; border-radius:5px; cursor:pointer;" />
+            ${colorFieldHtml(img.capColor || '#ffffff', `onchange="setImgCapColor(${i}, this.value)"`)}
           </label>
           <label style="display:flex; align-items:center; gap:3px;">Розмір:
             <input type="number" min="8" max="48" value="${parseInt(img.capSize) || 12}" onchange="setImgCapSize(${i}, this.value)" style="width:52px; padding:4px 6px; border:1px solid #e5e7eb; border-radius:6px;" />px
@@ -1038,56 +1046,89 @@ window.addAttr = () => {
 };
 
 // === Шильдики ===
-// #1: збережені кольори шильдиків (глобально, у appSettings.badgeColors).
-// Коли вибираєш колір у палітрі — він запам'ятовується, і у наступного товару
-// можна клікнути той самий квадратик, щоб поставити ТОЧНО такий самий колір.
-function getSavedBadgeColors() {
+// === Єдина палітра збережених кольорів (глобально, у appSettings.badgeColors) ===
+// Один спільний набір пресетів використовується ВСЮДИ, де є вибір кольору
+// (шильдик на фото: Фон/Текст; бейджі товару: Фон/Текст).
+//  • «+» поряд із піпеткою — зберегти поточний колір у пресети.
+//  • клік по квадратику — застосувати цей колір.
+//  • × на квадратику — прибрати пресет.
+function getSavedColors() {
   if (!Array.isArray(appSettings.badgeColors)) appSettings.badgeColors = [];
   return appSettings.badgeColors;
 }
-function rememberBadgeColor(hex) {
+function rememberColor(hex) {
   if (!hex) return;
   hex = String(hex).toLowerCase();
   if (!/^#[0-9a-f]{6}$/.test(hex)) return;
-  const arr = getSavedBadgeColors();
-  const i = arr.indexOf(hex);
-  if (i !== -1) arr.splice(i, 1);
+  const arr = getSavedColors();
+  if (arr.includes(hex)) return; // вже збережено
   arr.unshift(hex);
-  if (arr.length > 12) arr.length = 12;
+  if (arr.length > 6) arr.length = 6; // тримаємо до 6 пресетів
 }
-function removeBadgeColor(hex) {
-  const arr = getSavedBadgeColors();
+function removeColorPreset(hex) {
+  const arr = getSavedColors();
   const i = arr.indexOf(hex);
   if (i !== -1) arr.splice(i, 1);
 }
-// Блокування видалення кольорів: за замовчуванням ЗАБЛОКОВАНО (×-и приховані),
-// щоб випадково не прибрати колір. Стан зберігається в localStorage.
-function badgeColorsLocked() {
-  return localStorage.getItem('badgeColorsLocked') !== 'false';
+// HTML свотчів пресетів (однаковий для всіх полів кольору)
+function presetSwatchesHtml() {
+  const saved = getSavedColors();
+  let h = '<button type="button" class="color-preset-add" title="Зберегти цей колір у пресети">+</button>';
+  saved.forEach(hex => {
+    h += `<span class="cp-wrap"><button type="button" class="color-preset-swatch" data-hex="${hex}" title="Застосувати ${hex}" style="background:${hex};"></button><span class="color-preset-del" data-hex="${hex}" title="Прибрати зі збережених">×</span></span>`;
+  });
+  return h;
 }
-window.toggleBadgeColorsLock = function() {
-  localStorage.setItem('badgeColorsLocked', badgeColorsLocked() ? 'false' : 'true');
-  const p = products[currentIdx];
-  if (p) renderBadges(p);
-};
+// Обгортка поля кольору: піпетка + палітра пресетів. attrs — атрибути для <input> (onchange або data-k).
+function colorFieldHtml(value, attrs) {
+  return `<span class="color-field"><input type="color" value="${value}" ${attrs} /><span class="presets">${presetSwatchesHtml()}</span></span>`;
+}
+// Оновити свотчі в УСІХ полях кольору одразу (після збереження/видалення пресета)
+function refreshAllPresets() {
+  document.querySelectorAll('.color-field .presets').forEach(el => { el.innerHTML = presetSwatchesHtml(); });
+}
+// Делегування кліків для всіх полів кольору
+if (!window.__colorFieldDelegation) {
+  window.__colorFieldDelegation = true;
+  document.addEventListener('click', (e) => {
+    const sw = e.target.closest('.color-preset-swatch');
+    if (sw) {
+      const field = sw.closest('.color-field');
+      const inp = field && field.querySelector('input[type="color"]');
+      if (inp) {
+        inp.value = sw.dataset.hex;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      return;
+    }
+    const add = e.target.closest('.color-preset-add');
+    if (add) {
+      const field = add.closest('.color-field');
+      const inp = field && field.querySelector('input[type="color"]');
+      if (inp) { rememberColor(inp.value); refreshAllPresets(); }
+      return;
+    }
+    const del = e.target.closest('.color-preset-del');
+    if (del) { e.stopPropagation(); removeColorPreset(del.dataset.hex); refreshAllPresets(); return; }
+  });
+}
 function renderBadges(p) {
   const el = document.getElementById('badgeList');
   if (!el) return;
   el.innerHTML = '';
   if (!Array.isArray(p.badges)) p.badges = [];
-  const saved = getSavedBadgeColors();
   p.badges.forEach((b, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;';
     row.innerHTML = `
       <input type="text" placeholder="Текст (наприклад: ХІТ)" value="${escapeAttr(b.text || '')}" data-k="text" maxlength="20" style="flex: 1; min-width:120px; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
       <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280;">Фон:
-        <input type="color" value="${b.color || '#dc2626'}" data-k="color" style="width: 36px; height: 32px; padding: 2px; border-radius: 6px; cursor: pointer;" />
+        ${colorFieldHtml(b.color || '#dc2626', 'data-k="color"')}
       </label>
       <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280;">Текст:
-        <input type="color" value="${b.textColor || '#ffffff'}" data-k="textColor" style="width: 36px; height: 32px; padding: 2px; border-radius: 6px; cursor: pointer;" />
+        ${colorFieldHtml(b.textColor || '#ffffff', 'data-k="textColor"')}
       </label>
-      <span class="badge-swatches" style="display:flex; gap:3px; align-items:center;"></span>
       <span class="product-badge-preview" style="background:${b.color || '#dc2626'};color:${b.textColor || '#ffffff'};font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;">${escapeHtml(b.text || 'ПРЕВЮ')}</span>
       <button class="btn btn-danger btn-icon" type="button">×</button>
     `;
@@ -1101,58 +1142,6 @@ function renderBadges(p) {
         preview.style.color = b.textColor || '#ffffff';
       });
     });
-    // Коли користувач закрив палітру (change) — запам'ятовуємо колір фону у «збережені»
-    const colorInput = row.querySelector('input[data-k="color"]');
-    if (colorInput) {
-      colorInput.addEventListener('change', () => {
-        rememberBadgeColor(colorInput.value);
-        renderBadges(p); // оновити свотчі у всіх рядках
-      });
-    }
-    // Свотчі збережених кольорів — клік ставить ТОЧНО такий самий колір фону
-    const sw = row.querySelector('.badge-swatches');
-    if (sw && saved.length) {
-      const locked = badgeColorsLocked();
-      sw.insertAdjacentHTML('beforeend', '<span style="font-size:11px;color:#9ca3af;">збережені:</span>');
-      // кнопка-замок: відкриває/закриває можливість видаляти кольори
-      const lockBtn = document.createElement('button');
-      lockBtn.type = 'button';
-      lockBtn.textContent = locked ? '🔒' : '🔓';
-      lockBtn.title = locked ? 'Розблокувати видалення кольорів' : 'Заблокувати видалення кольорів';
-      lockBtn.style.cssText = 'border:1px solid #d1d5db; background:#f9fafb; border-radius:4px; cursor:pointer; font-size:12px; line-height:1; padding:3px 5px; margin-right:2px;';
-      lockBtn.onclick = (e) => { e.stopPropagation(); toggleBadgeColorsLock(); };
-      sw.appendChild(lockBtn);
-      saved.forEach(hex => {
-        // обгортка: квадратик кольору + маленький × у кутку, щоб прибрати колір
-        const wrap = document.createElement('span');
-        wrap.style.cssText = 'position:relative; display:inline-block; width:20px; height:20px; margin-right:4px;';
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.title = 'Застосувати колір ' + hex;
-        btn.style.cssText = `width:20px; height:20px; border-radius:4px; border:1px solid #d1d5db; cursor:pointer; padding:0; background:${hex};`;
-        btn.onclick = () => {
-          b.color = hex;
-          if (colorInput) colorInput.value = hex;
-          const preview = previewOf();
-          preview.style.background = hex;
-        };
-        wrap.appendChild(btn);
-        // × показуємо ТІЛЬКИ коли замок відкритий (розблоковано)
-        if (!locked) {
-          const rm = document.createElement('span');
-          rm.textContent = '×';
-          rm.title = 'Прибрати колір зі збережених';
-          rm.style.cssText = 'position:absolute; top:-6px; right:-6px; width:14px; height:14px; line-height:13px; text-align:center; font-size:11px; font-weight:700; color:#fff; background:#ef4444; border-radius:50%; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3);';
-          rm.onclick = (e) => {
-            e.stopPropagation();
-            removeBadgeColor(hex);
-            renderBadges(p); // оновити свотчі у всіх рядках
-          };
-          wrap.appendChild(rm);
-        }
-        sw.appendChild(wrap);
-      });
-    }
     row.querySelector('button.btn-danger').onclick = () => { p.badges.splice(i, 1); renderBadges(p); };
     el.appendChild(row);
   });
@@ -1167,7 +1156,6 @@ window.addBadgePreset = (text, color) => {
   const p = products[currentIdx];
   if (!Array.isArray(p.badges)) p.badges = [];
   p.badges.push({ text, color, textColor: '#ffffff' });
-  rememberBadgeColor(color); // #1: колір пресета теж потрапляє у «збережені»
   renderBadges(p);
 };
 
