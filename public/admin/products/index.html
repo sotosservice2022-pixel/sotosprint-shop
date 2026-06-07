@@ -147,7 +147,7 @@
     .attr-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-bottom: 6px; }
 
     /* Варианты */
-    .opt-row { display: grid; grid-template-columns: 1fr 100px auto; gap: 6px; margin-bottom: 6px; }
+    .opt-row { display: grid; grid-template-columns: 1fr 90px 84px auto; gap: 6px; margin-bottom: 6px; }
 
     .checkbox-inline { display: flex; align-items: center; gap: 6px; }
     .checkbox-inline input { width: auto; }
@@ -796,7 +796,7 @@ function editProduct(idx) {
       <h4>⚙️ Варіанти (опціонально)</h4>
       <div id="optList"></div>
       <button class="btn btn-secondary btn-icon" type="button" onclick="addOpt()">+ Додати варіант</button>
-      <div class="hint">Наприклад: «Глянцевий → +0», «На полотні → +50». Якщо немає варіантів — клієнт купує звичайний товар.</div>
+      <div class="hint">Колонки: <b>назва</b> · <b>надбавка ₴</b> · <b>№ фото</b>. На сайті клієнт може обрати <b>декілька</b> варіантів одразу — їх надбавки додаються. «№ фото» — номер фото з галереї товару (1, 2, 3…): при натисканні варіанта це фото показується; у кошику біля варіанта буде мініатюра. 0 або порожньо — без фото.</div>
     </div>
 
     <div class="section">
@@ -1335,13 +1335,15 @@ function renderOpts(p) {
     row.className = 'opt-row';
     row.innerHTML = `
       <input type="text" placeholder="Название варианта" value="${escapeAttr(o.name || '')}" data-k="name" />
-      <input type="number" placeholder="+0" value="${o.priceDelta || 0}" data-k="priceDelta" step="1" />
+      <input type="number" placeholder="+0" value="${o.priceDelta || 0}" data-k="priceDelta" step="1" title="Надбавка до ціни (₴)" />
+      <input type="number" placeholder="№ фото" value="${o.photoNum || ''}" data-k="photoNum" min="0" step="1" title="№ фото з галереї (натиск показує це фото). 0 — без фото" />
       <button class="btn btn-danger btn-icon" type="button">×</button>
     `;
     row.querySelectorAll('[data-k]').forEach(input => {
       input.addEventListener('input', () => {
         const k = input.dataset.k;
         if (k === 'priceDelta') o[k] = parseFloat(input.value) || 0;
+        else if (k === 'photoNum') o[k] = parseInt(input.value, 10) || 0;
         else { o[k] = input.value; o.id = makeOptId(input.value, i); }
       });
     });
@@ -1400,7 +1402,7 @@ window.resetSoldCount = (idx) => {
 };
 window.addOpt = () => {
   const p = products[currentIdx];
-  p.options.push({ id: 'opt' + p.options.length, name: '', priceDelta: 0 });
+  p.options.push({ id: 'opt' + p.options.length, name: '', priceDelta: 0, photoNum: 0 });
   renderOpts(p);
 };
 

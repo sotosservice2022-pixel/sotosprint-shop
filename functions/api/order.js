@@ -86,12 +86,24 @@ export async function onRequestPost({ request, env }) {
     const qty = Math.max(1, Math.min(parseInt(item.quantity, 10) || 1, 1000));
     let unitPrice = product.price;
     let optionLabel = null;
-    if (item.optionId && Array.isArray(product.options)) {
-      const opt = product.options.find(o => o.id === item.optionId);
-      if (opt) {
-        unitPrice += (opt.priceDelta || 0);
-        optionLabel = opt.name;
+    const prodOpts = Array.isArray(product.options) ? product.options : [];
+    if (Array.isArray(item.optionIds) && item.optionIds.length && prodOpts.length) {
+      // Мультивибір: сумуємо надбавки усіх обраних варіантів (ціни беремо з товару — не довіряємо клієнту).
+      const names = [];
+      for (const oid of item.optionIds) {
+        const opt = prodOpts.find(o => o.id === oid);
+        if (opt) { unitPrice += (opt.priceDelta || 0); names.push(opt.name); }
       }
+      optionLabel = names.length ? names.join(' + ') : null;
+    } else if (item.optionId && prodOpts.length) {
+      // Старий формат (один варіант). optionId може бути композитним ('a+b') — тоді split.
+      const ids = String(item.optionId).split('+').filter(Boolean);
+      const names = [];
+      for (const oid of ids) {
+        const opt = prodOpts.find(o => o.id === oid);
+        if (opt) { unitPrice += (opt.priceDelta || 0); names.push(opt.name); }
+      }
+      optionLabel = names.length ? names.join(' + ') : null;
     }
     const lineTotal = unitPrice * qty;
     totalPrice += lineTotal;

@@ -699,6 +699,7 @@ async function submitOrder() {
       const cartPayload = cart.map((item, idx) => ({
         productId: item.productId, productName: item.productName,
         optionId: item.optionId, optionName: item.optionName,
+        optionIds: Array.isArray(item.optionIds) ? item.optionIds : undefined,
         quantity: item.quantity, unitPrice: item.unitPrice,
       }));
       fd.append('cart', JSON.stringify(cartPayload));

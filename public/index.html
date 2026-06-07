@@ -717,7 +717,21 @@
       font-size: 13px; cursor: pointer; background: var(--bg); user-select: none;
       color: var(--text);
     }
-    .opt.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    .opt.active {
+      background: var(--opt-active-bg, var(--accent));
+      color: var(--opt-active-text, var(--accent-text));
+      border-color: var(--opt-active-bg, var(--accent));
+    }
+    .opt .opt-photo-tag { font-size: 11px; opacity: .7; margin-left: 2px; }
+    /* Варіанти в кошику (мультивибір) */
+    .info-c .cart-opts { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 0 4px; }
+    .info-c .cart-opt {
+      display: inline-flex; align-items: center; gap: 4px; font-size: 12px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      padding: 2px 7px 2px 2px; color: var(--text);
+    }
+    .info-c .cart-opt.no-thumb { padding: 2px 7px; }
+    .info-c .cart-opt-thumb { width: 22px; height: 22px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
 
     .qty-row { display: flex; align-items: center; gap: 10px; }
     .qty-row label { font-size: 13px; color: var(--muted); }
@@ -2013,13 +2027,15 @@ function openModal(p) {
   url.searchParams.set('product', p.id);
   history.replaceState(null, '', url);
 
+  const optActiveStyle = (shop.variantActiveColor ? `--opt-active-bg:${escapeAttr(shop.variantActiveColor)};` : '')
+    + (shop.variantActiveTextColor ? `--opt-active-text:${escapeAttr(shop.variantActiveTextColor)};` : '');
   const optsHtml = (p.options && p.options.length) ? `
     <div>
-      <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Вариант:</div>
-      <div class="opt-row" id="optRow">
-        ${p.options.map((o, i) => `
-          <span class="opt${i === 0 ? ' active' : ''}" data-opt-id="${escapeAttr(o.id)}" data-delta="${o.priceDelta || 0}"
-                onclick="selectOpt('${escapeAttr(o.id)}')">${escapeHtml(o.name)}${o.priceDelta ? ` (+${o.priceDelta})` : ''}</span>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Варіанти ${p.options.length > 1 ? '(можна обрати декілька):' : ':'}</div>
+      <div class="opt-row" id="optRow" style="${optActiveStyle}">
+        ${p.options.map((o) => `
+          <span class="opt" data-opt-id="${escapeAttr(o.id)}" data-delta="${o.priceDelta || 0}" data-photo="${parseInt(o.photoNum, 10) || 0}"
+                onclick="toggleOpt('${escapeAttr(o.id)}')">${escapeHtml(o.name)}${o.priceDelta ? ` (+${o.priceDelta})` : ''}${(parseInt(o.photoNum,10) > 0) ? '<span class="opt-photo-tag">🖼</span>' : ''}</span>
         `).join('')}
       </div>
     </div>
@@ -2216,14 +2232,33 @@ window.showVideo = () => {
   document.querySelectorAll('.video-thumb').forEach(t => t.classList.add('active'));
 };
 
-window.selectOpt = (optId) => {
+// Перерахунок ціни у модалці за усіма активними варіантами (сума надбавок).
+function recalcModalPrice() {
   if (!currentProduct) return;
-  document.querySelectorAll('#optRow .opt').forEach(o => o.classList.toggle('active', o.dataset.optId === optId));
-  // Обновим цену
-  const opt = currentProduct.options.find(o => o.id === optId);
-  const price = (currentProduct.price || 0) + (opt?.priceDelta || 0);
-  document.getElementById('priceLine').textContent = `${price} ${currentProduct.currency || '₴'}`;
+  let sum = 0;
+  document.querySelectorAll('#optRow .opt.active').forEach(el => { sum += parseFloat(el.dataset.delta) || 0; });
+  const price = (currentProduct.price || 0) + sum;
+  const pl = document.getElementById('priceLine');
+  if (pl) pl.textContent = `${price} ${currentProduct.currency || '₴'}`;
+}
+// Мультивибір: натиск перемикає варіант; повторний натиск знімає. Якщо у варіанта є №фото — показуємо це фото.
+window.toggleOpt = (optId) => {
+  if (!currentProduct) return;
+  const el = document.querySelector(`#optRow .opt[data-opt-id="${(window.CSS && CSS.escape) ? CSS.escape(optId) : optId}"]`);
+  if (!el) return;
+  const nowActive = !el.classList.contains('active');
+  el.classList.toggle('active', nowActive);
+  recalcModalPrice();
+  if (nowActive) {
+    const ph = parseInt(el.dataset.photo, 10) || 0;
+    if (ph > 0) {
+      const images = window.__currentImages || [];
+      if (ph - 1 < images.length) setImg(ph - 1);
+    }
+  }
 };
+// Сумісність зі старим кодом
+window.selectOpt = (optId) => window.toggleOpt(optId);
 
 window.modalQty = (delta) => {
   let v = (window.modalQty_value || 1) + delta;
@@ -2238,27 +2273,34 @@ function addCurrentToCart() {
   if (!currentProduct) return;
   const p = currentProduct;
   if (stockInfo(p).out) { showToast(shop.outOfStockText || 'Немає в наявності'); return; }
-  const activeOpt = document.querySelector('#optRow .opt.active');
-  let optionId = '', optionName = '', priceDelta = 0;
-  if (activeOpt) {
-    optionId = activeOpt.dataset.optId || '';
-    const opt = p.options.find(o => o.id === optionId);
-    optionName = opt?.name || '';
-    priceDelta = opt?.priceDelta || 0;
+  // Мультивибір: збираємо всі активні варіанти, сумуємо надбавки.
+  const activeEls = Array.from(document.querySelectorAll('#optRow .opt.active'));
+  const optionIds = [], optionNames = [], optionItems = [];
+  let sumDelta = 0;
+  for (const el of activeEls) {
+    const oid = el.dataset.optId || '';
+    const opt = (p.options || []).find(o => o.id === oid);
+    if (!opt) continue;
+    optionIds.push(oid);
+    optionNames.push(opt.name || '');
+    optionItems.push({ id: oid, name: opt.name || '', priceDelta: opt.priceDelta || 0, photoNum: parseInt(opt.photoNum, 10) || 0 });
+    sumDelta += (opt.priceDelta || 0);
   }
+  const optionId = optionIds.join('+');       // композитний ключ (для ідентичності рядка/промокодів)
+  const optionName = optionNames.join(' + ');  // рядок для відображення (кошик/чекаут/Telegram)
   const qty = window.modalQty_value || 1;
 
   const cart = getCart();
-  const existing = cart.find(i => i.productId === p.id && i.optionId === optionId);
+  const existing = cart.find(i => i.productId === p.id && (i.optionId || '') === optionId);
   if (existing) {
     existing.quantity += qty;
     if (existing.selected === false) existing.selected = true; // повторное добавление включает галку
   } else {
     cart.push({
       productId: p.id, productName: p.name,
-      optionId, optionName,
+      optionId, optionName, optionIds, optionItems,
       quantity: qty,
-      unitPrice: (p.price || 0) + priceDelta,
+      unitPrice: (p.price || 0) + sumDelta,
       currency: p.currency || '₴',
       selected: true,
     });
@@ -2303,8 +2345,27 @@ function validateCart() {
       removed.push(item.productName + ' (тимчасово недоступний)');
       return false;
     }
-    // Перевіряємо опцію якщо була
-    if (item.optionId && Array.isArray(p.options)) {
+    // Перевіряємо варіанти якщо були (мультивибір — масив optionItems)
+    if (Array.isArray(item.optionItems) && item.optionItems.length) {
+      const opts = Array.isArray(p.options) ? p.options : [];
+      let sumDelta = 0, missing = false;
+      const freshNames = [];
+      for (const oi of item.optionItems) {
+        const opt = opts.find(o => o.id === oi.id);
+        if (!opt) { missing = true; break; }
+        sumDelta += (opt.priceDelta || 0);
+        freshNames.push(opt.name || '');
+        oi.name = opt.name || ''; oi.priceDelta = opt.priceDelta || 0; oi.photoNum = parseInt(opt.photoNum, 10) || 0;
+      }
+      if (missing) {
+        removed.push(item.productName + ' (' + (item.optionName || '') + ' — варіант видалено)');
+        return false;
+      }
+      item.optionName = freshNames.join(' + ');
+      const newUnitPrice = (p.price || 0) + sumDelta;
+      if (item.unitPrice !== newUnitPrice) item.unitPrice = newUnitPrice;
+    } else if (item.optionId && Array.isArray(p.options)) {
+      // Старий формат (один варіант)
       const opt = p.options.find(o => o.id === item.optionId);
       if (!opt) {
         removed.push(item.productName + ' (' + item.optionName + ' — варіант видалено)');
@@ -2459,6 +2520,26 @@ function removeCartPromo() {
   renderCart();
 }
 
+// Рядок з варіантами товару в кошику: мініатюра прив'язаного фото + «+ Назва».
+function renderCartOpts(item, product) {
+  const items = Array.isArray(item.optionItems) ? item.optionItems : null;
+  if (items && items.length) {
+    const imgs = (product && product.images && product.images.length) ? product.images : (product && product.image ? [product.image] : []);
+    const chips = items.map(oi => {
+      let thumb = '';
+      const ph = parseInt(oi.photoNum, 10) || 0;
+      if (ph > 0 && imgs[ph - 1]) {
+        const im = imgs[ph - 1];
+        const u = (typeof im === 'object' ? im?.url : im) || '';
+        if (u) thumb = `<img src="${escapeAttr(u)}" class="cart-opt-thumb" alt="" />`;
+      }
+      return `<span class="cart-opt${thumb ? '' : ' no-thumb'}">${thumb}+ ${escapeHtml(oi.name)}</span>`;
+    }).join('');
+    return `<div class="cart-opts">${chips}</div>`;
+  }
+  return item.optionName ? `<div class="opt-name">${escapeHtml(item.optionName)}</div>` : '';
+}
+
 function renderCart() {
   const cart = getCart();
   const itemsEl = document.getElementById('cartItems');
@@ -2513,7 +2594,7 @@ function renderCart() {
         <div class="thumb">${thumb ? `<img src="${thumb}" alt="" />` : ''}</div>
         <div class="info-c">
           <div class="name">${escapeHtml(item.productName)}</div>
-          ${item.optionName ? `<div class="opt-name">${escapeHtml(item.optionName)}</div>` : ''}
+          ${renderCartOpts(item, product)}
           <div class="price-line">${priceLineHtml}</div>
           <div class="qty-ctrl">
             <button onclick="changeQty(${idx}, -1)">−</button>
