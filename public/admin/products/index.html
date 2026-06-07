@@ -582,7 +582,10 @@ function renderList() {
         <div class="name">${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
         <div class="meta">${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
       </div>
-      <div style="font-weight:500; font-size:15px; color:var(--accent); white-space:nowrap; margin:0 6px; flex-shrink:0;">${p.price || 0} ${escapeHtml(p.currency || '₴')}</div>
+      <div onclick="event.stopPropagation()" style="display:flex; align-items:center; gap:3px; margin:0 6px; flex-shrink:0;" title="Редагувати ціну прямо тут">
+        <input type="number" value="${p.price ?? 0}" min="0" step="0.01" onchange="quickEditPrice(${idx}, this.value)" style="width:76px; font-size:14px; font-weight:500; color:var(--accent); border:1px solid #e5e7eb; border-radius:6px; padding:4px 6px; text-align:right; background:#fafbfc;" />
+        <span style="color:var(--accent); font-size:13px;">${escapeHtml(p.currency || '₴')}</span>
+      </div>
       <label class="toggle-switch" onclick="event.stopPropagation()" title="${p.enabled !== false ? 'Прихований' : 'Видимий'}">
         <input type="checkbox" ${p.enabled !== false ? 'checked' : ''} onchange="quickToggleEnabled(${idx}, this.checked)" />
         <span class="toggle-slider"></span>
@@ -1085,6 +1088,35 @@ async function deleteAllProducts() {
 }
 
 // Быстрый toggle "видимый/скрытый" прямо в списке. Сохраняет на сервер.
+// Швидке редагування ціни прямо в рядку списку
+async function quickEditPrice(idx, val) {
+  if (!products[idx]) return;
+  const num = Number(val);
+  if (!Number.isFinite(num) || num < 0 || num > 1000000) {
+    toast('❌ Невірна ціна', 'error');
+    renderList();
+    return;
+  }
+  const rounded = Math.round(num * 100) / 100;
+  const old = products[idx].price;
+  if (rounded === old) return;
+  products[idx].price = rounded;
+  renderList();
+  try {
+    const r = await fetch('/api/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(products),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Ціну збережено: ${rounded} ${products[idx].currency || '₴'}`);
+  } catch (e) {
+    products[idx].price = old; // откат
+    renderList();
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
 async function quickToggleEnabled(idx, enabled) {
   if (!products[idx]) return;
   products[idx].enabled = enabled;
