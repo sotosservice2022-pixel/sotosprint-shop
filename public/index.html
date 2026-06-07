@@ -1828,7 +1828,7 @@ window.pastePromoOnClick = function(inp) {
 window.copyPromoCode = function(code, silent) {
   window.__lastCopiedPromo = code;
   const pin = document.getElementById('cartPromoInput');
-  if (pin && !pin.value) pin.placeholder = '🎟 Натисни, щоб вставити ' + code;
+  if (pin && !pin.value) pin.placeholder = '🎟 Натисни — вставити код';
   const done = () => { if (!silent && typeof showToast === 'function') showToast('✅ Промокод скопійовано: ' + code); };
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
