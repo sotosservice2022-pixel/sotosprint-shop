@@ -326,6 +326,7 @@ async function addFiles(fileList) {
   }
   updateCounter();
   refreshProcessBtn();
+  saveItems();
 }
 
 // ---------- обробка ----------
@@ -372,6 +373,7 @@ async function processOne(item) {
     item.status = 'err'; item.error = e.message;
   }
   renderItem(item);
+  saveItems();
 }
 
 function refreshProcessBtn() {
@@ -401,6 +403,45 @@ function clearAll() {
   items = []; document.getElementById('grid').innerHTML = '';
   document.getElementById('resultsCard').style.display = 'none';
   document.getElementById('processBtn').disabled = true; updateCounter();
+  saveItems();
+}
+
+// видалити одне фото зі списку (вручну, коли воно не потрібне)
+function removeItem(id) {
+  items = items.filter(i => i.id !== id);
+  const el = document.getElementById(id); if (el) el.remove();
+  if (!items.length) document.getElementById('resultsCard').style.display = 'none';
+  saveItems(); updateCounter(); refreshProcessBtn();
+}
+
+// ---------- збереження галереї між сесіями (localStorage) ----------
+const ITEMS_KEY = 'restoreItems';
+function saveItems() {
+  try {
+    const slim = items
+      .filter(i => i.srcUrl)  // зберігаємо лише завантажені (URL у R2/трансформація — переживають перезавантаження)
+      .map(i => ({
+        id: i.id, name: i.name, srcUrl: i.srcUrl, afterUrl: i.afterUrl || null,
+        afterKind: i.afterKind || null, regenSrcUrl: i.regenSrcUrl || null,
+        // транзитні стани не зберігаємо як є — інакше після перезавантаження «зависнуть»
+        status: (i.status === 'uploading' || i.status === 'busy') ? (i.afterUrl ? 'done' : 'pending') : i.status,
+        error: i.error || null,
+      }));
+    localStorage.setItem(ITEMS_KEY, JSON.stringify(slim));
+  } catch (_) {}
+}
+function loadItems() {
+  try {
+    const raw = localStorage.getItem(ITEMS_KEY);
+    if (!raw) return;
+    const arr = JSON.parse(raw);
+    if (!Array.isArray(arr) || !arr.length) return;
+    items = arr;
+    document.getElementById('resultsCard').style.display = '';
+    items.forEach(renderItem);
+    updateCounter();
+    refreshProcessBtn();
+  } catch (_) {}
 }
 function updateCounter() {
   const done = items.filter(i => i.status === 'done').length;
@@ -428,19 +469,20 @@ function renderItem(item) {
   const beforePane = item.srcUrl
     ? `<div class="imgbox zoomable" onclick="openLightbox('${item.srcUrl}')"><img src="${item.srcUrl}" loading="lazy" /><span class="zoom-hint">🔍</span></div>`
     : `<div class="imgbox"><span class="spin"></span></div>`;
-  let actions = '';
+  let stateBtns = '';
   if (item.status === 'done') {
-    actions = `
-    <div class="item-actions">
+    stateBtns = `
       <button class="btn btn-secondary btn-icon" onclick="downloadItem('${item.id}')">⬇️ Скачати</button>
-      <button class="btn btn-primary btn-icon" onclick="openProdModal('${item.id}')">📎 До товару</button>
-    </div>`;
+      <button class="btn btn-primary btn-icon" onclick="openProdModal('${item.id}')">📎 До товару</button>`;
   } else if (item.status === 'err' && item.srcUrl) {
-    actions = `
-    <div class="item-actions">
-      <button class="btn btn-primary btn-icon" onclick="retryItem('${item.id}')">↻ Повторити</button>
-    </div>`;
+    stateBtns = `
+      <button class="btn btn-primary btn-icon" onclick="retryItem('${item.id}')">↻ Повторити</button>`;
   }
+  // кнопка видалення доступна завжди — фото зникає лише коли ти сам його прибереш
+  const actions = `
+    <div class="item-actions">${stateBtns}
+      <button class="btn btn-secondary btn-icon" onclick="removeItem('${item.id}')">🗑 Видалити</button>
+    </div>`;
   el.innerHTML = `
     <div class="ba">
       <div class="pane"><div class="cap">ДО</div>${beforePane}</div>
@@ -531,6 +573,7 @@ async function confirmAttach() {
   setEngine(eng);
   refreshKeyStatus('gemini');
   refreshKeyStatus('openai');
+  loadItems();  // відновити галерею з минулої сесії
 })();
 
 // ---------- ключі рушіїв (gemini / openai) ----------
