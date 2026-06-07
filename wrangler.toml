@@ -10,6 +10,10 @@ id = "2b33bf309cd7409aa255274b8eb25380"
 binding = "STORAGE"
 bucket_name = "sotosprint-storage"
 
+# Workers AI — для безкоштовного режиму "пересоздання" фото (FLUX img2img) на сторінці /admin/restore
+[ai]
+binding = "AI"
+
 [vars]
 MAX_PHOTOS_PER_ITEM = "10"
 MAX_PHOTO_SIZE_MB = "15"
