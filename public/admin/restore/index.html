@@ -60,6 +60,18 @@
       linear-gradient(45deg,transparent 75%,#eee 75%),linear-gradient(-45deg,transparent 75%,#eee 75%);
       background-size: 16px 16px; background-position: 0 0,0 8px,8px -8px,-8px 0; position:absolute; inset:0; z-index:0; }
     .imgbox img { position: relative; z-index: 1; }
+    .imgbox.zoomable { cursor: zoom-in; }
+    .zoom-hint { position: absolute; bottom: 5px; right: 5px; z-index: 2; font-size: 13px;
+      background: rgba(15,23,42,.55); color: #fff; border-radius: 6px; padding: 1px 5px; opacity: 0; transition: opacity .15s; }
+    .imgbox.zoomable:hover .zoom-hint { opacity: 1; }
+    .lightbox { position: fixed; inset: 0; background: rgba(8,12,20,.88); display: none;
+      align-items: center; justify-content: center; z-index: 200; padding: 24px; cursor: zoom-out; }
+    .lightbox.show { display: flex; }
+    .lightbox img { max-width: 96vw; max-height: 92vh; object-fit: contain; border-radius: 8px;
+      background: #fff; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+    .lightbox-close { position: fixed; top: 16px; right: 22px; color: #fff; font-size: 30px;
+      cursor: pointer; z-index: 201; line-height: 1; opacity: .85; }
+    .lightbox-close:hover { opacity: 1; }
     .status { font-size: 12px; margin: 8px 0 6px; font-weight: 600; }
     .status.pending { color: #6b7280; }
     .status.busy { color: #0b8aff; }
@@ -103,10 +115,10 @@
       </div>
 
       <div id="engineWrap" style="display:none;">
-        <div class="field-label">Рушій</div>
+        <div class="field-label">Рушій (платно)</div>
         <div class="seg" id="engineSeg">
-          <button data-engine="cloudflare" class="active">🆓 Безкоштовний</button>
-          <button data-engine="premium">💎 Преміум</button>
+          <button data-engine="premium" class="active">💎 Gemini</button>
+          <button data-engine="gpt">🤖 GPT</button>
         </div>
         <div class="hint" id="engineHint"></div>
       </div>
@@ -130,18 +142,34 @@
     </details>
 
     <details id="keyDetails" style="margin-top:10px;">
-      <summary style="cursor:pointer; font-size:13px; color:#6b7280; font-weight:600;">🔑 Ключ Gemini (для Преміум-рушія) · <span id="keyStatus" style="color:#9ca3af;">перевірка…</span></summary>
+      <summary style="cursor:pointer; font-size:13px; color:#6b7280; font-weight:600;">🔑 Ключ Gemini (для рушія 💎 Gemini) · <span id="keyStatus_gemini" style="color:#9ca3af;">перевірка…</span></summary>
       <div style="margin-top:10px;">
         <div class="hint" style="margin-bottom:8px;">
-          Преміум-рушій (Gemini) генерує найкращу якість, але оплачується за твоїм ключем (~$0.02–0.04/фото).
+          Рушій Gemini генерує найкращу якість, оплачується за твоїм ключем (~$0.02–0.04/фото).
           Отримай ключ на <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com</a> і встав сюди — деплоїти не треба.
         </div>
         <div class="row" style="gap:8px; align-items:center;">
-          <input id="geminiKey" type="password" placeholder="Встав ключ Google AI Studio…" style="flex:1; min-width:220px;" autocomplete="off" />
-          <button id="saveKeyBtn" type="button">💾 Зберегти</button>
-          <button id="clearKeyBtn" type="button" class="ghost">🗑️ Видалити</button>
+          <input id="key_gemini" type="password" placeholder="Встав ключ Google AI Studio…" style="flex:1; min-width:220px;" autocomplete="off" />
+          <button class="saveKeyBtn" data-provider="gemini" type="button">💾 Зберегти</button>
+          <button class="clearKeyBtn ghost" data-provider="gemini" type="button">🗑️ Видалити</button>
         </div>
-        <div class="hint" id="keyMsg" style="margin-top:6px;"></div>
+        <div class="hint keyMsg" id="keyMsg_gemini" style="margin-top:6px;"></div>
+      </div>
+    </details>
+
+    <details id="keyDetailsGpt" style="margin-top:10px;">
+      <summary style="cursor:pointer; font-size:13px; color:#6b7280; font-weight:600;">🔑 Ключ OpenAI (для рушія 🤖 GPT) · <span id="keyStatus_openai" style="color:#9ca3af;">перевірка…</span></summary>
+      <div style="margin-top:10px;">
+        <div class="hint" style="margin-bottom:8px;">
+          Рушій GPT (gpt-image-1) теж оплачується за твоїм ключем (~$0.01–0.17/фото залежно від якості).
+          Отримай ключ на <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">platform.openai.com</a> і встав сюди.
+        </div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <input id="key_openai" type="password" placeholder="Встав ключ OpenAI (sk-…)…" style="flex:1; min-width:220px;" autocomplete="off" />
+          <button class="saveKeyBtn" data-provider="openai" type="button">💾 Зберегти</button>
+          <button class="clearKeyBtn ghost" data-provider="openai" type="button">🗑️ Видалити</button>
+        </div>
+        <div class="hint keyMsg" id="keyMsg_openai" style="margin-top:6px;"></div>
       </div>
     </details>
   </div>
@@ -180,6 +208,11 @@
   </div>
 </div>
 
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <img id="lightboxImg" src="" alt="" onclick="event.stopPropagation()" />
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/admin/_admin.js"></script>
@@ -204,7 +237,7 @@ function savePrefs() {
 
 // ---------- стан ----------
 let mode = 'enhance';      // enhance | regen
-let engine = 'cloudflare'; // cloudflare | premium
+let engine = 'premium';    // premium (Gemini) | gpt
 let items = [];            // {id, name, srcUrl, afterUrl, afterReady(file), status}
 let products = null;       // кеш товарів
 let attachTarget = null;
@@ -214,8 +247,8 @@ const MODE_HINTS = {
   regen: '🎨 AI перемальовує фото у студійну якість. Ідеально для заготовок без принта. Для іменних — обережно (перевіряй текст).',
 };
 const ENGINE_HINTS = {
-  cloudflare: '🆓 Cloudflare Workers AI (Stable Diffusion img2img). Безкоштовно. Добре для пустих заготовок.',
-  premium: '💎 Gemini — найкраща якість, ~копійки за фото. Потрібен ключ (введи нижче в «🔑 Ключ Gemini»).',
+  premium: '💎 Gemini — найкраща якість, ~$0.02–0.04/фото. Потрібен ключ (блок «🔑 Ключ Gemini»).',
+  gpt: '🤖 GPT (gpt-image-1) — теж висока якість, ~$0.01–0.17/фото. Потрібен ключ (блок «🔑 Ключ OpenAI»).',
 };
 
 // ---------- перемикачі ----------
@@ -262,7 +295,7 @@ async function addFiles(fileList) {
     renderItem(item);
   }
   updateCounter();
-  document.getElementById('processBtn').disabled = !items.some(i => i.status === 'pending');
+  refreshProcessBtn();
 }
 
 // ---------- обробка ----------
@@ -274,43 +307,61 @@ function enhanceUrl(srcUrl, bg) {
   return `/cdn-cgi/image/${opts}${srcUrl}`;
 }
 
-async function processAll() {
+// обробити одне фото (з поточними налаштуваннями режиму/рушія)
+async function processOne(item) {
+  if (!item.srcUrl) return;
   const bg = document.getElementById('bgSelect').value;
   const prompt = document.getElementById('promptInput').value.trim();
-  const todo = items.filter(i => i.status === 'pending' || i.status === 'err' && i.srcUrl);
-  document.getElementById('processBtn').disabled = true;
-  for (const item of todo) {
-    if (!item.srcUrl) continue;
-    item.status = 'busy'; item.error = null; renderItem(item);
-    try {
-      if (mode === 'enhance') {
-        item.afterUrl = enhanceUrl(item.srcUrl, bg);
-        item.afterKind = 'enhance';
-      } else {
-        // FLUX/Gemini стабільніше працюють із меншим вхідним фото — готуємо копію <=1024px.
-        if (!item.regenSrcUrl) {
-          item.regenSrcUrl = item._file
-            ? await uploadToR2(item._file, { compress: true, maxSide: 1024, quality: 0.9, prefix: 'restore-rgsrc' })
-            : item.srcUrl;
-        }
-        const r = await fetch('/api/admin/photo-regen', {
-          method: 'POST', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined }),
-        });
-        if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
-        const d = await r.json();
-        if (!d.ok) throw new Error(d.error || 'Помилка');
-        item.afterUrl = d.url; item.afterKind = 'regen';
+  item.status = 'busy'; item.error = null; renderItem(item);
+  try {
+    if (mode === 'enhance') {
+      item.afterUrl = enhanceUrl(item.srcUrl, bg);
+      item.afterKind = 'enhance';
+    } else {
+      // преміум-моделі стабільніше працюють із меншим вхідним фото — копія <=1024px.
+      if (!item.regenSrcUrl) {
+        item.regenSrcUrl = item._file
+          ? await uploadToR2(item._file, { compress: true, maxSide: 1024, quality: 0.9, prefix: 'restore-rgsrc' })
+          : item.srcUrl;
       }
-      item.status = 'done';
-    } catch (e) {
-      item.status = 'err'; item.error = e.message;
+      const r = await fetch('/api/admin/photo-regen', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined }),
+      });
+      if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+      const d = await r.json();
+      if (!d.ok) throw new Error(d.error || 'Помилка');
+      item.afterUrl = d.url; item.afterKind = 'regen';
     }
-    renderItem(item);
+    item.status = 'done';
+  } catch (e) {
+    item.status = 'err'; item.error = e.message;
   }
+  renderItem(item);
+}
+
+function refreshProcessBtn() {
+  document.getElementById('processBtn').disabled =
+    !items.some(i => i.status === 'pending' || i.status === 'err') ;
+}
+
+async function processAll() {
+  const todo = items.filter(i => (i.status === 'pending' || i.status === 'err') && i.srcUrl);
+  document.getElementById('processBtn').disabled = true;
+  for (const item of todo) await processOne(item);
   updateCounter();
-  document.getElementById('processBtn').disabled = !items.some(i => i.status === 'pending');
+  refreshProcessBtn();
+}
+
+// повторити одне фото після помилки — без повторного завантаження
+async function retryItem(id) {
+  const item = items.find(i => i.id === id);
+  if (!item || !item.srcUrl) return;
+  document.getElementById('processBtn').disabled = true;
+  await processOne(item);
+  updateCounter();
+  refreshProcessBtn();
 }
 
 function clearAll() {
@@ -339,17 +390,27 @@ function renderItem(item) {
   };
   const [scls, stxt] = statusMap[item.status] || ['pending', ''];
   const afterPane = item.afterUrl
-    ? `<div class="imgbox"><div class="checker"></div><img src="${item.afterUrl}" loading="lazy" /></div>`
+    ? `<div class="imgbox zoomable" onclick="openLightbox('${item.afterUrl}')"><div class="checker"></div><img src="${item.afterUrl}" loading="lazy" /><span class="zoom-hint">🔍</span></div>`
     : `<div class="imgbox" style="color:#cbd5e1; font-size:32px;">—</div>`;
-  const actions = item.status === 'done' ? `
+  const beforePane = item.srcUrl
+    ? `<div class="imgbox zoomable" onclick="openLightbox('${item.srcUrl}')"><img src="${item.srcUrl}" loading="lazy" /><span class="zoom-hint">🔍</span></div>`
+    : `<div class="imgbox"><span class="spin"></span></div>`;
+  let actions = '';
+  if (item.status === 'done') {
+    actions = `
     <div class="item-actions">
       <button class="btn btn-secondary btn-icon" onclick="downloadItem('${item.id}')">⬇️ Скачати</button>
       <button class="btn btn-primary btn-icon" onclick="openProdModal('${item.id}')">📎 До товару</button>
-    </div>` : '';
+    </div>`;
+  } else if (item.status === 'err' && item.srcUrl) {
+    actions = `
+    <div class="item-actions">
+      <button class="btn btn-primary btn-icon" onclick="retryItem('${item.id}')">↻ Повторити</button>
+    </div>`;
+  }
   el.innerHTML = `
     <div class="ba">
-      <div class="pane"><div class="cap">ДО</div>
-        <div class="imgbox">${item.srcUrl ? `<img src="${item.srcUrl}" loading="lazy" />` : '<span class="spin"></span>'}</div></div>
+      <div class="pane"><div class="cap">ДО</div>${beforePane}</div>
       <div class="pane"><div class="cap">ПІСЛЯ</div>${afterPane}</div>
     </div>
     <div class="status ${scls}">${stxt}</div>
@@ -432,48 +493,67 @@ async function confirmAttach() {
   const p = loadPrefs();
   if (p.bg) document.getElementById('bgSelect').value = p.bg;
   setMode(p.mode || 'enhance');
-  setEngine(p.engine || 'cloudflare');
-  refreshKeyStatus();
+  let eng = p.engine;
+  if (eng !== 'premium' && eng !== 'gpt') eng = 'premium'; // міграція зі старого 'cloudflare'
+  setEngine(eng);
+  refreshKeyStatus('gemini');
+  refreshKeyStatus('openai');
 })();
 
-// ---------- ключ Gemini ----------
-async function refreshKeyStatus() {
-  const el = document.getElementById('keyStatus');
+// ---------- ключі рушіїв (gemini / openai) ----------
+const PROVIDER_LABEL = { gemini: 'Gemini', openai: 'OpenAI' };
+async function refreshKeyStatus(provider) {
+  const el = document.getElementById('keyStatus_' + provider);
+  if (!el) return;
   try {
-    const r = await fetch('/api/admin/ai-key', { credentials: 'include' });
+    const r = await fetch('/api/admin/ai-key?provider=' + provider, { credentials: 'include' });
     const d = await r.json();
     if (d.ok && d.hasKey) { el.textContent = 'збережено ✓'; el.style.color = '#16a34a'; }
     else { el.textContent = 'не задано'; el.style.color = '#9ca3af'; }
   } catch { el.textContent = '—'; }
 }
-async function saveGeminiKey(key) {
-  const msg = document.getElementById('keyMsg');
+async function saveKey(provider, key) {
+  const msg = document.getElementById('keyMsg_' + provider);
   msg.textContent = 'Зберігаю…'; msg.style.color = '#6b7280';
   try {
     const r = await fetch('/api/admin/ai-key', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key }),
+      body: JSON.stringify({ key, provider }),
     });
     const d = await r.json();
     if (!d.ok) throw new Error(d.error || 'помилка');
     msg.textContent = key ? 'Ключ збережено ✓' : 'Ключ видалено';
     msg.style.color = '#16a34a';
-    document.getElementById('geminiKey').value = '';
-    refreshKeyStatus();
-    toast(key ? 'Ключ Gemini збережено' : 'Ключ видалено', 'success');
+    document.getElementById('key_' + provider).value = '';
+    refreshKeyStatus(provider);
+    toast((key ? 'Ключ ' : 'Ключ ') + PROVIDER_LABEL[provider] + (key ? ' збережено' : ' видалено'), 'success');
   } catch (e) {
     msg.textContent = 'Помилка: ' + e.message; msg.style.color = '#dc2626';
   }
 }
-document.getElementById('saveKeyBtn').onclick = () => {
-  const k = document.getElementById('geminiKey').value.trim();
-  if (!k) { document.getElementById('keyMsg').textContent = 'Встав ключ перед збереженням.'; return; }
-  saveGeminiKey(k);
-};
-document.getElementById('clearKeyBtn').onclick = () => {
-  if (confirm('Видалити збережений ключ Gemini?')) saveGeminiKey('');
-};
+document.querySelectorAll('.saveKeyBtn').forEach(btn => btn.onclick = () => {
+  const provider = btn.dataset.provider;
+  const k = document.getElementById('key_' + provider).value.trim();
+  if (!k) { document.getElementById('keyMsg_' + provider).textContent = 'Встав ключ перед збереженням.'; return; }
+  saveKey(provider, k);
+});
+document.querySelectorAll('.clearKeyBtn').forEach(btn => btn.onclick = () => {
+  const provider = btn.dataset.provider;
+  if (confirm('Видалити збережений ключ ' + PROVIDER_LABEL[provider] + '?')) saveKey(provider, '');
+});
+
+// ---------- лайтбокс (перегляд фото без скачування) ----------
+function openLightbox(url) {
+  if (!url) return;
+  const lb = document.getElementById('lightbox');
+  document.getElementById('lightboxImg').src = url;
+  lb.classList.add('show');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('show');
+  document.getElementById('lightboxImg').src = '';
+}
 </script>
 </body>
 </html>

@@ -144,6 +144,38 @@ async function runPremium(env, { buf, contentType }, prompt) {
   return { bytes: b64ToBytes(b64), contentType: mime };
 }
 
+// --- Платний рушій: OpenAI GPT Image (gpt-image-1, edits) ---
+async function runGPT(env, { buf, contentType }, prompt) {
+  // Ключ: спочатку секрет OPENAI_API_KEY, інакше — збережений в адмінці (KV openai_image_key)
+  let apiKey = env.OPENAI_API_KEY;
+  if (!apiKey && env.SHOP_KV) {
+    try { apiKey = await env.SHOP_KV.get('openai_image_key'); } catch (_) {}
+  }
+  if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
+
+  const form = new FormData();
+  form.append('model', env.GPT_IMAGE_MODEL || 'gpt-image-1');
+  form.append('image', new Blob([buf], { type: contentType || 'image/png' }), 'src.png');
+  form.append('prompt', prompt);
+  form.append('size', env.GPT_IMAGE_SIZE || '1024x1024');
+  form.append('quality', env.GPT_IMAGE_QUALITY || 'medium');
+  form.append('n', '1');
+
+  const r = await fetch('https://api.openai.com/v1/images/edits', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey },
+    body: form,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const m = (data && data.error && data.error.message) || ('HTTP ' + r.status);
+    throw new Error('OpenAI: ' + m);
+  }
+  const b64 = data?.data?.[0]?.b64_json;
+  if (!b64) throw new Error('OpenAI не повернув зображення');
+  return { bytes: b64ToBytes(b64), contentType: 'image/png' };
+}
+
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
   if (!env.STORAGE) return jsonResp({ ok: false, error: 'R2 сховище не налаштовано' }, 500);
@@ -153,16 +185,19 @@ export async function onRequestPost({ request, env }) {
 
   const sourceUrl = body.sourceUrl;
   const prompt = (body.prompt && String(body.prompt).trim()) || DEFAULT_PROMPT;
-  const engine = body.engine === 'premium' ? 'premium' : 'cloudflare';
+  const allowed = ['premium', 'gpt', 'cloudflare'];
+  const engine = allowed.includes(body.engine) ? body.engine : 'premium';
   let width = parseInt(body.width, 10); if (!(width >= 256 && width <= 2048)) width = 1024;
   let height = parseInt(body.height, 10); if (!(height >= 256 && height <= 2048)) height = 1024;
+  const prefixMap = { premium: 'regen-pro', gpt: 'regen-gpt', cloudflare: 'regen-cf' };
 
   try {
     const src = await loadSource(env, sourceUrl);
-    const out = engine === 'premium'
-      ? await runPremium(env, src, prompt)
-      : await runCloudflare(env, src, prompt, width, height);
-    const url = await putToR2(env, out.bytes, out.contentType, engine === 'premium' ? 'regen-pro' : 'regen-cf');
+    let out;
+    if (engine === 'gpt') out = await runGPT(env, src, prompt);
+    else if (engine === 'premium') out = await runPremium(env, src, prompt);
+    else out = await runCloudflare(env, src, prompt, width, height);
+    const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
     return jsonResp({ ok: true, url, engine });
   } catch (e) {
     return jsonResp({ ok: false, error: e.message || String(e) }, 500);
