@@ -247,6 +247,56 @@
     </div>
   </div>
 
+  <!-- 💰 Групова зміна цін -->
+  <div class="card no-collapse" id="priceBulkCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 id="priceBulkHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">💰 Групова зміна цін</h2>
+    <div style="font-size: 12px; color: #6b7280; margin-bottom: 12px; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+      Зміна базової ціни товарів у гривнях або у відсотках. Перед застосуванням робиться <strong>бекап</strong> — у будь-який момент можна зробити <strong>відкат</strong>. Спершу натисни «Попередній перегляд», щоб побачити результат без збереження.
+    </div>
+
+    <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:14px;">
+      <!-- Область -->
+      <div>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Область застосування</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbScope" value="all" checked onchange="priceBulkScopeChange()"> Усі товари</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbScope" value="selected" onchange="priceBulkScopeChange()"> Тільки вибрані <span id="pbSelectedHint" style="color:#6b7280;"></span></label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="radio" name="pbScope" value="category" onchange="priceBulkScopeChange()"> За категорією</label>
+        <select id="pbCategory" style="display:none; margin-top:6px; width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; background:#fafbfc;"></select>
+      </div>
+      <!-- Тип і напрямок -->
+      <div>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Тип зміни</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbMode" value="uah" checked> У гривнях (₴)</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px;"><input type="radio" name="pbMode" value="percent"> У відсотках (%)</label>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Напрямок</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbDir" value="inc" checked> ➕ Підвищити</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="radio" name="pbDir" value="dec"> ➖ Знизити</label>
+      </div>
+      <!-- Значення і округлення -->
+      <div>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Значення</label>
+        <input type="number" id="pbValue" min="0" step="0.01" placeholder="напр. 10" style="width:100%; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc; margin-bottom:10px;" />
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Округлення</label>
+        <select id="pbRounding" style="width:100%; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; font-size:13px; background:#fafbfc; margin-bottom:10px;">
+          <option value="int" selected>До цілої гривні</option>
+          <option value="half">До 0.50</option>
+          <option value="tenth">До 0.10</option>
+          <option value="none">Без округлення</option>
+        </select>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Мінімальна ціна</label>
+        <input type="number" id="pbMinPrice" min="0" step="0.01" value="1" style="width:100%; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+      <button class="btn btn-secondary" onclick="priceBulkPreview()">👁 Попередній перегляд</button>
+      <button class="btn btn-primary" onclick="priceBulkApply()">✅ Застосувати</button>
+      <button class="btn btn-secondary" id="pbRollbackBtn" onclick="priceBulkRollback()" disabled style="margin-left:auto;">↩️ Відкат до бекапу</button>
+    </div>
+    <div id="pbBackupInfo" style="font-size:12px; color:#6b7280; margin-top:8px;"></div>
+    <div id="pbPreview" style="margin-top:12px;"></div>
+  </div>
+
   <div id="bulkOpsBanner" style="display: none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
     <strong style="color: #991b1b;">⚠️ Масові операції з захистом</strong>
     <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
@@ -309,6 +359,8 @@ async function loadAll() {
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
     }
     renderList();
+    makeCollapsible(document.getElementById('priceBulkCard'), document.getElementById('priceBulkHeading'), 'collapse_pricebulk', true);
+    priceBulkInit();
     setStatus('Завантажено');
   } catch (e) { setStatus('Помилка: ' + e.message, true); }
 }
@@ -969,6 +1021,7 @@ function updateProductBulkBar() {
   document.getElementById('bulkCount').textContent = sel.length;
   const all = document.querySelectorAll('.row-check').length;
   document.getElementById('selectAllProducts').checked = sel.length > 0 && sel.length === all;
+  if (typeof priceBulkScopeChange === 'function') priceBulkScopeChange();
 }
 function toggleAllProducts(checked) {
   document.querySelectorAll('.row-check').forEach(c => c.checked = checked);
@@ -1154,6 +1207,123 @@ async function saveAll() {
     toast('❌ ' + e.message, 'error');
     setStatus('Помилка: ' + e.message, true);
   }
+}
+
+// === 💰 Групова зміна цін ===
+function priceBulkInit() {
+  // Заповнюємо список категорій
+  const sel = document.getElementById('pbCategory');
+  if (sel) {
+    const cats = Array.isArray(categories) ? categories : [];
+    sel.innerHTML = cats.length
+      ? cats.map(c => `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name || '(без імені)')}</option>`).join('')
+      : '<option value="">— немає категорій —</option>';
+  }
+  priceBulkScopeChange();
+  priceBulkRefreshInfo();
+}
+
+function priceBulkScopeChange() {
+  const scope = document.querySelector('input[name="pbScope"]:checked')?.value || 'all';
+  const catSel = document.getElementById('pbCategory');
+  if (catSel) catSel.style.display = scope === 'category' ? 'block' : 'none';
+  const hint = document.getElementById('pbSelectedHint');
+  if (hint) hint.textContent = scope === 'selected' ? `(${getSelectedProductIds().length})` : '';
+}
+
+function priceBulkParams() {
+  return {
+    scope: document.querySelector('input[name="pbScope"]:checked')?.value || 'all',
+    mode: document.querySelector('input[name="pbMode"]:checked')?.value || 'uah',
+    direction: document.querySelector('input[name="pbDir"]:checked')?.value || 'inc',
+    value: Number(document.getElementById('pbValue').value),
+    rounding: document.getElementById('pbRounding').value,
+    minPrice: Number(document.getElementById('pbMinPrice').value || 0),
+    productIds: getSelectedProductIds(),
+    categoryId: document.getElementById('pbCategory').value || '',
+  };
+}
+
+async function priceBulkPost(action, extra) {
+  const r = await fetch('/api/admin/price-bulk', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', body: JSON.stringify({ action, ...priceBulkParams(), ...(extra || {}) }),
+  });
+  const data = await r.json();
+  if (!data.ok) throw new Error(data.error || ('HTTP ' + r.status));
+  return data;
+}
+
+async function priceBulkPreview() {
+  priceBulkScopeChange();
+  const box = document.getElementById('pbPreview');
+  try {
+    const data = await priceBulkPost('preview');
+    if (!data.items.length) { box.innerHTML = '<div style="font-size:13px; color:#6b7280;">Немає товарів у вибраній області.</div>'; return; }
+    const rows = data.items.map(it => {
+      const arrow = it.new > it.old ? '🔺' : (it.new < it.old ? '🔻' : '–');
+      const color = it.new > it.old ? '#dc2626' : (it.new < it.old ? '#16a34a' : '#9ca3af');
+      return `<tr style="${it.changed ? '' : 'opacity:.5;'}">
+        <td style="padding:5px 8px; border-bottom:1px solid #f1f5f9;">${escapeHtml(it.name)}</td>
+        <td style="padding:5px 8px; border-bottom:1px solid #f1f5f9; text-align:right; color:#6b7280; text-decoration:${it.changed?'line-through':'none'};">${it.old} ${escapeHtml(it.currency)}</td>
+        <td style="padding:5px 8px; border-bottom:1px solid #f1f5f9; text-align:center;">${arrow}</td>
+        <td style="padding:5px 8px; border-bottom:1px solid #f1f5f9; text-align:right; font-weight:700; color:${color};">${it.new} ${escapeHtml(it.currency)}</td>
+      </tr>`;
+    }).join('');
+    box.innerHTML = `
+      <div style="font-size:13px; margin-bottom:6px;">Зміниться цін: <strong>${data.affected}</strong> з ${data.count}. Це лише перегляд — нічого ще не збережено.</div>
+      <div style="max-height:340px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px;">
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+          <thead><tr style="background:#f8fafc; position:sticky; top:0;">
+            <th style="padding:6px 8px; text-align:left;">Товар</th>
+            <th style="padding:6px 8px; text-align:right;">Стара</th>
+            <th style="padding:6px 8px;"></th>
+            <th style="padding:6px 8px; text-align:right;">Нова</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  } catch (e) { box.innerHTML = `<div style="font-size:13px; color:#dc2626;">❌ ${escapeHtml(e.message)}</div>`; }
+}
+
+async function priceBulkApply() {
+  try {
+    const prev = await priceBulkPost('preview');
+    if (!prev.affected) { toast('Жодна ціна не змінюється', 'error'); return; }
+    if (!confirm(`Застосувати зміну до ${prev.affected} товарів?\n\nПоточні ціни буде збережено в бекап — можна відкотити.`)) return;
+    const data = await priceBulkPost('apply');
+    toast(`✅ Змінено цін: ${data.applied}. Бекап створено.`);
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function priceBulkRollback() {
+  if (!confirm('Відкотити ціни до останнього бекапу? Поточні ціни буде замінено на збережені.')) return;
+  try {
+    const data = await priceBulkPost('rollback');
+    toast(`↩️ Відкат виконано: ${data.restored} товарів`);
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function priceBulkRefreshInfo() {
+  const info = document.getElementById('pbBackupInfo');
+  const btn = document.getElementById('pbRollbackBtn');
+  try {
+    const r = await fetch('/api/admin/price-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ action: 'info' }),
+    });
+    const data = await r.json();
+    if (data.ok && data.hasBackup) {
+      const d = data.created ? new Date(data.created).toLocaleString('uk-UA') : '?';
+      info.innerHTML = `💾 Останній бекап: <strong>${escapeHtml(d)}</strong> (${data.count} товарів). Можна відкотити.`;
+      if (btn) btn.disabled = false;
+    } else {
+      info.textContent = 'Бекапів ще немає — зʼявиться після першого застосування.';
+      if (btn) btn.disabled = true;
+    }
+  } catch { if (info) info.textContent = ''; }
 }
 
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
