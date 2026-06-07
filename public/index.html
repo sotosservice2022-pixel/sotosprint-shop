@@ -713,9 +713,9 @@
 
     .opt-row { display: flex; flex-wrap: wrap; gap: 6px; }
     .opt {
-      padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border);
-      font-size: 13px; cursor: pointer; background: var(--bg); user-select: none;
-      color: var(--text);
+      padding: 6px 12px; border-radius: 6px; border: 1px solid var(--opt-bg, var(--border));
+      font-size: 13px; cursor: pointer; background: var(--opt-bg, var(--bg)); user-select: none;
+      color: var(--opt-text, var(--text)); transition: background .12s, color .12s, border-color .12s;
     }
     .opt.active {
       background: var(--opt-active-bg, var(--accent));
@@ -1521,15 +1521,21 @@ function renderHomePromo(placement) {
   }).join('');
   return `<div class="home-promo" style="margin-top:${offsetY}px; font-size:${(14 * scale).toFixed(1)}px;"><div class="home-promo-inner" style="justify-content:${justify};">${chips}</div></div>`;
 }
-window.copyHomePromo = function(code, btn) {
-  copyPromoCode(code);
-  if (btn) {
-    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
-    btn.textContent = '✅ Скопійовано!';
-    clearTimeout(btn.__t);
-    btn.__t = setTimeout(() => { btn.textContent = btn.getAttribute('data-label'); }, 1300);
-  }
+// Універсальна копія промокоду з плашки: тихо копіює (без нижнього toast) + показує «✅ Скопійовано!» на самій плашці.
+window.copyPromoChip = function(code, el) {
+  copyPromoCode(code, true);
+  if (!el) return;
+  if (el.__copyT) clearTimeout(el.__copyT);
+  else el.setAttribute('data-orig', el.innerHTML);
+  el.innerHTML = '✅ Скопійовано!';
+  el.__copyT = setTimeout(() => {
+    el.innerHTML = el.getAttribute('data-orig') || el.innerHTML;
+    el.removeAttribute('data-orig');
+    el.__copyT = null;
+  }, 1300);
 };
+// Промоблок на головній — той самий індикатор.
+window.copyHomePromo = function(code, btn) { copyPromoChip(code, btn); };
 
 // Банер активної категорії має пріоритет; якщо у категорії банер вимкнено — показуємо глобальний Hero.
 function getActiveHeroBanner() {
@@ -1807,11 +1813,11 @@ function promoBadgesHtml(p) {
   if (!promos.length) return '';
   return promos.map(promo => {
     const code = (promo.code || '').toUpperCase();
-    return `<span class="product-badge promo-badge" title="Натисни щоб скопіювати промокод" style="background:${promo.badgeColor || '#7c3aed'};color:#fff;cursor:pointer;" onclick="event.stopPropagation(); copyPromoCode('${escapeAttr(code)}')">🎟 ${escapeHtml(code)}</span>`;
+    return `<span class="product-badge promo-badge" title="Натисни щоб скопіювати промокод" style="background:${promo.badgeColor || '#7c3aed'};color:#fff;cursor:pointer;" onclick="event.stopPropagation(); copyPromoChip('${escapeAttr(code)}', this)">🎟 ${escapeHtml(code)}</span>`;
   }).join('');
 }
-window.copyPromoCode = function(code) {
-  const done = () => { if (typeof showToast === 'function') showToast('✅ Промокод скопійовано: ' + code); };
+window.copyPromoCode = function(code, silent) {
+  const done = () => { if (!silent && typeof showToast === 'function') showToast('✅ Промокод скопійовано: ' + code); };
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(code).then(done).catch(() => fallbackCopy(code, done));
@@ -2019,6 +2025,7 @@ function openModal(p) {
   }).filter(img => img.url);
   // Зберігаємо нормалізований масив для onClick хендлерів
   window.__currentImages = images;
+  window.__imgBeforeVariant = null; // скидаємо пам'ять фото-варіантів при відкритті товару
   const videoInfo = parseVideoUrl(p.video);
   const hasVideo = !!videoInfo;
 
@@ -2028,7 +2035,9 @@ function openModal(p) {
   history.replaceState(null, '', url);
 
   const optActiveStyle = (shop.variantActiveColor ? `--opt-active-bg:${escapeAttr(shop.variantActiveColor)};` : '')
-    + (shop.variantActiveTextColor ? `--opt-active-text:${escapeAttr(shop.variantActiveTextColor)};` : '');
+    + (shop.variantActiveTextColor ? `--opt-active-text:${escapeAttr(shop.variantActiveTextColor)};` : '')
+    + (shop.variantInactiveColor ? `--opt-bg:${escapeAttr(shop.variantInactiveColor)};` : '')
+    + (shop.variantInactiveTextColor ? `--opt-text:${escapeAttr(shop.variantInactiveTextColor)};` : '');
   const optsHtml = (p.options && p.options.length) ? `
     <div>
       <div style="font-size:13px;color:var(--muted);margin-bottom:6px;">Варіанти ${p.options.length > 1 ? '(можна обрати декілька):' : ':'}</div>
@@ -2241,21 +2250,38 @@ function recalcModalPrice() {
   const pl = document.getElementById('priceLine');
   if (pl) pl.textContent = `${price} ${currentProduct.currency || '₴'}`;
 }
-// Мультивибір: натиск перемикає варіант; повторний натиск знімає. Якщо у варіанта є №фото — показуємо це фото.
+// Перемикання фото за активними варіантами:
+// якщо є активний варіант з прив'язаним №фото — показуємо це фото (останній активований у DOM-порядку);
+// якщо жодного прив'язаного немає — повертаємось до фото, що було відкрите ДО натискання варіантів.
+function updateVariantPhoto() {
+  const row = document.getElementById('optRow');
+  if (!row) return;
+  const images = window.__currentImages || [];
+  const activePhotos = Array.from(row.querySelectorAll('.opt.active'))
+    .map(el => parseInt(el.dataset.photo, 10) || 0)
+    .filter(ph => ph > 0 && (ph - 1) < images.length);
+  if (activePhotos.length) {
+    if (window.__imgBeforeVariant == null) window.__imgBeforeVariant = currentImgIdx; // запам'ятати відкрите фото
+    setImg(activePhotos[activePhotos.length - 1] - 1);
+  } else if (window.__imgBeforeVariant != null) {
+    setImg(window.__imgBeforeVariant);
+    window.__imgBeforeVariant = null;
+  }
+}
+// Натиск перемикає варіант. Режим товару: variantSingle → лише один активний (radio);
+// інакше мультивибір (декілька, надбавки сумуються). Повторний натиск знімає в обох режимах.
 window.toggleOpt = (optId) => {
   if (!currentProduct) return;
-  const el = document.querySelector(`#optRow .opt[data-opt-id="${(window.CSS && CSS.escape) ? CSS.escape(optId) : optId}"]`);
+  const row = document.getElementById('optRow');
+  const el = row && row.querySelector(`.opt[data-opt-id="${(window.CSS && CSS.escape) ? CSS.escape(optId) : optId}"]`);
   if (!el) return;
-  const nowActive = !el.classList.contains('active');
-  el.classList.toggle('active', nowActive);
-  recalcModalPrice();
-  if (nowActive) {
-    const ph = parseInt(el.dataset.photo, 10) || 0;
-    if (ph > 0) {
-      const images = window.__currentImages || [];
-      if (ph - 1 < images.length) setImg(ph - 1);
-    }
+  const willActivate = !el.classList.contains('active');
+  if (willActivate && currentProduct.variantSingle) {
+    row.querySelectorAll('.opt.active').forEach(o => { if (o !== el) o.classList.remove('active'); });
   }
+  el.classList.toggle('active', willActivate);
+  recalcModalPrice();
+  updateVariantPhoto();
 };
 // Сумісність зі старим кодом
 window.selectOpt = (optId) => window.toggleOpt(optId);

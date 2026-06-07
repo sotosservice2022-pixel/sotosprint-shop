@@ -447,16 +447,29 @@
         <input type="color" id="successColor" style="width: 200px; height: 44px; padding: 4px; cursor: pointer;" />
         <div class="hint">Зелений колір за замовчуванням. Використовується для toast-сповіщень про успішні дії.</div>
       </div>
+      <div style="margin-top:6px;font-weight:600;font-size:13px;color:var(--muted,#6b7280);">Варіанти товару (перемикачі)</div>
       <div class="grid grid-3">
         <div>
-          <label>Колір обраного варіанта</label>
+          <label>Фон обраного варіанта</label>
           <input type="color" id="variantActiveColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
-          <div class="hint">Підсвітка натиснутих варіантів товару (можна обрати декілька). Якщо чорний (#000000) — береться колір кнопок.</div>
+          <div class="hint">Підсвітка натиснутого варіанта. Якщо чорний (#000000) — береться колір кнопок.</div>
         </div>
         <div>
-          <label>Колір тексту обраного варіанта</label>
+          <label>Текст обраного варіанта</label>
           <input type="color" id="variantActiveTextColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
           <div class="hint">За замовчуванням білий.</div>
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div>
+          <label>Фон необраного варіанта</label>
+          <input type="color" id="variantInactiveColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">Колір кнопки-варіанта, коли вона не натиснута. Якщо чорний (#000000) — стандартний світло-сірий.</div>
+        </div>
+        <div>
+          <label>Текст необраного варіанта</label>
+          <input type="color" id="variantInactiveTextColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">Якщо чорний (#000000) — стандартний колір тексту.</div>
         </div>
       </div>
       <div style="display: flex; gap: 10px; align-items: center; padding: 12px; background: var(--bg, #f9fafb); border-radius: 8px;">
@@ -727,6 +740,8 @@ function render() {
   document.getElementById('successColor').value = settings.successColor || '#16a34a';
   document.getElementById('variantActiveColor').value = settings.variantActiveColor || '#000000';
   document.getElementById('variantActiveTextColor').value = settings.variantActiveTextColor || '#ffffff';
+  document.getElementById('variantInactiveColor').value = settings.variantInactiveColor || '#000000';
+  document.getElementById('variantInactiveTextColor').value = settings.variantInactiveTextColor || '#000000';
   updateButtonPreview();
   // Favicon
   const fwrap = document.getElementById('faviconPreviewWrap');
@@ -899,6 +914,10 @@ async function saveAll() {
   const vac = document.getElementById('variantActiveColor').value;
   settings.variantActiveColor = (vac && vac.toLowerCase() !== '#000000') ? vac : '';
   settings.variantActiveTextColor = document.getElementById('variantActiveTextColor').value || '#ffffff';
+  const vic = document.getElementById('variantInactiveColor').value;
+  settings.variantInactiveColor = (vic && vic.toLowerCase() !== '#000000') ? vic : '';
+  const vit = document.getElementById('variantInactiveTextColor').value;
+  settings.variantInactiveTextColor = (vit && vit.toLowerCase() !== '#000000') ? vit : '';
   // Баннеры (новий формат — sideBanners + heroBanner вже у settings.sideBanners завдяки collectBannerSlots)
   settings.bannerWidth = parseInt(document.getElementById('bannerWidth').value, 10) || 180;
   collectBannerSlots('left');

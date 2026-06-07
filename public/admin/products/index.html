@@ -794,9 +794,13 @@ function editProduct(idx) {
 
     <div class="section">
       <h4>⚙️ Варіанти (опціонально)</h4>
+      <div class="checkbox-inline" style="margin-bottom:8px;">
+        <input type="checkbox" id="ed-variantsingle" ${p.variantSingle ? 'checked' : ''} />
+        <label for="ed-variantsingle" style="margin:0">Тільки один варіант (перемикач) — інакше клієнт може обрати декілька</label>
+      </div>
       <div id="optList"></div>
       <button class="btn btn-secondary btn-icon" type="button" onclick="addOpt()">+ Додати варіант</button>
-      <div class="hint">Колонки: <b>назва</b> · <b>надбавка ₴</b> · <b>№ фото</b>. На сайті клієнт може обрати <b>декілька</b> варіантів одразу — їх надбавки додаються. «№ фото» — номер фото з галереї товару (1, 2, 3…): при натисканні варіанта це фото показується; у кошику біля варіанта буде мініатюра. 0 або порожньо — без фото.</div>
+      <div class="hint">Колонки: <b>назва</b> · <b>надбавка ₴</b> · <b>№ фото</b>. Якщо галочка вище <b>не</b> стоїть — клієнт може обрати <b>декілька</b> варіантів одразу (надбавки сумуються); якщо стоїть — лише <b>один</b> (перемикач). «№ фото» — номер фото з галереї товару (1, 2, 3…): при натисканні варіанта це фото показується, при знятті — повертається попереднє; у кошику біля варіанта буде мініатюра. 0 або порожньо — без фото.</div>
     </div>
 
     <div class="section">
@@ -836,6 +840,7 @@ function editProduct(idx) {
   });
   document.getElementById('ed-enabled').addEventListener('change', e => { p.enabled = e.target.checked; });
   document.getElementById('ed-reqphoto').addEventListener('change', e => { p.requiresPhoto = e.target.checked; });
+  document.getElementById('ed-variantsingle').addEventListener('change', e => { p.variantSingle = e.target.checked; });
   const pinEl = document.getElementById('ed-pintop');
   if (pinEl) pinEl.addEventListener('change', e => {
     p.pinTop = e.target.checked;
