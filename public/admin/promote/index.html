@@ -76,13 +76,6 @@
           <button data-v="gpt">🤖 GPT</button>
         </div>
         <div class="hint">Gemini — ключ Google AI Studio. GPT — ключ OpenAI. Обидва налаштовуються на сторінці «AI-обробка фото».</div>
-        <div id="gptModelWrap" style="display:none; margin-top:10px;">
-          <label>Модель GPT (необов'язково)</label>
-          <div class="hint" style="margin-bottom:6px;">
-            Точний id текстової моделі OpenAI (напр. <code>gpt-4o-mini</code>, <code>gpt-4o</code>). Залиш порожнім — підбереться автоматично. Модель має бути дозволена для твого проєкту на <a href="https://platform.openai.com" target="_blank" rel="noopener">platform.openai.com</a>.
-          </div>
-          <input id="gptModel" type="text" placeholder="gpt-4o-mini" autocomplete="off" spellcheck="false" style="width:100%; max-width:340px;" />
-        </div>
       </div>
       <div class="row">
         <label>Стиль</label>
@@ -158,27 +151,7 @@ function segInit(id, cb, storeKey) {
 }
 segInit('platSeg', v => platform = v, 'promote_platform');
 segInit('toneSeg', v => tone = v, 'promote_tone');
-segInit('engineSeg', v => { engine = v; updateGptModelVisibility(); }, 'promote_engine');
-
-// поле «Модель GPT» — показуємо лише для GPT, значення зберігаємо локально
-function updateGptModelVisibility() {
-  const w = document.getElementById('gptModelWrap');
-  if (w) w.style.display = (engine === 'gpt') ? 'block' : 'none';
-}
-(function initGptModel() {
-  const inp = document.getElementById('gptModel');
-  if (!inp) return;
-  try { inp.value = (localStorage.getItem('promote_gptModel') || '').trim(); } catch (_) {}
-  inp.addEventListener('change', () => {
-    const v = inp.value.trim();
-    try { if (v) localStorage.setItem('promote_gptModel', v); else localStorage.removeItem('promote_gptModel'); } catch (_) {}
-  });
-  updateGptModelVisibility();
-})();
-function getGptModel() {
-  const inp = document.getElementById('gptModel');
-  return inp ? inp.value.trim() : '';
-}
+segInit('engineSeg', v => engine = v, 'promote_engine');
 
 async function loadProducts() {
   const r = await fetch('/api/admin/products', { credentials: 'include' });
@@ -199,7 +172,7 @@ async function generate() {
     const r = await fetch('/api/admin/promo-post', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'generate', productId, platform, tone, engine, model: getGptModel() || undefined, extra: document.getElementById('extra').value.trim() }),
+      body: JSON.stringify({ mode: 'generate', productId, platform, tone, engine, extra: document.getElementById('extra').value.trim() }),
     });
     const d = await r.json();
     if (!d.ok) { toast('❌ ' + (d.error || 'Помилка'), 'error'); return; }
