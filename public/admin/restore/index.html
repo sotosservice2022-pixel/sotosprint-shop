@@ -110,6 +110,7 @@
         <div class="seg" id="modeSeg">
           <button data-mode="enhance" class="active">🧼 Покращення</button>
           <button data-mode="regen">🎨 Пересоздання</button>
+          <button data-mode="generate">✨ Створення</button>
         </div>
         <div class="hint" id="modeHint"></div>
       </div>
@@ -202,10 +203,32 @@
         <div class="hint" style="margin-top:6px;">Дешевше і швидше = <b>low</b> + <b>1024×1024</b>. Налаштування зберігаються автоматично.</div>
       </div>
     </details>
+
+    <!-- БЛОК СТВОРЕННЯ (тільки для режиму ✨ Створення) -->
+    <div id="genWrap" style="display:none; margin-top:16px; border-top:1px solid #eef0f4; padding-top:14px;">
+      <div class="field-label">Опис зображення (обов'язково)</div>
+      <textarea id="genPrompt" rows="3" style="width:100%;" placeholder="Напр.: біла керамічна чашка з лого на дерев'яному столі, м'яке денне світло, студійне фото для каталогу, чистий фон"></textarea>
+      <div class="hint" style="margin-top:6px;">Опиши, що згенерувати. Англійською часто виходить точніше. Фото-приклад нижче — необов'язкове (для стилю/ракурсу/референсу).</div>
+
+      <div class="field-label" style="margin-top:14px;">Фото-приклад (необов'язково)</div>
+      <div class="row" style="gap:10px; align-items:center; flex-wrap:wrap;">
+        <button type="button" class="btn btn-secondary btn-icon" onclick="document.getElementById('genRefInput').click()">📎 Прикріпити фото-приклад</button>
+        <input type="file" id="genRefInput" accept="image/*" style="display:none;" />
+        <div id="genRefPreview" style="display:none; align-items:center; gap:8px;">
+          <img id="genRefThumb" src="" alt="" style="height:46px; width:46px; object-fit:cover; border-radius:8px; border:1px solid #e5e7eb;" />
+          <button type="button" class="btn btn-secondary btn-icon" onclick="clearGenRef()">✕ Прибрати</button>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:6px;">Без прикладу — генерація з нуля за описом. З прикладом — AI орієнтується на нього.</div>
+
+      <div class="row" style="margin-top:16px;">
+        <button class="btn btn-primary" id="generateBtn" onclick="generateNow()">✨ Згенерувати</button>
+      </div>
+    </div>
   </div>
 
   <!-- ЗАВАНТАЖЕННЯ -->
-  <div class="card">
+  <div class="card" id="uploadCard">
     <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
       <div class="big-icon">📷</div>
       <div style="font-weight:600;">Перетягни фото сюди або клікни</div>
@@ -266,15 +289,18 @@ function savePrefs() {
 }
 
 // ---------- стан ----------
-let mode = 'enhance';      // enhance | regen
+let mode = 'enhance';      // enhance | regen | generate
 let engine = 'premium';    // premium (Gemini) | gpt
-let items = [];            // {id, name, srcUrl, afterUrl, afterReady(file), status}
+let items = [];            // {id, name, srcUrl, afterUrl, status, gen?}
 let products = null;       // кеш товарів
 let attachTarget = null;
+let genRefUrl = null;      // референс для режиму «Створення» (url у R2)
+let genRefFile = null;     // оригінальний файл референса
 
 const MODE_HINTS = {
   enhance: '✅ Реальний товар: прибираємо фон, кроп, різкість. Принт/текст лишається 1:1. Безкоштовно.',
   regen: '🎨 AI перемальовує фото у студійну якість. Ідеально для заготовок без принта. Для іменних — обережно (перевіряй текст).',
+  generate: '✨ Створює нове зображення за твоїм описом. Фото-приклад — необов\'язковий. Оплачується за ключем (Gemini/GPT).',
 };
 const ENGINE_HINTS = {
   premium: '💎 Gemini — найкраща якість, ~$0.02–0.04/фото. Потрібен ключ (блок «🔑 Ключ Gemini»).',
@@ -286,8 +312,11 @@ function setMode(m) {
   mode = m;
   document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
   document.getElementById('modeHint').textContent = MODE_HINTS[m];
-  document.getElementById('engineWrap').style.display = (m === 'regen') ? '' : 'none';
+  document.getElementById('engineWrap').style.display = (m === 'regen' || m === 'generate') ? '' : 'none';
   document.getElementById('bgWrap').style.display = (m === 'enhance') ? '' : 'none';
+  document.getElementById('genWrap').style.display = (m === 'generate') ? '' : 'none';
+  // у режимі «Створення» основне завантаження ховаємо — приклад додається в самому блоці
+  document.getElementById('uploadCard').style.display = (m === 'generate') ? 'none' : '';
   savePrefs();
 }
 function setEngine(e) {
@@ -306,6 +335,62 @@ const dz = document.getElementById('dropZone');
 ['dragleave','drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dragover'); }));
 dz.addEventListener('drop', e => addFiles(e.dataTransfer.files));
 document.getElementById('fileInput').addEventListener('change', e => addFiles(e.target.files));
+
+// ---------- референс для «Створення» ----------
+document.getElementById('genRefInput').addEventListener('change', async e => {
+  const f = (e.target.files || [])[0];
+  if (!f || !f.type.startsWith('image/')) return;
+  genRefFile = f;
+  const thumb = document.getElementById('genRefThumb');
+  thumb.src = URL.createObjectURL(f);
+  document.getElementById('genRefPreview').style.display = 'flex';
+  try {
+    genRefUrl = await uploadToR2(f, { compress: true, maxSide: 1024, quality: 0.9, prefix: 'gen-ref' });
+  } catch (err) {
+    genRefUrl = null; toast('Не вдалося завантажити приклад: ' + err.message, 'error');
+  }
+});
+function clearGenRef() {
+  genRefUrl = null; genRefFile = null;
+  document.getElementById('genRefInput').value = '';
+  document.getElementById('genRefPreview').style.display = 'none';
+}
+
+// згенерувати зображення за описом (+ опціональний приклад)
+async function generateNow() {
+  const prompt = document.getElementById('genPrompt').value.trim();
+  if (!prompt) { toast('Спочатку напиши опис зображення', 'error'); return; }
+  if (genRefFile && !genRefUrl) { toast('Приклад ще завантажується, зачекай секунду', 'error'); return; }
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  const id = 'g' + Date.now() + Math.random().toString(36).slice(2, 6);
+  const item = { id, name: 'Згенеровано', srcUrl: genRefUrl || null, afterUrl: null, status: 'busy', gen: true, prompt, refUrl: genRefUrl || null };
+  items.push(item);
+  document.getElementById('resultsCard').style.display = '';
+  renderItem(item); updateCounter();
+  try {
+    const gptModel = engine === 'gpt' ? getGptModel() : '';
+    const gptQuality = engine === 'gpt' ? getGptQuality() : '';
+    const gptSize = engine === 'gpt' ? getGptSize() : '';
+    const r = await fetch('/api/admin/photo-generate', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt, engine,
+        refUrls: genRefUrl ? [genRefUrl] : [],
+        model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined,
+      }),
+    });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    item.afterUrl = d.url; item.afterKind = 'regen'; item.status = 'done';
+  } catch (e) {
+    item.status = 'err'; item.error = e.message;
+  }
+  renderItem(item); updateCounter(); saveItems();
+  btn.disabled = false;
+}
 
 async function addFiles(fileList) {
   const arr = Array.from(fileList).filter(f => f.type.startsWith('image/'));
@@ -378,15 +463,43 @@ async function processOne(item) {
 
 function refreshProcessBtn() {
   document.getElementById('processBtn').disabled =
-    !items.some(i => i.status === 'pending' || i.status === 'err') ;
+    !items.some(i => (i.status === 'pending' || i.status === 'err') && !i.gen) ;
 }
 
 async function processAll() {
-  const todo = items.filter(i => (i.status === 'pending' || i.status === 'err') && i.srcUrl);
+  const todo = items.filter(i => (i.status === 'pending' || i.status === 'err') && i.srcUrl && !i.gen);
   document.getElementById('processBtn').disabled = true;
   for (const item of todo) await processOne(item);
   updateCounter();
   refreshProcessBtn();
+}
+
+// повторити генерацію (для режиму «Створення») зі збереженим описом/прикладом
+async function retryGen(id) {
+  const item = items.find(i => i.id === id);
+  if (!item || !item.gen) return;
+  item.status = 'busy'; item.error = null; renderItem(item);
+  try {
+    const gptModel = engine === 'gpt' ? getGptModel() : '';
+    const gptQuality = engine === 'gpt' ? getGptQuality() : '';
+    const gptSize = engine === 'gpt' ? getGptSize() : '';
+    const r = await fetch('/api/admin/photo-generate', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: item.prompt || document.getElementById('genPrompt').value.trim(), engine,
+        refUrls: item.refUrl ? [item.refUrl] : [],
+        model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined,
+      }),
+    });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    item.afterUrl = d.url; item.afterKind = 'regen'; item.status = 'done';
+  } catch (e) {
+    item.status = 'err'; item.error = e.message;
+  }
+  renderItem(item); updateCounter(); saveItems();
 }
 
 // повторити одне фото після помилки — без повторного завантаження
@@ -419,12 +532,15 @@ const ITEMS_KEY = 'restoreItems';
 function saveItems() {
   try {
     const slim = items
-      .filter(i => i.srcUrl)  // зберігаємо лише завантажені (URL у R2/трансформація — переживають перезавантаження)
+      .filter(i => i.srcUrl || i.afterUrl)  // завантажене фото АБО згенерований результат (URL переживають перезавантаження)
       .map(i => ({
-        id: i.id, name: i.name, srcUrl: i.srcUrl, afterUrl: i.afterUrl || null,
+        id: i.id, name: i.name, srcUrl: i.srcUrl || null, afterUrl: i.afterUrl || null,
         afterKind: i.afterKind || null, regenSrcUrl: i.regenSrcUrl || null,
+        gen: i.gen || false, prompt: i.prompt || null, refUrl: i.refUrl || null,
         // транзитні стани не зберігаємо як є — інакше після перезавантаження «зависнуть»
-        status: (i.status === 'uploading' || i.status === 'busy') ? (i.afterUrl ? 'done' : 'pending') : i.status,
+        status: (i.status === 'uploading' || i.status === 'busy')
+          ? (i.afterUrl ? 'done' : (i.gen ? 'err' : 'pending'))
+          : i.status,
         error: i.error || null,
       }));
     localStorage.setItem(ITEMS_KEY, JSON.stringify(slim));
@@ -468,12 +584,17 @@ function renderItem(item) {
     : `<div class="imgbox" style="color:#cbd5e1; font-size:32px;">—</div>`;
   const beforePane = item.srcUrl
     ? `<div class="imgbox zoomable" onclick="openLightbox('${item.srcUrl}')"><img src="${item.srcUrl}" loading="lazy" /><span class="zoom-hint">🔍</span></div>`
-    : `<div class="imgbox"><span class="spin"></span></div>`;
+    : (item.gen
+        ? `<div class="imgbox" style="color:#94a3b8; font-size:13px; text-align:center; padding:10px; line-height:1.35;">✨<br>За описом</div>`
+        : `<div class="imgbox"><span class="spin"></span></div>`);
   let stateBtns = '';
   if (item.status === 'done') {
     stateBtns = `
       <button class="btn btn-secondary btn-icon" onclick="downloadItem('${item.id}')">⬇️ Скачати</button>
       <button class="btn btn-primary btn-icon" onclick="openProdModal('${item.id}')">📎 До товару</button>`;
+  } else if (item.status === 'err' && item.gen) {
+    stateBtns = `
+      <button class="btn btn-primary btn-icon" onclick="retryGen('${item.id}')">↻ Повторити</button>`;
   } else if (item.status === 'err' && item.srcUrl) {
     stateBtns = `
       <button class="btn btn-primary btn-icon" onclick="retryItem('${item.id}')">↻ Повторити</button>`;
