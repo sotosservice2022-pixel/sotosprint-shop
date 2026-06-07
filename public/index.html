@@ -863,17 +863,27 @@ function watermarkBg() {
     + `<text x='6' y='${cy + 1}' fill='rgba(0,0,0,${(op * 0.7).toFixed(3)})'>${text}</text>`
     + `<text x='5' y='${cy}' fill='rgba(255,255,255,${op.toFixed(3)})'>${text}</text>`
     + `</g></svg>`;
-  // ВАЖЛИВО: лапки всередині url() мають бути одинарними, бо весь рядок
-  // підставляється в style="..." (подвійні лапки розірвали б атрибут).
-  return `url('data:image/svg+xml,${encodeURIComponent(svg)}')`;
+  // ВАЖЛИВО: весь рядок підставляється у style="..." (HTML-атрибут з подвійними
+  // лапками), тому обгортка url() має бути в ОДИНАРНИХ лапках. АЛЕ сам SVG теж
+  // містить одинарні лапки (xmlns='...', x='..'), і encodeURIComponent їх НЕ кодує —
+  // вони б розірвали url('...'). Тому додатково кодуємо ' → %27.
+  const enc = encodeURIComponent(svg).replace(/'/g, '%27');
+  return `url('data:image/svg+xml,${enc}')`;
 }
 function wmOverlayHtml() {
   const bg = watermarkBg();
   return bg ? `<div class="wm-overlay" style="background-image:${bg}"></div>` : '';
 }
-// #4b: шильдик (бейдж) поверх конкретного фото в модалці — текст = підпис фото
+// #4b: шильдик (бейдж) поверх конкретного фото в модалці — текст = підпис фото.
+// Колір фону / тексту / розмір беремо з самого фото (capBg, capColor, capSize).
 function imgBadgeHtml(img) {
-  return (img && img.caption) ? `<div class="img-badge">${escapeHtml(img.caption)}</div>` : '';
+  if (!img || !img.caption) return '';
+  let style = '';
+  if (img.capBg && /^#[0-9a-f]{3,8}$/i.test(img.capBg)) style += `background:${img.capBg};`;
+  if (img.capColor && /^#[0-9a-f]{3,8}$/i.test(img.capColor)) style += `color:${img.capColor};`;
+  const sz = parseInt(img.capSize);
+  if (sz >= 8 && sz <= 48) style += `font-size:${sz}px;`;
+  return `<div class="img-badge"${style ? ` style="${style}"` : ''}>${escapeHtml(img.caption)}</div>`;
 }
 
 // #2: наявність товару. showStock=true → показуємо залишок; stock<=0 → немає в наявності.
@@ -1917,8 +1927,8 @@ function openModal(p) {
   // Нормалізуємо images: підтримуємо string (старий формат) і object (новий: { url, zoomable, link })
   const rawImages = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
   const images = rawImages.map(img => {
-    if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '' };
-    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '' };
+    if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' };
+    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '', capBg: img.capBg || '', capColor: img.capColor || '', capSize: img.capSize || '' };
   }).filter(img => img.url);
   // Зберігаємо нормалізований масив для onClick хендлерів
   window.__currentImages = images;
@@ -1964,7 +1974,6 @@ function openModal(p) {
             <button class="nav next" onclick="navImg(1)">›</button>
           ` : ''}
         </div>
-        <div class="img-caption" id="imgCaption" style="${(images[0] && images[0].caption) ? '' : 'display:none;'}">${images[0] && images[0].caption ? escapeHtml(images[0].caption) : ''}</div>
         ${(images.length > 1 || hasVideo) ? `
           <div class="thumbs">
             ${images.map((img, i) => `
@@ -2035,11 +2044,6 @@ window.setImg = (i) => {
   `;
   document.querySelectorAll('.thumb').forEach(t => t.classList.toggle('active', parseInt(t.dataset.idx) === i));
   document.querySelectorAll('.video-thumb').forEach(t => t.classList.remove('active'));
-  const cap = document.getElementById('imgCaption');
-  if (cap) {
-    if (img.caption) { cap.textContent = img.caption; cap.style.display = ''; }
-    else { cap.textContent = ''; cap.style.display = 'none'; }
-  }
 };
 
 window.navImg = (delta) => {
@@ -2137,8 +2141,6 @@ window.showVideo = () => {
   document.getElementById('mainImgHolder').innerHTML = html;
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.video-thumb').forEach(t => t.classList.add('active'));
-  const cap = document.getElementById('imgCaption');
-  if (cap) { cap.textContent = ''; cap.style.display = 'none'; }
 };
 
 window.selectOpt = (optId) => {

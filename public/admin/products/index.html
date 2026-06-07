@@ -242,12 +242,11 @@
         <button class="btn btn-primary" type="button" onclick="saveFromEditor()">💾 Зберегти</button>
       </div>
     </div>
-    <div class="wrap" style="padding:16px 16px 80px;">
+    <div class="wrap" style="padding:16px 16px 24px;">
       <div id="editorWrap"></div>
-    </div>
-    <!-- #7b: панель збереження, прилеплена до низу екрана; кнопки по ширині сайту (1000px) -->
-    <div style="position:sticky; bottom:0; background:#fff; border-top:1px solid #e5e7eb; z-index:6; box-shadow:0 -2px 10px rgba(20,30,60,.10);">
-      <div style="max-width:1000px; margin:0 auto; padding:10px 16px; display:flex; gap:10px; align-items:center; justify-content:flex-end;">
+      <!-- #7b: плаваюча панель збереження (як у Налаштуваннях) — по ширині сайту -->
+      <div class="save-bar" style="margin-top:16px;">
+        <span class="left">Натисніть «Зберегти», щоб зберегти зміни товару</span>
         <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад</button>
         <button class="btn btn-primary" type="button" onclick="saveFromEditor()" style="min-width:140px;">💾 Зберегти</button>
       </div>
@@ -872,10 +871,10 @@ function renderGallery(p) {
   const el = document.getElementById('gallery');
   if (!el) return;
   el.innerHTML = '';
-  // Нормалізуємо: string → {url, zoomable, link, caption}
+  // Нормалізуємо: string → {url, zoomable, link, caption, capBg, capColor, capSize}
   p.images = p.images.map(img => {
-    if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '' };
-    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '' };
+    if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' };
+    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '', capBg: img.capBg || '', capColor: img.capColor || '', capSize: img.capSize || '' };
   }).filter(img => img.url);
   p.images.forEach((img, i) => {
     const item = document.createElement('div');
@@ -897,6 +896,17 @@ function renderGallery(p) {
         <input type="url" value="${escapeAttr(img.link)}" placeholder="Посилання (опц.) — клік відкриє цю URL" oninput="setImgLink(${i}, this.value)" />
         <label style="display:block; font-size:12px; color:#6b7280; margin:4px 0 2px;">🏷️ Шильдик на ЦЕ фото (текст з'явиться на самому фото в галереї):</label>
         <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="напр.: Розмір А4 / Вид збоку — порожньо = без шильдика" oninput="setImgCaption(${i}, this.value)" />
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:11px; color:#6b7280;">
+          <label style="display:flex; align-items:center; gap:3px;">Фон:
+            <input type="color" value="${img.capBg || '#dc2626'}" onchange="setImgCapBg(${i}, this.value)" style="width:30px; height:26px; padding:1px; border-radius:5px; cursor:pointer;" />
+          </label>
+          <label style="display:flex; align-items:center; gap:3px;">Текст:
+            <input type="color" value="${img.capColor || '#ffffff'}" onchange="setImgCapColor(${i}, this.value)" style="width:30px; height:26px; padding:1px; border-radius:5px; cursor:pointer;" />
+          </label>
+          <label style="display:flex; align-items:center; gap:3px;">Розмір:
+            <input type="number" min="8" max="48" value="${parseInt(img.capSize) || 12}" onchange="setImgCapSize(${i}, this.value)" style="width:52px; padding:4px 6px; border:1px solid #e5e7eb; border-radius:6px;" />px
+          </label>
+        </div>
       </div>
     `;
     el.appendChild(item);
@@ -930,6 +940,25 @@ window.setImgCaption = (i, val) => {
   if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
   p.images[i].caption = val;
 };
+window.setImgCapBg = (i, val) => {
+  const p = products[currentIdx];
+  if (!p.images[i]) return;
+  if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
+  p.images[i].capBg = val;
+};
+window.setImgCapColor = (i, val) => {
+  const p = products[currentIdx];
+  if (!p.images[i]) return;
+  if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
+  p.images[i].capColor = val;
+};
+window.setImgCapSize = (i, val) => {
+  const p = products[currentIdx];
+  if (!p.images[i]) return;
+  if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
+  const n = parseInt(val);
+  p.images[i].capSize = (n >= 8 && n <= 48) ? n : 12;
+};
 
 window.setMain = (i) => {
   const p = products[currentIdx];
@@ -956,7 +985,7 @@ async function onImageSelect(e) {
       const maxSide = window.PRODUCT_IMG_MAX_SIDE || 1200;
       const quality = window.PRODUCT_IMG_QUALITY || 0.85;
       const url = await uploadToR2(f, { compress: true, maxSide, quality, prefix: 'product' });
-      p.images.push({ url, zoomable: true, link: '', caption: '' });
+      p.images.push({ url, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' });
     } catch (err) { toast('Помилка завантаження: ' + err.message, 'error'); }
   }
   renderGallery(p);
