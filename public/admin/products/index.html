@@ -235,18 +235,22 @@
 
   <!-- #7: Редактор товару — окремий екран (overlay) поверх списку. -->
   <div id="editorView" style="display:none; position:fixed; inset:0; background:#f3f4f6; z-index:1000; overflow-y:auto; -webkit-overflow-scrolling:touch;">
-    <div style="position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; padding:10px 16px; display:flex; gap:10px; align-items:center; z-index:5; box-shadow:0 1px 6px rgba(20,30,60,.06);">
-      <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад до списку</button>
-      <strong id="editorViewTitle" style="font-size:15px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#374151;">Редагування товару</strong>
-      <button class="btn btn-primary" type="button" onclick="saveFromEditor()">💾 Зберегти</button>
+    <div style="position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; z-index:5; box-shadow:0 1px 6px rgba(20,30,60,.06);">
+      <div style="max-width:1000px; margin:0 auto; padding:10px 16px; display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад до списку</button>
+        <strong id="editorViewTitle" style="font-size:15px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#374151;">Редагування товару</strong>
+        <button class="btn btn-primary" type="button" onclick="saveFromEditor()">💾 Зберегти</button>
+      </div>
     </div>
     <div class="wrap" style="padding:16px 16px 80px;">
       <div id="editorWrap"></div>
     </div>
-    <!-- #7b: панель збереження, прилеплена до низу екрана -->
-    <div style="position:sticky; bottom:0; background:#fff; border-top:1px solid #e5e7eb; padding:10px 16px; display:flex; gap:10px; align-items:center; justify-content:flex-end; z-index:6; box-shadow:0 -2px 10px rgba(20,30,60,.10);">
-      <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад</button>
-      <button class="btn btn-primary" type="button" onclick="saveFromEditor()" style="min-width:140px;">💾 Зберегти</button>
+    <!-- #7b: панель збереження, прилеплена до низу екрана; кнопки по ширині сайту (1000px) -->
+    <div style="position:sticky; bottom:0; background:#fff; border-top:1px solid #e5e7eb; z-index:6; box-shadow:0 -2px 10px rgba(20,30,60,.10);">
+      <div style="max-width:1000px; margin:0 auto; padding:10px 16px; display:flex; gap:10px; align-items:center; justify-content:flex-end;">
+        <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад</button>
+        <button class="btn btn-primary" type="button" onclick="saveFromEditor()" style="min-width:140px;">💾 Зберегти</button>
+      </div>
     </div>
   </div>
 
@@ -891,7 +895,8 @@ function renderGallery(p) {
           🔍 Дозволити збільшення
         </label>
         <input type="url" value="${escapeAttr(img.link)}" placeholder="Посилання (опц.) — клік відкриє цю URL" oninput="setImgLink(${i}, this.value)" />
-        <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="Підпис до фото (опц.) — показується в галереї" oninput="setImgCaption(${i}, this.value)" />
+        <label style="display:block; font-size:12px; color:#6b7280; margin:4px 0 2px;">🏷️ Шильдик на ЦЕ фото (текст з'явиться на самому фото в галереї):</label>
+        <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="напр.: Розмір А4 / Вид збоку — порожньо = без шильдика" oninput="setImgCaption(${i}, this.value)" />
       </div>
     `;
     el.appendChild(item);
@@ -1026,6 +1031,16 @@ function removeBadgeColor(hex) {
   const i = arr.indexOf(hex);
   if (i !== -1) arr.splice(i, 1);
 }
+// Блокування видалення кольорів: за замовчуванням ЗАБЛОКОВАНО (×-и приховані),
+// щоб випадково не прибрати колір. Стан зберігається в localStorage.
+function badgeColorsLocked() {
+  return localStorage.getItem('badgeColorsLocked') !== 'false';
+}
+window.toggleBadgeColorsLock = function() {
+  localStorage.setItem('badgeColorsLocked', badgeColorsLocked() ? 'false' : 'true');
+  const p = products[currentIdx];
+  if (p) renderBadges(p);
+};
 function renderBadges(p) {
   const el = document.getElementById('badgeList');
   if (!el) return;
@@ -1068,7 +1083,16 @@ function renderBadges(p) {
     // Свотчі збережених кольорів — клік ставить ТОЧНО такий самий колір фону
     const sw = row.querySelector('.badge-swatches');
     if (sw && saved.length) {
+      const locked = badgeColorsLocked();
       sw.insertAdjacentHTML('beforeend', '<span style="font-size:11px;color:#9ca3af;">збережені:</span>');
+      // кнопка-замок: відкриває/закриває можливість видаляти кольори
+      const lockBtn = document.createElement('button');
+      lockBtn.type = 'button';
+      lockBtn.textContent = locked ? '🔒' : '🔓';
+      lockBtn.title = locked ? 'Розблокувати видалення кольорів' : 'Заблокувати видалення кольорів';
+      lockBtn.style.cssText = 'border:1px solid #d1d5db; background:#f9fafb; border-radius:4px; cursor:pointer; font-size:12px; line-height:1; padding:3px 5px; margin-right:2px;';
+      lockBtn.onclick = (e) => { e.stopPropagation(); toggleBadgeColorsLock(); };
+      sw.appendChild(lockBtn);
       saved.forEach(hex => {
         // обгортка: квадратик кольору + маленький × у кутку, щоб прибрати колір
         const wrap = document.createElement('span');
@@ -1083,17 +1107,20 @@ function renderBadges(p) {
           const preview = previewOf();
           preview.style.background = hex;
         };
-        const rm = document.createElement('span');
-        rm.textContent = '×';
-        rm.title = 'Прибрати колір зі збережених';
-        rm.style.cssText = 'position:absolute; top:-6px; right:-6px; width:14px; height:14px; line-height:13px; text-align:center; font-size:11px; font-weight:700; color:#fff; background:#ef4444; border-radius:50%; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3);';
-        rm.onclick = (e) => {
-          e.stopPropagation();
-          removeBadgeColor(hex);
-          renderBadges(p); // оновити свотчі у всіх рядках
-        };
         wrap.appendChild(btn);
-        wrap.appendChild(rm);
+        // × показуємо ТІЛЬКИ коли замок відкритий (розблоковано)
+        if (!locked) {
+          const rm = document.createElement('span');
+          rm.textContent = '×';
+          rm.title = 'Прибрати колір зі збережених';
+          rm.style.cssText = 'position:absolute; top:-6px; right:-6px; width:14px; height:14px; line-height:13px; text-align:center; font-size:11px; font-weight:700; color:#fff; background:#ef4444; border-radius:50%; cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.3);';
+          rm.onclick = (e) => {
+            e.stopPropagation();
+            removeBadgeColor(hex);
+            renderBadges(p); // оновити свотчі у всіх рядках
+          };
+          wrap.appendChild(rm);
+        }
         sw.appendChild(wrap);
       });
     }
