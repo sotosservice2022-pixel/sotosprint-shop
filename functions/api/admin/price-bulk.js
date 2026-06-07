@@ -44,8 +44,14 @@ function inScope(p, params) {
 // Порахувати нову ціну для одного товару
 function computeNewPrice(oldPrice, params) {
   const base = Number(oldPrice) || 0;
-  const delta = params.mode === 'percent' ? base * (params.value / 100) : params.value;
-  let next = params.direction === 'dec' ? base - delta : base + delta;
+  let next;
+  if (params.mode === 'set') {
+    // Встановити точну ціну (напрямок не враховується)
+    next = params.value;
+  } else {
+    const delta = params.mode === 'percent' ? base * (params.value / 100) : params.value;
+    next = params.direction === 'dec' ? base - delta : base + delta;
+  }
   next = applyRounding(next, params.rounding);
   if (next < params.minPrice) next = params.minPrice;
   if (next < 0) next = 0;
@@ -55,7 +61,7 @@ function computeNewPrice(oldPrice, params) {
 
 function parseParams(body) {
   const scope = ['all', 'selected', 'category'].includes(body.scope) ? body.scope : 'all';
-  const mode = body.mode === 'percent' ? 'percent' : 'uah';
+  const mode = ['percent', 'set'].includes(body.mode) ? body.mode : 'uah';
   const direction = body.direction === 'dec' ? 'dec' : 'inc';
   const rounding = ['none', 'int', 'half', 'tenth'].includes(body.rounding) ? body.rounding : 'int';
   const value = Number(body.value);

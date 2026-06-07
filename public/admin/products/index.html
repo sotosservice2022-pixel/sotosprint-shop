@@ -266,11 +266,14 @@
       <!-- Тип і напрямок -->
       <div>
         <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Тип зміни</label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbMode" value="uah" checked> У гривнях (₴)</label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px;"><input type="radio" name="pbMode" value="percent"> У відсотках (%)</label>
-        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Напрямок</label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbDir" value="inc" checked> ➕ Підвищити</label>
-        <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="radio" name="pbDir" value="dec"> ➖ Знизити</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbMode" value="uah" checked onchange="priceBulkModeChange()"> Змінити на… у гривнях (₴)</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbMode" value="percent" onchange="priceBulkModeChange()"> Змінити на… у відсотках (%)</label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:10px;"><input type="radio" name="pbMode" value="set" onchange="priceBulkModeChange()"> 🎯 Встановити точну ціну (₴)</label>
+        <div id="pbDirWrap">
+          <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Напрямок</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; margin-bottom:4px;"><input type="radio" name="pbDir" value="inc" checked> ➕ Підвищити</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px;"><input type="radio" name="pbDir" value="dec"> ➖ Знизити</label>
+        </div>
       </div>
       <!-- Значення і округлення -->
       <div>
@@ -577,8 +580,9 @@ function renderList() {
       <div class="thumb">${mainImg ? `<img src="${mainImg}" />` : '🖼️'}</div>
       <div class="info">
         <div class="name">${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
-        <div class="meta">${p.price || 0} ${escapeHtml(p.currency || '₴')} · ${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
+        <div class="meta">${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
       </div>
+      <div style="font-weight:800; font-size:15px; color:var(--accent); white-space:nowrap; margin:0 6px; flex-shrink:0;">${p.price || 0} ${escapeHtml(p.currency || '₴')}</div>
       <label class="toggle-switch" onclick="event.stopPropagation()" title="${p.enabled !== false ? 'Прихований' : 'Видимий'}">
         <input type="checkbox" ${p.enabled !== false ? 'checked' : ''} onchange="quickToggleEnabled(${idx}, this.checked)" />
         <span class="toggle-slider"></span>
@@ -1220,6 +1224,7 @@ function priceBulkInit() {
       : '<option value="">— немає категорій —</option>';
   }
   priceBulkScopeChange();
+  priceBulkModeChange();
   priceBulkRefreshInfo();
 }
 
@@ -1229,6 +1234,18 @@ function priceBulkScopeChange() {
   if (catSel) catSel.style.display = scope === 'category' ? 'block' : 'none';
   const hint = document.getElementById('pbSelectedHint');
   if (hint) hint.textContent = scope === 'selected' ? `(${getSelectedProductIds().length})` : '';
+}
+
+function priceBulkModeChange() {
+  const mode = document.querySelector('input[name="pbMode"]:checked')?.value || 'uah';
+  // У режимі "встановити точну ціну" напрямок (підвищити/знизити) не потрібен
+  const dirWrap = document.getElementById('pbDirWrap');
+  if (dirWrap) {
+    dirWrap.style.opacity = mode === 'set' ? '0.4' : '1';
+    dirWrap.style.pointerEvents = mode === 'set' ? 'none' : 'auto';
+  }
+  const valInput = document.getElementById('pbValue');
+  if (valInput) valInput.placeholder = mode === 'set' ? 'напр. 299 (нова ціна)' : 'напр. 10';
 }
 
 function priceBulkParams() {
