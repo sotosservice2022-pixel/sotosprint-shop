@@ -2268,16 +2268,22 @@ function updateVariantPhoto() {
     window.__imgBeforeVariant = null;
   }
 }
-// Натиск перемикає варіант. Режим товару: variantSingle → лише один активний (radio);
-// інакше мультивибір (декілька, надбавки сумуються). Повторний натиск знімає в обох режимах.
+function optById(id) { return ((currentProduct && currentProduct.options) || []).find(o => o.id === id); }
+// «Перемикач»: варіант входить у взаємовиключну групу, якщо товар у режимі variantSingle І варіант НЕ позначений як «доповнення» (addon).
+// Addon-варіанти завжди незалежні (нажав/віджав), сумуються — навіть у режимі перемикача (гібрид: типи перемикаються, доповнення додаються).
+function isExclusiveOpt(o) { return !!(currentProduct && currentProduct.variantSingle) && !(o && o.addon); }
+// Натиск перемикає варіант. У режимі перемикача активним лишається тільки один «тип»; «доповнення» та мультивибір — незалежні. Повторний натиск знімає.
 window.toggleOpt = (optId) => {
   if (!currentProduct) return;
   const row = document.getElementById('optRow');
   const el = row && row.querySelector(`.opt[data-opt-id="${(window.CSS && CSS.escape) ? CSS.escape(optId) : optId}"]`);
   if (!el) return;
   const willActivate = !el.classList.contains('active');
-  if (willActivate && currentProduct.variantSingle) {
-    row.querySelectorAll('.opt.active').forEach(o => { if (o !== el) o.classList.remove('active'); });
+  if (willActivate && isExclusiveOpt(optById(optId))) {
+    // знімаємо інші активні взаємовиключні «типи» (доповнення не чіпаємо)
+    row.querySelectorAll('.opt.active').forEach(other => {
+      if (other !== el && isExclusiveOpt(optById(other.dataset.optId))) other.classList.remove('active');
+    });
   }
   el.classList.toggle('active', willActivate);
   recalcModalPrice();

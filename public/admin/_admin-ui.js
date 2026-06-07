@@ -256,6 +256,8 @@
         s[cardId(c, i)] = true;
       });
       saveState(s);
+      // Блоки зі сторінковою системою згортання (no-collapse + makeCollapsible), напр. товари: категорії, групова зміна цін, редактор.
+      document.querySelectorAll('[data-collapse-key]').forEach(c => { if (typeof c.__setCollapsed === 'function') c.__setCollapsed(true); });
     });
     document.getElementById('ui-expand-all').addEventListener('click', () => {
       const cards = document.querySelectorAll('.card.collapsible');
@@ -265,6 +267,7 @@
         if (t) { t.textContent = '▾'; t.title = 'Згорнути'; }
       });
       saveState({});
+      document.querySelectorAll('[data-collapse-key]').forEach(c => { if (typeof c.__setCollapsed === 'function') c.__setCollapsed(false); });
     });
     document.getElementById('ui-reset-order')?.addEventListener('click', () => {
       if (!confirm('Скинути порядок карток до початкового? (стан розгорнутості збережеться)')) return;

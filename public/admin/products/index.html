@@ -147,7 +147,9 @@
     .attr-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-bottom: 6px; }
 
     /* Варианты */
-    .opt-row { display: grid; grid-template-columns: 1fr 90px 84px auto; gap: 6px; margin-bottom: 6px; }
+    .opt-row { display: grid; grid-template-columns: 1fr 90px 84px auto auto; gap: 6px; margin-bottom: 6px; align-items: center; }
+    .opt-addon { display: flex; align-items: center; gap: 3px; font-size: 12px; color: #475569; white-space: nowrap; cursor: pointer; user-select: none; }
+    .opt-addon input { width: auto; margin: 0; }
 
     .checkbox-inline { display: flex; align-items: center; gap: 6px; }
     .checkbox-inline input { width: auto; }
@@ -529,6 +531,13 @@ function makeCollapsible(cardEl, headingEl, key, defaultCollapsed) {
     arrow.textContent = collapsed ? '▸' : '▾';
   };
   apply();
+  // Дозволяємо глобальним кнопкам «Згорнути всі / Розгорнути всі» (_admin-ui.js) керувати цим блоком.
+  cardEl.dataset.collapseKey = key;
+  cardEl.__setCollapsed = (val) => {
+    collapsed = !!val;
+    try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch {}
+    apply();
+  };
   headingEl.addEventListener('click', (e) => {
     if (e.target.closest('a, button, input, select')) return;
     collapsed = !collapsed;
@@ -800,7 +809,7 @@ function editProduct(idx) {
       </div>
       <div id="optList"></div>
       <button class="btn btn-secondary btn-icon" type="button" onclick="addOpt()">+ Додати варіант</button>
-      <div class="hint">Колонки: <b>назва</b> · <b>надбавка ₴</b> · <b>№ фото</b>. Якщо галочка вище <b>не</b> стоїть — клієнт може обрати <b>декілька</b> варіантів одразу (надбавки сумуються); якщо стоїть — лише <b>один</b> (перемикач). «№ фото» — номер фото з галереї товару (1, 2, 3…): при натисканні варіанта це фото показується, при знятті — повертається попереднє; у кошику біля варіанта буде мініатюра. 0 або порожньо — без фото.</div>
+      <div class="hint">Колонки: <b>назва</b> · <b>надбавка ₴</b> · <b>№ фото</b>. Якщо галочка вище <b>не</b> стоїть — клієнт може обрати <b>декілька</b> варіантів одразу (надбавки сумуються); якщо стоїть — лише <b>один</b> (перемикач). <b>➕ доп.</b> — варіант-<b>доповнення</b>: незалежна кнопка (нажав/віджав), сумується і не входить у перемикач навіть у режимі «Тільки один варіант» (гібрид: типи перемикаються, а доповнення додаються). «№ фото» — номер фото з галереї товару (1, 2, 3…): при натисканні варіанта це фото показується, при знятті — повертається попереднє; у кошику біля варіанта буде мініатюра. 0 або порожньо — без фото.</div>
     </div>
 
     <div class="section">
@@ -1342,6 +1351,9 @@ function renderOpts(p) {
       <input type="text" placeholder="Название варианта" value="${escapeAttr(o.name || '')}" data-k="name" />
       <input type="number" placeholder="+0" value="${o.priceDelta || 0}" data-k="priceDelta" step="1" title="Надбавка до ціни (₴)" />
       <input type="number" placeholder="№ фото" value="${o.photoNum || ''}" data-k="photoNum" min="0" step="1" title="№ фото з галереї (натиск показує це фото). 0 — без фото" />
+      <label class="opt-addon" title="Доповнення: незалежна кнопка (нажав/віджав), сумується і НЕ входить у перемикач. Корисно коли варіант ДОДАЄ товар, а не змінює тип. Працює навіть у режимі «Тільки один варіант».">
+        <input type="checkbox" data-k="addon" ${o.addon ? 'checked' : ''} /> ➕ доп.
+      </label>
       <button class="btn btn-danger btn-icon" type="button">×</button>
     `;
     row.querySelectorAll('[data-k]').forEach(input => {
@@ -1349,6 +1361,7 @@ function renderOpts(p) {
         const k = input.dataset.k;
         if (k === 'priceDelta') o[k] = parseFloat(input.value) || 0;
         else if (k === 'photoNum') o[k] = parseInt(input.value, 10) || 0;
+        else if (k === 'addon') o[k] = input.checked;
         else { o[k] = input.value; o.id = makeOptId(input.value, i); }
       });
     });
