@@ -614,6 +614,15 @@
       margin-top: 8px; font-size: 13px; line-height: 1.4; color: var(--muted);
       text-align: center; padding: 0 6px; word-break: break-word;
     }
+    /* #4b: шильдик (бейдж) на окремому фото в модалці */
+    .gallery .main-img .img-badge {
+      position: absolute; top: 10px; left: 10px; z-index: 3;
+      background: var(--accent, #dc2626); color: var(--accent-text, #fff);
+      font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25); max-width: calc(100% - 20px);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      letter-spacing: 0.3px;
+    }
 
     /* Lightbox для збільшеного перегляду фото */
     .lightbox-overlay {
@@ -854,11 +863,17 @@ function watermarkBg() {
     + `<text x='6' y='${cy + 1}' fill='rgba(0,0,0,${(op * 0.7).toFixed(3)})'>${text}</text>`
     + `<text x='5' y='${cy}' fill='rgba(255,255,255,${op.toFixed(3)})'>${text}</text>`
     + `</g></svg>`;
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  // ВАЖЛИВО: лапки всередині url() мають бути одинарними, бо весь рядок
+  // підставляється в style="..." (подвійні лапки розірвали б атрибут).
+  return `url('data:image/svg+xml,${encodeURIComponent(svg)}')`;
 }
 function wmOverlayHtml() {
   const bg = watermarkBg();
   return bg ? `<div class="wm-overlay" style="background-image:${bg}"></div>` : '';
+}
+// #4b: шильдик (бейдж) поверх конкретного фото в модалці — текст = підпис фото
+function imgBadgeHtml(img) {
+  return (img && img.caption) ? `<div class="img-badge">${escapeHtml(img.caption)}</div>` : '';
 }
 
 // #2: наявність товару. showStock=true → показуємо залишок; stock<=0 → немає в наявності.
@@ -1943,6 +1958,7 @@ function openModal(p) {
         <div class="main-img" id="mainImgHolder">
           ${images.length ? `<img src="${escapeAttr(images[0].url)}" alt="" id="mainImg" class="${images[0].link ? 'linked' : (images[0].zoomable ? 'zoomable' : '')}" onclick="onMainImageClick()" />` : '<div class="placeholder">🖼️</div>'}
           ${images.length ? wmOverlayHtml() : ''}
+          ${images.length ? imgBadgeHtml(images[0]) : ''}
           ${images.length > 1 ? `
             <button class="nav prev" onclick="navImg(-1)">‹</button>
             <button class="nav next" onclick="navImg(1)">›</button>
@@ -2011,6 +2027,7 @@ window.setImg = (i) => {
   document.getElementById('mainImgHolder').innerHTML = `
     <img src="${escapeAttr(img.url)}" alt="" id="mainImg" class="${cls}" onclick="onMainImageClick()" />
     ${wmOverlayHtml()}
+    ${imgBadgeHtml(img)}
     ${images.length > 1 ? `
       <button class="nav prev" onclick="navImg(-1)">‹</button>
       <button class="nav next" onclick="navImg(1)">›</button>
