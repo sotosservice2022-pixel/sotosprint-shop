@@ -1457,8 +1457,21 @@ function renderSideBanners() {
 }
 
 // === Hero-банер під шапкою ===
+// Банер активної категорії має пріоритет; якщо у категорії банер вимкнено — показуємо глобальний Hero.
+function getActiveHeroBanner() {
+  try {
+    const slug = getEffectiveCategoryId();
+    if (slug && shop.categoryBanners) {
+      const cat = (shop.categories || []).find(c => c.slug === slug);
+      const cb = cat && shop.categoryBanners[cat.id];
+      if (cb && cb.enabled) return cb;
+    }
+  } catch (e) {}
+  return shop.heroBanner;
+}
+
 function renderHeroBanner() {
-  const h = shop.heroBanner;
+  const h = getActiveHeroBanner();
   if (!h || !h.enabled) return '';
   const hasImage = !!h.image;
   const hasText = !!(h.text && h.text.trim());
@@ -1537,7 +1550,7 @@ function startBannerRotation() {
   _bannerRotationTimers = [];
 
   // 1. Hero-банер: переключаємо .active між .hero-slide
-  const h = shop.heroBanner;
+  const h = getActiveHeroBanner();
   if (h && h.enabled && h.rotateEnabled) {
     const heroEl = document.querySelector('.hero-banner');
     const slides = heroEl ? heroEl.querySelectorAll('.hero-slide') : [];

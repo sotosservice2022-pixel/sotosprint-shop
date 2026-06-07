@@ -506,9 +506,16 @@
     <div style="background:#fef3c7; padding:10px; border-radius:8px; color:#92400e; font-size:13px; margin-bottom: 14px;">
       ℹ️ Великий банер на всю ширину, відразу під шапкою, перед каталогом. Висота динамічно адаптується під контент. Зручно для акцій / новинок.
     </div>
+    <div style="margin-bottom: 12px;">
+      <label style="font-weight:600; display:block; margin-bottom:4px;">📍 Для якої сторінки</label>
+      <select id="heroScope" onchange="onHeroScopeChange()" style="width:100%; max-width:380px;">
+        <option value="">🌐 Глобальний (усі сторінки)</option>
+      </select>
+      <div class="hint" id="heroScopeHint">Глобальний банер показується скрізь. Обери категорію — і налаштуй окремий банер для неї (він замінить глобальний на сторінці цієї категорії). Якщо для категорії банер вимкнено — показується глобальний. ✅ біля назви = у категорії є власний увімкнений банер.</div>
+    </div>
     <div class="checkbox-inline" style="margin-bottom: 12px;">
       <input type="checkbox" id="heroEnabled" />
-      <label for="heroEnabled" style="margin: 0">Увімкнути Hero-банер</label>
+      <label for="heroEnabled" style="margin: 0" id="heroEnabledLabel">Увімкнути Hero-банер</label>
     </div>
     <div class="grid grid-2" id="heroSettings">
       <div>
@@ -729,8 +736,11 @@ function render() {
   document.getElementById('sideBannersTransitionEffect').value = settings.sideBanners.transitionEffect || 'fade';
   renderBannerSlots('left');
   renderBannerSlots('right');
-  // Hero
+  // Hero (глобальний + по категоріях)
   if (!settings.heroBanner) settings.heroBanner = {};
+  if (!settings.categoryBanners || typeof settings.categoryBanners !== 'object') settings.categoryBanners = {};
+  currentHeroScope = '';
+  populateHeroScopeOptions();
   loadHeroBanner();
   // Завантажуємо список товарів для випадайки productId (Hero та боковому)
   loadProductsForBannerLink();
@@ -1074,9 +1084,41 @@ document.addEventListener('change', e => {
   }
 });
 
-// === Hero-банер ===
+// === Hero-банер (глобальний + по категоріях) ===
+let currentHeroScope = ''; // '' = глобальний, інакше — id категорії
+function curHeroObj() {
+  if (!currentHeroScope) { if (!settings.heroBanner) settings.heroBanner = {}; return settings.heroBanner; }
+  if (!settings.categoryBanners) settings.categoryBanners = {};
+  if (!settings.categoryBanners[currentHeroScope]) settings.categoryBanners[currentHeroScope] = {};
+  return settings.categoryBanners[currentHeroScope];
+}
+function populateHeroScopeOptions() {
+  const sel = document.getElementById('heroScope');
+  if (!sel) return;
+  const cats = Array.isArray(settings.categories) ? settings.categories.filter(c => c.name && c.id) : [];
+  const cb = settings.categoryBanners || {};
+  sel.innerHTML = '<option value="">🌐 Глобальний (усі сторінки)</option>' +
+    cats.map(c => {
+      const on = cb[c.id] && cb[c.id].enabled ? ' ✅' : '';
+      return `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name)}${on}</option>`;
+    }).join('');
+  sel.value = currentHeroScope;
+}
+function onHeroScopeChange() {
+  collectHeroBanner(); // зберігаємо поточні поля у попередній об'єкт перед переключенням
+  currentHeroScope = document.getElementById('heroScope').value || '';
+  loadHeroBanner();
+  // productId — оновлюємо вибране значення для нового об'єкта (опції вже завантажені)
+  const hSel = document.getElementById('heroProductId');
+  if (hSel) hSel.value = curHeroObj().productId || '';
+  // Підпис чекбокса
+  const lbl = document.getElementById('heroEnabledLabel');
+  if (lbl) lbl.textContent = currentHeroScope ? 'Увімкнути банер для цієї категорії' : 'Увімкнути Hero-банер';
+}
+function setHeroExtraLink(i, v) { const h = curHeroObj(); if (Array.isArray(h.images) && h.images[i]) h.images[i].link = v; }
+
 async function loadHeroBanner() {
-  const h = settings.heroBanner || {};
+  const h = curHeroObj();
   document.getElementById('heroEnabled').checked = !!h.enabled;
   document.getElementById('heroText').value = h.text || '';
   document.getElementById('heroTextColor').value = h.textColor || '#ffffff';
@@ -1104,8 +1146,7 @@ async function loadHeroBanner() {
 }
 
 function collectHeroBanner() {
-  if (!settings.heroBanner) settings.heroBanner = {};
-  const h = settings.heroBanner;
+  const h = curHeroObj();
   h.enabled = document.getElementById('heroEnabled').checked;
   h.text = document.getElementById('heroText').value;
   h.textColor = document.getElementById('heroTextColor').value;
@@ -1125,7 +1166,7 @@ async function onHeroImage(e) {
   const file = e.target.files?.[0]; if (!file) return;
   try {
     const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero' });
-    settings.heroBanner.image = url;
+    curHeroObj().image = url;
     document.getElementById('heroImagePreviewImg').src = url;
     document.getElementById('heroImagePreview').style.display = '';
     updateHeroPreview();
@@ -1135,7 +1176,7 @@ async function onHeroImage(e) {
 
 function clearHeroImage() {
   if (!confirm('Прибрати фон Hero-банера?')) return;
-  settings.heroBanner.image = '';
+  curHeroObj().image = '';
   document.getElementById('heroImagePreviewImg').src = '';
   document.getElementById('heroImagePreview').style.display = 'none';
   document.getElementById('heroImageFile').value = '';
@@ -1147,13 +1188,13 @@ function renderHeroExtraImages() {
   const container = document.getElementById('heroExtraImagesList');
   if (!container) return;
   // Нормалізуємо до об'єктів {url, link, productId}
-  if (!settings.heroBanner) settings.heroBanner = {};
-  if (!Array.isArray(settings.heroBanner.images)) settings.heroBanner.images = [];
-  settings.heroBanner.images = settings.heroBanner.images.map(it => {
+  const hb = curHeroObj();
+  if (!Array.isArray(hb.images)) hb.images = [];
+  hb.images = hb.images.map(it => {
     if (typeof it === 'string') return { url: it, link: '', productId: '' };
     return { url: it.url || '', link: it.link || '', productId: it.productId || '' };
   });
-  const imgs = settings.heroBanner.images;
+  const imgs = hb.images;
   if (!imgs.length) {
     container.innerHTML = '<div style="font-size:12px; color:#6b7280;">Поки немає додаткових зображень.</div>';
     return;
@@ -1167,7 +1208,7 @@ function renderHeroExtraImages() {
       <div style="flex: 1; min-width: 0;">
         <input type="text" placeholder="🔗 Посилання при кліку (опціонально)"
                value="${(item.link || '').replace(/"/g, '&quot;')}"
-               oninput="settings.heroBanner.images[${idx}].link = this.value"
+               oninput="setHeroExtraLink(${idx}, this.value)"
                style="width: 100%; padding: 6px 10px; font-size: 12px; margin-bottom: 4px;" />
         <div style="font-size: 11px; color: #6b7280;">Кожне зображення може мати свою адресу переходу. Залиш порожнім якщо не треба.</div>
       </div>
@@ -1181,9 +1222,9 @@ async function onHeroExtraImage(e) {
   const file = e.target.files?.[0]; if (!file) return;
   try {
     const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero-extra' });
-    if (!settings.heroBanner) settings.heroBanner = {};
-    if (!Array.isArray(settings.heroBanner.images)) settings.heroBanner.images = [];
-    settings.heroBanner.images.push({ url, link: '', productId: '' });
+    const hb = curHeroObj();
+    if (!Array.isArray(hb.images)) hb.images = [];
+    hb.images.push({ url, link: '', productId: '' });
     renderHeroExtraImages();
     document.getElementById('heroExtraImageFile').value = '';
     toast('✅ Додано в слайдшоу');
@@ -1192,7 +1233,7 @@ async function onHeroExtraImage(e) {
 
 function removeHeroExtraImage(idx) {
   if (!confirm('Прибрати це зображення зі слайдшоу?')) return;
-  const imgs = settings.heroBanner?.images || [];
+  const imgs = curHeroObj().images || [];
   const removed = imgs.splice(idx, 1)[0];
   if (removed) {
     const url = typeof removed === 'string' ? removed : removed.url;
@@ -1208,7 +1249,7 @@ function updateHeroPreview() {
   const pos = document.getElementById('heroTextPosition').value;
   const align = document.getElementById('heroTextAlign').value;
   const minH = parseInt(document.getElementById('heroMinHeight').value, 10) || 250;
-  const image = settings.heroBanner?.image || '';
+  const image = curHeroObj()?.image || '';
 
   const prev = document.getElementById('heroPreview');
   const inner = document.getElementById('heroPreviewInner');
@@ -1250,7 +1291,7 @@ async function loadProductsForBannerLink() {
     const hSel = document.getElementById('heroProductId');
     if (hSel) {
       hSel.innerHTML = `<option value="">— Не пов'язувати з товаром —</option>` + opts;
-      hSel.value = settings.heroBanner?.productId || '';
+      hSel.value = curHeroObj()?.productId || '';
     }
   } catch {}
 }
