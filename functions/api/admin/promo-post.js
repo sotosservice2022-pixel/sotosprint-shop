@@ -3,9 +3,11 @@
 //   mode:'generate' (за замовч.) — пише підпис + хештеги за обраним товаром.
 //     Тіло: { productId, platform?('telegram'|'instagram'), tone?('friendly'|'sale'|'premium'|'short'), extra? }
 //     Повертає: { ok, caption, hashtags:[...], imageUrl }
-//   mode:'send' — надсилає готовий пост (фото + текст) у Telegram-канал.
+//   mode:'send' — надсилає готовий пост (фото + текст) у Telegram-канал + зберігає в історію.
 //     Тіло: { productId, text, target } (target = @username каналу або chat_id; бот має бути адміном каналу)
-//     Повертає: { ok, sent:true }
+//     Повертає: { ok, sent:true, post }
+//   mode:'history' — повертає історію відправлених постів. Повертає: { ok, posts:[...] }
+//   mode:'delete' — видаляє з історії. Тіло: { ids:[...] } або { id } або { all:true }. Повертає: { ok, posts }
 import { checkAuthAsync, jsonResp, getProducts, getSettings, getBotConfig } from '../../_utils/shop.js';
 
 function firstImageUrl(p) {
@@ -20,6 +22,16 @@ function absUrl(origin, u) {
   if (!u) return '';
   if (/^https?:\/\//i.test(u)) return u;
   return origin.replace(/\/$/, '') + (u.startsWith('/') ? u : '/' + u);
+}
+
+// --- історія відправлених постів (KV: promo_posts, новіші першими, до 200) ---
+async function loadPosts(env) {
+  if (!env.SHOP_KV) return [];
+  try { return (await env.SHOP_KV.get('promo_posts', 'json')) || []; } catch (_) { return []; }
+}
+async function savePosts(env, posts) {
+  if (!env.SHOP_KV) return;
+  try { await env.SHOP_KV.put('promo_posts', JSON.stringify(posts.slice(0, 200))); } catch (_) {}
 }
 
 // --- Gemini text generation ---
@@ -155,6 +167,22 @@ export async function onRequestPost({ request, env }) {
     const mode = body.mode || 'generate';
     const origin = new URL(request.url).origin;
 
+    // історія / видалення — не потребують товару
+    if (mode === 'history') {
+      return jsonResp({ ok: true, posts: await loadPosts(env) });
+    }
+    if (mode === 'delete') {
+      let posts = await loadPosts(env);
+      if (body.all) {
+        posts = [];
+      } else {
+        const ids = Array.isArray(body.ids) ? body.ids.map(String) : (body.id != null ? [String(body.id)] : []);
+        posts = posts.filter(p => !ids.includes(String(p.id)));
+      }
+      await savePosts(env, posts);
+      return jsonResp({ ok: true, posts });
+    }
+
     const products = await getProducts(env);
     const product = products.find(p => p.id === body.productId);
     if (!product) return jsonResp({ ok: false, error: 'Товар не знайдено' }, 400);
@@ -187,7 +215,20 @@ export async function onRequestPost({ request, env }) {
       if (!tgData.ok) {
         return jsonResp({ ok: false, error: 'Telegram: ' + (tgData.description || ('HTTP ' + tgResp.status) + '. Перевір, що бот доданий у канал як адмін.') }, 400);
       }
-      return jsonResp({ ok: true, sent: true });
+      // зберегти у історію відправлених
+      const record = {
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+        createdAt: new Date().toISOString(),
+        productId: product.id,
+        productName: product.name,
+        text,
+        target: chatId,
+        imageUrl: firstImageUrl(product),
+      };
+      const posts = await loadPosts(env);
+      posts.unshift(record);
+      await savePosts(env, posts);
+      return jsonResp({ ok: true, sent: true, post: record });
     }
 
     // mode === 'generate'
