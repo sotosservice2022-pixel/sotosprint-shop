@@ -57,25 +57,11 @@ async function loadSource(env, sourceUrl) {
   return { buf, contentType };
 }
 
-// Нормалізуємо вхідне фото: зменшуємо до <=1024px і перекодовуємо у JPEG.
-// FLUX.2 на Workers AI чутливий до великих/нестандартних вхідних зображень (часта причина 3043).
-async function normalizeInput(env, buf, contentType) {
-  if (!env.IMAGES) return { buf, contentType: contentType || 'image/jpeg' };
-  try {
-    const out = (await env.IMAGES.input(buf)
-      .transform({ width: 1024, height: 1024, fit: 'scale-down' })
-      .output({ format: 'image/jpeg', quality: 90 })).response();
-    const ab = await out.arrayBuffer();
-    if (ab && ab.byteLength > 0) return { buf: ab, contentType: 'image/jpeg' };
-  } catch (_) { /* fallback на оригінал */ }
-  return { buf, contentType: contentType || 'image/jpeg' };
-}
-
 // --- Безкоштовний рушій: Cloudflare Workers AI FLUX (img2img) ---
+// Вхідне фото вже зменшене до <=1024px на фронтенді (Pages не підтримує Images binding).
 async function runCloudflare(env, src, prompt, width, height) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
-  // зменшуємо вхідне фото до 1024px (FLUX приймає вхідні зображення до 512–1024px)
-  const norm = await normalizeInput(env, src.buf, src.contentType);
+  const norm = { buf: src.buf, contentType: src.contentType || 'image/jpeg' };
 
   const callOnce = async () => {
     const form = new FormData();

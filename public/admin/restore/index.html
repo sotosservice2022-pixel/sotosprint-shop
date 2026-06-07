@@ -287,10 +287,16 @@ async function processAll() {
         item.afterUrl = enhanceUrl(item.srcUrl, bg);
         item.afterKind = 'enhance';
       } else {
+        // FLUX/Gemini стабільніше працюють із меншим вхідним фото — готуємо копію <=1024px.
+        if (!item.regenSrcUrl) {
+          item.regenSrcUrl = item._file
+            ? await uploadToR2(item._file, { compress: true, maxSide: 1024, quality: 0.9, prefix: 'restore-rgsrc' })
+            : item.srcUrl;
+        }
         const r = await fetch('/api/admin/photo-regen', {
           method: 'POST', credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sourceUrl: item.srcUrl, engine, prompt: prompt || undefined }),
+          body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined }),
         });
         if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
         const d = await r.json();

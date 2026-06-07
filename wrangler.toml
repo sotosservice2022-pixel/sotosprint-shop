@@ -14,10 +14,6 @@ bucket_name = "sotosprint-storage"
 [ai]
 binding = "AI"
 
-# Cloudflare Images binding — для нормалізації (resize) вхідних фото перед FLUX
-[images]
-binding = "IMAGES"
-
 [vars]
 MAX_PHOTOS_PER_ITEM = "10"
 MAX_PHOTO_SIZE_MB = "15"
