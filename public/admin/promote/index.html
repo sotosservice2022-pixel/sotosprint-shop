@@ -131,16 +131,27 @@ function toast(msg, type='success') {
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-function segInit(id, cb) {
+function segInit(id, cb, storeKey) {
   const seg = document.getElementById(id);
-  seg.querySelectorAll('button').forEach(b => b.onclick = () => {
+  const select = (b, save) => {
     seg.querySelectorAll('button').forEach(x => x.classList.remove('active'));
     b.classList.add('active'); cb(b.dataset.v);
-  });
+    if (save && storeKey) { try { localStorage.setItem(storeKey, b.dataset.v); } catch (_) {} }
+  };
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => select(b, true));
+  // відновити останній вибір з localStorage
+  if (storeKey) {
+    let saved = null;
+    try { saved = localStorage.getItem(storeKey); } catch (_) {}
+    if (saved) {
+      const b = seg.querySelector(`button[data-v="${saved}"]`);
+      if (b) select(b, false);
+    }
+  }
 }
-segInit('platSeg', v => platform = v);
-segInit('toneSeg', v => tone = v);
-segInit('engineSeg', v => engine = v);
+segInit('platSeg', v => platform = v, 'promote_platform');
+segInit('toneSeg', v => tone = v, 'promote_tone');
+segInit('engineSeg', v => engine = v, 'promote_engine');
 
 async function loadProducts() {
   const r = await fetch('/api/admin/products', { credentials: 'include' });
