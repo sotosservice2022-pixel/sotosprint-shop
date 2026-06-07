@@ -196,6 +196,11 @@
     </div>
   </div>
 
+  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+    <button id="priceLockBtn" type="button" class="btn btn-secondary" onclick="togglePriceLock()" style="font-size:13px;">🔒 Ціни заблоковані</button>
+    <span style="font-size:12px; color:#6b7280;">захист від випадкових змін. Натисни, щоб редагувати ціну прямо в рядку.</span>
+  </div>
+
   <div class="product-list" id="productList"></div>
 
   <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
@@ -569,6 +574,7 @@ function renderList() {
     return;
   }
   wrap.innerHTML = '';
+  const unlocked = window.priceEditUnlocked === true;
   products.forEach((p, idx) => {
     const row = document.createElement('div');
     row.className = 'product-row' + (window.currentIdx === idx ? ' editing' : '');
@@ -582,8 +588,8 @@ function renderList() {
         <div class="name">${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
         <div class="meta">${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
       </div>
-      <div onclick="event.stopPropagation()" style="display:flex; align-items:center; gap:3px; margin:0 6px; flex-shrink:0;" title="Редагувати ціну прямо тут">
-        <input type="number" value="${p.price ?? 0}" min="0" step="0.01" onchange="quickEditPrice(${idx}, this.value)" style="width:76px; font-size:14px; font-weight:500; color:var(--accent); border:1px solid #e5e7eb; border-radius:6px; padding:4px 6px; text-align:right; background:#fafbfc;" />
+      <div onclick="event.stopPropagation()" style="display:flex; align-items:center; gap:3px; margin:0 6px; flex-shrink:0;" title="${unlocked ? 'Редагувати ціну прямо тут' : 'Ціни заблоковані — натисни 🔒 зверху, щоб редагувати'}">
+        <input type="number" value="${p.price ?? 0}" min="0" step="0.01" ${unlocked ? '' : 'disabled'} onchange="quickEditPrice(${idx}, this.value)" style="width:76px; font-size:14px; font-weight:500; border:1px solid #e5e7eb; border-radius:6px; padding:4px 6px; text-align:right; ${unlocked ? 'color:var(--accent); background:#fafbfc;' : 'color:#94a3b8; background:#f1f5f9; cursor:not-allowed;'}" />
         <span style="color:var(--accent); font-size:13px;">${escapeHtml(p.currency || '₴')}</span>
       </div>
       <label class="toggle-switch" onclick="event.stopPropagation()" title="${p.enabled !== false ? 'Прихований' : 'Видимий'}">
@@ -1088,9 +1094,28 @@ async function deleteAllProducts() {
 }
 
 // Быстрый toggle "видимый/скрытый" прямо в списке. Сохраняет на сервер.
+// Замок проти випадкового редагування цін у рядку (за замовч. заблоковано)
+function togglePriceLock() {
+  window.priceEditUnlocked = !window.priceEditUnlocked;
+  updatePriceLockBtn();
+  renderList();
+}
+function updatePriceLockBtn() {
+  const btn = document.getElementById('priceLockBtn');
+  if (!btn) return;
+  if (window.priceEditUnlocked) {
+    btn.textContent = '🔓 Ціни розблоковані';
+    btn.classList.remove('btn-secondary'); btn.classList.add('btn-success');
+  } else {
+    btn.textContent = '🔒 Ціни заблоковані';
+    btn.classList.remove('btn-success'); btn.classList.add('btn-secondary');
+  }
+}
+
 // Швидке редагування ціни прямо в рядку списку
 async function quickEditPrice(idx, val) {
   if (!products[idx]) return;
+  if (window.priceEditUnlocked !== true) { renderList(); return; }
   const num = Number(val);
   if (!Number.isFinite(num) || num < 0 || num > 1000000) {
     toast('❌ Невірна ціна', 'error');
@@ -1258,6 +1283,7 @@ function priceBulkInit() {
   priceBulkScopeChange();
   priceBulkModeChange();
   priceBulkRefreshInfo();
+  updatePriceLockBtn();
 }
 
 function priceBulkScopeChange() {
