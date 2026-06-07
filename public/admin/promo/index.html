@@ -230,13 +230,22 @@
       <div id="m_productsList" style="max-height:200px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; padding:8px; background:#fafbfc;"></div>
     </div>
 
-    <!-- Бейдж на вітрині -->
+    <!-- Де показувати бейдж промокоду -->
     <div class="row" style="border-top:1px solid #f0f0f0; padding-top:12px;">
-      <div class="checkbox-inline">
-        <input type="checkbox" id="m_showOnCard" />
-        <label for="m_showOnCard" style="margin:0;">Показувати бейдж промокоду на вітрині (на картці та в модалці товару)</label>
+      <label style="font-weight:600; margin-bottom:8px; display:block;">Де показувати бейдж промокоду:</label>
+      <div class="checkbox-inline" style="margin-bottom:7px;">
+        <input type="checkbox" id="m_showOnHome" />
+        <label for="m_showOnHome" style="margin:0;">🏠 На головній сторінці (промо-блок)</label>
       </div>
-      <div class="hint" style="font-size:11px; color:#6b7280; margin-top:4px;">Клік по бейджу копіює код. Показується на товарах, де діє промокод.</div>
+      <div class="checkbox-inline" style="margin-bottom:7px;">
+        <input type="checkbox" id="m_showOnCard" />
+        <label for="m_showOnCard" style="margin:0;">🛍 На картці товару</label>
+      </div>
+      <div class="checkbox-inline">
+        <input type="checkbox" id="m_showOnModal" />
+        <label for="m_showOnModal" style="margin:0;">🔍 У модальному вікні товару</label>
+      </div>
+      <div class="hint" style="font-size:11px; color:#6b7280; margin-top:6px;">Можна обрати будь-яку комбінацію. Клік по бейджу копіює код. На картці/модалці показується на товарах, де діє промокод. Адресний промо на конкретний товар (scope «товари») показується на ньому завжди.</div>
     </div>
 
     <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
@@ -328,7 +337,9 @@ function renderList() {
     const scopeText = p.scope === 'categories' ? `🏷 категорій: ${(p.categoryIds || []).length}`
                     : p.scope === 'products' ? `📦 товарів: ${(p.productIds || []).length}`
                     : 'усюди';
-    const cardText = p.showOnCard ? ' · 👁 бейдж' : '';
+    const showModal = (p.showOnModal === undefined) ? !!p.showOnCard : !!p.showOnModal;
+    const where = [p.showOnHome ? '🏠' : '', p.showOnCard ? '🛍' : '', showModal ? '🔍' : ''].filter(Boolean).join('');
+    const cardText = where ? ` · 👁 ${where}` : '';
     html += `
       <div class="promo-row">
         <div><span class="code">${escapeHtml(p.code)}</span></div>
@@ -495,7 +506,10 @@ function openModal(promo) {
   document.getElementById('m_enabled').checked = promo?.enabled !== false;
   document.getElementById('m_description').value = promo?.description || '';
   document.getElementById('m_scope').value = promo?.scope || 'all';
+  document.getElementById('m_showOnHome').checked = !!promo?.showOnHome;
   document.getElementById('m_showOnCard').checked = !!promo?.showOnCard;
+  // Стара поведінка: showOnCard відповідав і за картку, і за модалку.
+  document.getElementById('m_showOnModal').checked = (promo?.showOnModal === undefined) ? !!promo?.showOnCard : !!promo.showOnModal;
   updateValueLabel();
   updateScopeUI(promo?.categoryIds || [], promo?.productIds || []);
   document.getElementById('modal').classList.add('show');
@@ -539,7 +553,9 @@ async function savePromo() {
     scope: document.getElementById('m_scope').value,
     categoryIds: readChecked('m_categoriesList'),
     productIds: readChecked('m_productsList'),
+    showOnHome: document.getElementById('m_showOnHome').checked,
     showOnCard: document.getElementById('m_showOnCard').checked,
+    showOnModal: document.getElementById('m_showOnModal').checked,
     used: 0,
   };
   // Чистимо зайве залежно від scope
