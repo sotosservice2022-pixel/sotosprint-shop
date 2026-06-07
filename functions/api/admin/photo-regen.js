@@ -145,7 +145,7 @@ async function runPremium(env, { buf, contentType }, prompt) {
 }
 
 // --- Платний рушій: OpenAI GPT Image (gpt-image-1, edits) ---
-async function runGPT(env, { buf, contentType }, prompt) {
+async function runGPT(env, { buf, contentType }, prompt, modelOverride) {
   // Ключ: спочатку секрет OPENAI_API_KEY, інакше — збережений в адмінці (KV openai_image_key)
   let apiKey = env.OPENAI_API_KEY;
   if (!apiKey && env.SHOP_KV) {
@@ -153,8 +153,12 @@ async function runGPT(env, { buf, contentType }, prompt) {
   }
   if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
 
+  // модель можна перевизначити з фронту (поле «Модель GPT»), але лише безпечний формат
+  let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
+  if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
+
   const form = new FormData();
-  form.append('model', env.GPT_IMAGE_MODEL || 'gpt-image-1');
+  form.append('model', model);
   form.append('image', new Blob([buf], { type: contentType || 'image/png' }), 'src.png');
   form.append('prompt', prompt);
   form.append('size', env.GPT_IMAGE_SIZE || '1024x1024');
@@ -193,8 +197,9 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const src = await loadSource(env, sourceUrl);
+    const modelOverride = (body.model && String(body.model).trim()) || '';
     let out;
-    if (engine === 'gpt') out = await runGPT(env, src, prompt);
+    if (engine === 'gpt') out = await runGPT(env, src, prompt, modelOverride);
     else if (engine === 'premium') out = await runPremium(env, src, prompt);
     else out = await runCloudflare(env, src, prompt, width, height);
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);

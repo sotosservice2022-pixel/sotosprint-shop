@@ -170,6 +170,16 @@
           <button class="clearKeyBtn ghost" data-provider="openai" type="button">🗑️ Видалити</button>
         </div>
         <div class="hint keyMsg" id="keyMsg_openai" style="margin-top:6px;"></div>
+        <div class="field-label" style="margin-top:12px;">Модель GPT (необов'язково)</div>
+        <div class="hint" style="margin-bottom:6px;">
+          Точний id моделі з OpenAI (напр. <code>gpt-image-1</code>). Залиш порожнім — буде <code>gpt-image-1</code>.
+          ID копіюй у <a href="https://platform.openai.com/docs/models" target="_blank" rel="noopener">platform.openai.com/docs/models</a> (це не назва з картки, а саме id).
+        </div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <input id="gptModel" type="text" placeholder="gpt-image-1" style="flex:1; min-width:220px;" autocomplete="off" spellcheck="false" />
+          <button id="saveGptModel" type="button">💾 Зберегти</button>
+        </div>
+        <div class="hint" id="gptModelMsg" style="margin-top:6px;"></div>
       </div>
     </details>
   </div>
@@ -324,10 +334,11 @@ async function processOne(item) {
           ? await uploadToR2(item._file, { compress: true, maxSide: 1024, quality: 0.9, prefix: 'restore-rgsrc' })
           : item.srcUrl;
       }
+      const gptModel = engine === 'gpt' ? getGptModel() : '';
       const r = await fetch('/api/admin/photo-regen', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined }),
+        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined }),
       });
       if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
       const d = await r.json();
@@ -542,6 +553,23 @@ document.querySelectorAll('.clearKeyBtn').forEach(btn => btn.onclick = () => {
   const provider = btn.dataset.provider;
   if (confirm('Видалити збережений ключ ' + PROVIDER_LABEL[provider] + '?')) saveKey(provider, '');
 });
+
+// ---------- модель GPT (зберігається локально в браузері) ----------
+function getGptModel() {
+  try { return (localStorage.getItem('restoreGptModel') || '').trim(); } catch { return ''; }
+}
+(function initGptModel() {
+  const inp = document.getElementById('gptModel');
+  if (inp) inp.value = getGptModel();
+})();
+document.getElementById('saveGptModel').onclick = () => {
+  const v = document.getElementById('gptModel').value.trim();
+  const msg = document.getElementById('gptModelMsg');
+  try { if (v) localStorage.setItem('restoreGptModel', v); else localStorage.removeItem('restoreGptModel'); } catch {}
+  msg.textContent = v ? ('Модель збережено: ' + v) : 'Модель скинуто (буде gpt-image-1)';
+  msg.style.color = '#16a34a';
+  toast('Модель GPT збережено', 'success');
+};
 
 // ---------- лайтбокс (перегляд фото без скачування) ----------
 function openLightbox(url) {
