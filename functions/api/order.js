@@ -305,23 +305,33 @@ export async function onRequestPost({ request, env }) {
           await tgPace();
           await tgSendMessage(TG, CHAT, header);
 
+          // Підпис під кожним фото — маркування, щоб не плутати, до якого замовлення/товару фото
+          const photoCaption = `#${orderId} · ${it.product.name}${it.optionLabel ? ` (${it.optionLabel})` : ''}`;
+
           if (files.length === 1) {
             const fd = new FormData();
             fd.append('chat_id', CHAT);
             fd.append('document', files[0], files[0].name || 'photo.jpg');
+            fd.append('caption', photoCaption);
             await tgPace();
             await tgFetch(`${TG}/sendDocument`, { method: 'POST', body: fd });
           } else {
             // sendMediaGroup до 10 документов за раз
             const chunks = [];
             for (let i = 0; i < files.length; i += 10) chunks.push(files.slice(i, i + 10));
-            for (const chunk of chunks) {
+            for (let c = 0; c < chunks.length; c++) {
+              const chunk = chunks[c];
               const fd = new FormData();
               fd.append('chat_id', CHAT);
-              const media = chunk.map((_, j) => ({
-                type: 'document',
-                media: `attach://photo${j}`,
-              }));
+              const media = chunk.map((_, j) => {
+                // Нумеруємо фото в межах позиції, щоб було видно «3/10»
+                const globalNum = c * 10 + j + 1;
+                return {
+                  type: 'document',
+                  media: `attach://photo${j}`,
+                  caption: `${photoCaption} · ${globalNum}/${files.length}`,
+                };
+              });
               fd.append('media', JSON.stringify(media));
               chunk.forEach((file, j) => {
                 fd.append(`photo${j}`, file, file.name || `photo_${j}.jpg`);

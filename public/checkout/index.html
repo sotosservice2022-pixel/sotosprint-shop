@@ -50,7 +50,10 @@
       display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border);
     }
     .cart-line:last-child { border-bottom: none; }
-    .cart-line .info { flex: 1; }
+    .cart-line .co-thumb { width: 48px; height: 48px; border-radius: 8px; overflow: hidden; background: #eef0f3; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+    .cart-line .co-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cart-line .co-thumb-empty { font-size: 20px; }
+    .cart-line .info { flex: 1; min-width: 0; }
     .cart-line .name { font-weight: 600; font-size: 14px; }
     .cart-line .opt { font-size: 12px; color: var(--muted); }
     .cart-line .price { font-size: 13px; color: var(--muted); }
@@ -174,6 +177,16 @@ function saveCart() { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
 
 function render() {
   const productById = new Map((shop.products || []).map(p => [p.id, p]));
+  const showThumbs = shop.checkoutShowThumbs !== false; // дефолт: показувати мініатюри
+  const thumbFor = (item) => {
+    if (!showThumbs) return '';
+    const p = productById.get(item.productId);
+    let url = '';
+    if (p) { const f = p.images && p.images[0]; url = (typeof f === 'object' ? (f && f.url) : f) || p.image || ''; }
+    return url
+      ? `<div class="co-thumb"><img src="${escapeAttr(url)}" alt="" /></div>`
+      : `<div class="co-thumb co-thumb-empty">🖼️</div>`;
+  };
   // Считаем итог
   let total = 0;
   for (const item of cart) total += item.unitPrice * item.quantity;
@@ -186,6 +199,7 @@ function render() {
       <h2>${escapeHtml(shop.orderItemsTitle || '📦 Склад замовлення')}</h2>
       ${cart.map((item, idx) => `
         <div class="cart-line">
+          ${thumbFor(item)}
           <div class="info">
             <div class="name">${escapeHtml(item.productName)}</div>
             ${item.optionName ? `<div class="opt">${escapeHtml(item.optionName)}</div>` : ''}

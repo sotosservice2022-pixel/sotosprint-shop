@@ -170,6 +170,10 @@
       <div style="border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 8px;">
         <strong style="font-size: 13px; color: #6b7280;">📝 Заголовки секцій сторінок (редагуй під свою тематику)</strong>
       </div>
+      <div class="checkbox-inline" style="margin-top:8px;">
+        <input type="checkbox" id="checkoutShowThumbs" />
+        <label for="checkoutShowThumbs" style="margin:0">🖼️ Показувати мініатюри товарів у «Складі замовлення» (на сторінці оформлення)</label>
+      </div>
       <div class="grid grid-2">
         <div><label>Заголовок «Склад замовлення»</label><input type="text" id="orderItemsTitle" /></div>
         <div><label>Заголовок «Фото для друку»</label><input type="text" id="photosBlockTitle" />
@@ -819,6 +823,7 @@ function render() {
   document.getElementById('watermarkOpacity').value = (settings.watermarkOpacity != null ? settings.watermarkOpacity : '');
   document.getElementById('showBulkOperations').checked = settings.showBulkOperations !== false;
   document.getElementById('editorSaveBarMode').value = settings.editorSaveBarMode || (settings.editorDualSaveBar === false ? 'top' : 'both'); // back-compat зі старим прапорцем
+  document.getElementById('checkoutShowThumbs').checked = settings.checkoutShowThumbs !== false; // дефолт: показувати
   // Sync lockReorder з settings → localStorage
   if (typeof syncLockReorder === 'function') syncLockReorder(settings);
   document.getElementById('lockReorder').checked = !!settings.adminLockReorder;
@@ -1005,6 +1010,7 @@ async function saveAll() {
   { const _o = parseFloat(document.getElementById('watermarkOpacity').value); settings.watermarkOpacity = (_o >= 0 && _o <= 1) ? _o : 0.22; }
   settings.showBulkOperations = document.getElementById('showBulkOperations').checked;
   settings.editorSaveBarMode = document.getElementById('editorSaveBarMode').value;
+  settings.checkoutShowThumbs = document.getElementById('checkoutShowThumbs').checked;
   // Швидкість
   const clamp = (v, mn, mx, def) => { v = parseInt(v, 10); return (v >= mn && v <= mx) ? v : def; };
   settings.publicPollIntervalSec = clamp(document.getElementById('publicPollIntervalSec').value, 1, 60, 5);
