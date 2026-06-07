@@ -49,7 +49,7 @@ async function geminiText(env, prompt) {
 }
 
 // --- OpenAI GPT text generation ---
-async function gptText(env, prompt) {
+async function gptText(env, prompt, modelOverride) {
   let apiKey = env.OPENAI_API_KEY;
   if (!apiKey && env.SHOP_KV) {
     try { apiKey = await env.SHOP_KV.get('openai_image_key'); } catch (_) {}
@@ -57,8 +57,9 @@ async function gptText(env, prompt) {
   if (!apiKey) throw new Error('GPT-ключ не налаштовано: введи ключ OpenAI на сторінці «AI-обробка фото» (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
   // Проектні ключі OpenAI можуть бути обмежені у доступі до моделей.
   // Тому пробуємо кілька текстових моделей по черзі, поки одна не спрацює.
+  const override = (modelOverride || '').trim();
   const preferred = (env.TEXT_GPT_MODEL || '').trim();
-  const candidates = [preferred, 'gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1', 'gpt-3.5-turbo']
+  const candidates = [override, preferred, 'gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1', 'gpt-3.5-turbo']
     .filter((m, i, a) => m && a.indexOf(m) === i);
   let lastErr = '';
   for (const model of candidates) {
@@ -88,8 +89,8 @@ async function gptText(env, prompt) {
   throw new Error(lastErr + ' — у твого OpenAI-ключа немає доступу до жодної текстової моделі. Дозволь модель (напр. gpt-4o-mini) для проєкту на platform.openai.com → Project → Limits, або користуйся 💎 Gemini.');
 }
 
-async function generateText(env, engine, prompt) {
-  return (engine === 'gpt') ? gptText(env, prompt) : geminiText(env, prompt);
+async function generateText(env, engine, prompt, modelOverride) {
+  return (engine === 'gpt') ? gptText(env, prompt, modelOverride) : geminiText(env, prompt);
 }
 
 function buildPrompt(p, settings, platform, tone, extra) {
@@ -193,7 +194,8 @@ export async function onRequestPost({ request, env }) {
     const settings = await getSettings(env);
     const engine = (body.engine === 'gpt') ? 'gpt' : 'gemini';
     const prompt = buildPrompt(product, settings, body.platform, body.tone, String(body.extra || '').slice(0, 500));
-    const raw = await generateText(env, engine, prompt);
+    const modelOverride = (typeof body.model === 'string' && /^[\w.\-:]{1,60}$/.test(body.model.trim())) ? body.model.trim() : '';
+    const raw = await generateText(env, engine, prompt, modelOverride);
     const { caption, hashtags } = parseResult(raw);
     if (!caption) return jsonResp({ ok: false, error: 'AI не повернув текст. Спробуй ще раз.' }, 502);
 
