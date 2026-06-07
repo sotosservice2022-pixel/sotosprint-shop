@@ -55,26 +55,37 @@ async function gptText(env, prompt) {
     try { apiKey = await env.SHOP_KV.get('openai_image_key'); } catch (_) {}
   }
   if (!apiKey) throw new Error('GPT-ключ не налаштовано: введи ключ OpenAI на сторінці «AI-обробка фото» (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
-  const model = env.TEXT_GPT_MODEL || 'gpt-4o-mini';
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model,
-      temperature: 0.9,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: 'Ти — SMM-копірайтер. Повертай відповідь СТРОГО у форматі JSON.' },
-        { role: 'user', content: prompt },
-      ],
-    }),
-  });
-  if (!r.ok) {
+  // Проектні ключі OpenAI можуть бути обмежені у доступі до моделей.
+  // Тому пробуємо кілька текстових моделей по черзі, поки одна не спрацює.
+  const preferred = (env.TEXT_GPT_MODEL || '').trim();
+  const candidates = [preferred, 'gpt-4o-mini', 'gpt-4.1-mini', 'gpt-4o', 'gpt-4.1', 'gpt-3.5-turbo']
+    .filter((m, i, a) => m && a.indexOf(m) === i);
+  let lastErr = '';
+  for (const model of candidates) {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        temperature: 0.9,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: 'Ти — SMM-копірайтер. Повертай відповідь СТРОГО у форматі JSON.' },
+          { role: 'user', content: prompt },
+        ],
+      }),
+    });
+    if (r.ok) {
+      const data = await r.json();
+      return data?.choices?.[0]?.message?.content || '';
+    }
     const t = await r.text().catch(() => '');
-    throw new Error(`GPT ${r.status}: ${t.slice(0, 300)}`);
+    lastErr = `GPT ${r.status} (${model}): ${t.slice(0, 200)}`;
+    // якщо проблема саме з доступом до моделі — пробуємо наступну, інакше зупиняємось
+    const isModelIssue = r.status === 404 || /model_not_found|does not have access|invalid_request_error/i.test(t);
+    if (!isModelIssue) break;
   }
-  const data = await r.json();
-  return data?.choices?.[0]?.message?.content || '';
+  throw new Error(lastErr + ' — у твого OpenAI-ключа немає доступу до жодної текстової моделі. Дозволь модель (напр. gpt-4o-mini) для проєкту на platform.openai.com → Project → Limits, або користуйся 💎 Gemini.');
 }
 
 async function generateText(env, engine, prompt) {
