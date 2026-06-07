@@ -199,6 +199,7 @@
   <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
     <button id="priceLockBtn" type="button" class="btn btn-secondary" onclick="togglePriceLock()" style="font-size:13px;">🔒 Ціни заблоковані</button>
     <span style="font-size:12px; color:#6b7280;">захист від випадкових змін. Натисни, щоб редагувати ціну прямо в рядку.</span>
+    <span id="productCount" style="font-size:13px; color:#374151; font-weight:600; margin-left:auto; white-space:nowrap;"></span>
   </div>
 
   <div class="product-list" id="productList"></div>
@@ -344,6 +345,7 @@ async function loadAll() {
     }
     if (!pRes.ok) throw new Error('Помилка завантаження товарів: ' + pRes.status);
     products = (await pRes.json()).products || [];
+    sortPinnedProducts(); // #5: закріплені (ТОП) — нагору
     if (sRes.ok) {
       const sj = await sRes.json();
       appSettings = sj.settings || {};
@@ -532,6 +534,13 @@ function toast(msg, kind) {
 
 function renderList() {
   const wrap = document.getElementById('productList');
+  // Лічильник товарів (#9) — щоб бачити, що нічого не зникло
+  const countEl = document.getElementById('productCount');
+  if (countEl) {
+    const total = products.length;
+    const hidden = products.filter(p => p.enabled === false).length;
+    countEl.textContent = `📦 Товарів: ${total}` + (hidden ? ` (прихованих: ${hidden})` : '');
+  }
   if (products.length === 0) {
     wrap.innerHTML = '<div class="empty">Товаров пока нет. Нажми «+ Добавить товар».</div>';
     return;
@@ -548,7 +557,7 @@ function renderList() {
       <input type="checkbox" class="row-check" data-pid="${escapeAttr(p.id)}" onchange="updateProductBulkBar()" onclick="event.stopPropagation()" style="flex-shrink: 0;" />
       <div class="thumb">${mainImg ? `<img src="${mainImg}" />` : '🖼️'}</div>
       <div class="info">
-        <div class="name">${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
+        <div class="name">${p.pinTop ? '<span title="Закріплено зверху (ТОП)" style="margin-right:3px;">📌</span>' : ''}${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
         <div class="meta">${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
       </div>
       <div onclick="event.stopPropagation()" style="display:flex; align-items:center; gap:3px; margin:0 6px; flex-shrink:0;" title="${unlocked ? 'Редагувати ціну прямо тут' : 'Ціни заблоковані — натисни 🔒 зверху, щоб редагувати'}">
@@ -652,7 +661,11 @@ function editProduct(idx) {
         <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('-30%', '#7c3aed')">-30%</button>
         <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('TOP', '#0b8aff')">TOP</button>
       </div>
-      <div class="hint">Текст у лівому верхньому куті картинки товара. Можна декілька. Колір — будь-який.</div>
+      <div class="hint">Текст у лівому верхньому куті картинки товара. Можна декілька. Колір — будь-який. Натиснутий колір зберігається у «збережені» — клікни квадратик, щоб застосувати той самий колір.</div>
+      <div class="checkbox-inline" style="margin-top:10px;">
+        <input type="checkbox" id="ed-pintop" ${p.pinTop ? 'checked' : ''} />
+        <label for="ed-pintop" style="margin:0">📌 ТОП — закріпити товар зверху списку</label>
+      </div>
     </div>
 
     <div class="section">
@@ -698,6 +711,13 @@ function editProduct(idx) {
   });
   document.getElementById('ed-enabled').addEventListener('change', e => { p.enabled = e.target.checked; });
   document.getElementById('ed-reqphoto').addEventListener('change', e => { p.requiresPhoto = e.target.checked; });
+  const pinEl = document.getElementById('ed-pintop');
+  if (pinEl) pinEl.addEventListener('change', e => {
+    p.pinTop = e.target.checked;
+    sortPinnedProducts();
+    window.currentIdx = products.indexOf(p); // індекс міг змінитися після сортування
+    renderList();
+  });
 
   renderGallery(p);
   renderAttrs(p);
@@ -851,35 +871,80 @@ window.addAttr = () => {
 };
 
 // === Шильдики ===
+// #1: збережені кольори шильдиків (глобально, у appSettings.badgeColors).
+// Коли вибираєш колір у палітрі — він запам'ятовується, і у наступного товару
+// можна клікнути той самий квадратик, щоб поставити ТОЧНО такий самий колір.
+function getSavedBadgeColors() {
+  if (!Array.isArray(appSettings.badgeColors)) appSettings.badgeColors = [];
+  return appSettings.badgeColors;
+}
+function rememberBadgeColor(hex) {
+  if (!hex) return;
+  hex = String(hex).toLowerCase();
+  if (!/^#[0-9a-f]{6}$/.test(hex)) return;
+  const arr = getSavedBadgeColors();
+  const i = arr.indexOf(hex);
+  if (i !== -1) arr.splice(i, 1);
+  arr.unshift(hex);
+  if (arr.length > 12) arr.length = 12;
+}
 function renderBadges(p) {
   const el = document.getElementById('badgeList');
   if (!el) return;
   el.innerHTML = '';
   if (!Array.isArray(p.badges)) p.badges = [];
+  const saved = getSavedBadgeColors();
   p.badges.forEach((b, i) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display: flex; gap: 6px; align-items: center; margin-bottom: 6px;';
+    row.style.cssText = 'display: flex; gap: 6px; align-items: center; margin-bottom: 6px; flex-wrap: wrap;';
     row.innerHTML = `
-      <input type="text" placeholder="Текст (наприклад: ХІТ)" value="${escapeAttr(b.text || '')}" data-k="text" maxlength="20" style="flex: 1; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      <input type="text" placeholder="Текст (наприклад: ХІТ)" value="${escapeAttr(b.text || '')}" data-k="text" maxlength="20" style="flex: 1; min-width:120px; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
       <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280;">Фон:
         <input type="color" value="${b.color || '#dc2626'}" data-k="color" style="width: 36px; height: 32px; padding: 2px; border-radius: 6px; cursor: pointer;" />
       </label>
       <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280;">Текст:
         <input type="color" value="${b.textColor || '#ffffff'}" data-k="textColor" style="width: 36px; height: 32px; padding: 2px; border-radius: 6px; cursor: pointer;" />
       </label>
+      <span class="badge-swatches" style="display:flex; gap:3px; align-items:center;"></span>
       <span class="product-badge-preview" style="background:${b.color || '#dc2626'};color:${b.textColor || '#ffffff'};font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;">${escapeHtml(b.text || 'ПРЕВЮ')}</span>
       <button class="btn btn-danger btn-icon" type="button">×</button>
     `;
+    const previewOf = () => row.querySelector('.product-badge-preview');
     row.querySelectorAll('[data-k]').forEach(input => {
       input.addEventListener('input', () => {
         b[input.dataset.k] = input.value;
-        // Оновлюємо превью
-        const preview = row.querySelector('.product-badge-preview');
+        const preview = previewOf();
         preview.textContent = b.text || 'ПРЕВЮ';
         preview.style.background = b.color || '#dc2626';
         preview.style.color = b.textColor || '#ffffff';
       });
     });
+    // Коли користувач закрив палітру (change) — запам'ятовуємо колір фону у «збережені»
+    const colorInput = row.querySelector('input[data-k="color"]');
+    if (colorInput) {
+      colorInput.addEventListener('change', () => {
+        rememberBadgeColor(colorInput.value);
+        renderBadges(p); // оновити свотчі у всіх рядках
+      });
+    }
+    // Свотчі збережених кольорів — клік ставить ТОЧНО такий самий колір фону
+    const sw = row.querySelector('.badge-swatches');
+    if (sw && saved.length) {
+      sw.insertAdjacentHTML('beforeend', '<span style="font-size:11px;color:#9ca3af;">збережені:</span>');
+      saved.forEach(hex => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.title = 'Застосувати колір ' + hex;
+        btn.style.cssText = `width:18px; height:18px; border-radius:4px; border:1px solid #d1d5db; cursor:pointer; padding:0; background:${hex};`;
+        btn.onclick = () => {
+          b.color = hex;
+          if (colorInput) colorInput.value = hex;
+          const preview = previewOf();
+          preview.style.background = hex;
+        };
+        sw.appendChild(btn);
+      });
+    }
     row.querySelector('button.btn-danger').onclick = () => { p.badges.splice(i, 1); renderBadges(p); };
     el.appendChild(row);
   });
@@ -894,6 +959,7 @@ window.addBadgePreset = (text, color) => {
   const p = products[currentIdx];
   if (!Array.isArray(p.badges)) p.badges = [];
   p.badges.push({ text, color, textColor: '#ffffff' });
+  rememberBadgeColor(color); // #1: колір пресета теж потрапляє у «збережені»
   renderBadges(p);
 };
 
@@ -977,6 +1043,15 @@ window.addOpt = () => {
 };
 
 // === Список товаров: операции ===
+// #5: стабільне сортування — закріплені (pinTop) товари піднімаються нагору,
+// решта зберігає свій відносний порядок. Викликається при перемиканні чекбокса
+// «ТОП» та при завантаженні сторінки.
+function sortPinnedProducts() {
+  products = products
+    .map((p, i) => [p, i])
+    .sort((a, b) => ((b[0].pinTop ? 1 : 0) - (a[0].pinTop ? 1 : 0)) || (a[1] - b[1]))
+    .map(x => x[0]);
+}
 function moveProduct(idx, dir) {
   const target = idx + dir;
   if (target < 0 || target >= products.length) return;
@@ -1223,6 +1298,10 @@ async function saveAll() {
     // промокоди редагуються у редакторі товару (пишуть в appSettings.promoCodes)
     if (appSettings && Array.isArray(appSettings.promoCodes)) {
       serverSettings.promoCodes = appSettings.promoCodes;
+    }
+    // #1: збережені кольори шильдиків (свотчі) — глобальні, належать цій сторінці
+    if (appSettings && Array.isArray(appSettings.badgeColors)) {
+      serverSettings.badgeColors = appSettings.badgeColors;
     }
     const sRes = await fetch('/api/admin/settings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
