@@ -14,3 +14,6 @@ bucket_name = "sotosprint-storage"
 MAX_PHOTOS_PER_ITEM = "10"
 MAX_PHOTO_SIZE_MB = "15"
 MAX_TOTAL_PHOTOS = "10"
+# ТІЛЬКИ для локального тесту цієї гілки. Прибрати перед merge в main!
+# На проді логін іде через KV (admin_password_override), тож цей пароль там не діє.
+ADMIN_PASSWORD = "test1234"
