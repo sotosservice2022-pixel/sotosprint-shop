@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Домен — Адмінка Sotosprint</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    h3 { font-size: 14px; margin: 16px 0 8px; color: #374151; }
+    .card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 14px; box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text] { width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; background: #fafbfc; }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
+    .step { padding: 12px; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 10px; background: #fafbfc; }
+    .step.done { background: #ecfdf5; border-color: #a7f3d0; }
+    .step.error { background: #fef2f2; border-color: #fca5a5; }
+    .step.active { background: #eff6ff; border-color: #93c5fd; }
+    .step-title { font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+    .step-status { font-size: 12px; }
+    .domain-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 6px; background: #fafbfc; }
+    .domain-row.primary { border-color: #16a34a; background: #ecfdf5; }
+    .badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+    .badge.ok { background: #16a34a; color: #fff; }
+    .badge.warn { background: #f59e0b; color: #fff; }
+    .badge.err { background: #dc2626; color: #fff; }
+    a { color: #0b8aff; }
+    .info-banner { background: #eff6ff; padding: 12px; border-radius: 8px; color: #1d4ed8; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+    .warn-banner { background: #fef3c7; padding: 12px; border-radius: 8px; color: #92400e; font-size: 13px; margin-bottom: 14px; line-height: 1.5; }
+    code { background: rgba(0,0,0,.05); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>🌐 Домен сайту</h1>
+  <p class="sub">Поточний домен, додавання нового, перенесення між доменами. <a href="/admin/">← на головну</a></p>
+
+  <div class="card">
+    <h2>📍 Поточний стан</h2>
+    <div id="currentState">Завантаження…</div>
+  </div>
+
+  <div class="card">
+    <h2>➕ Додати новий домен</h2>
+    <div class="info-banner">
+      ℹ️ <strong>Якщо домен куплений у Cloudflare Registrar</strong> або вже доданий у твій CF-акаунт як сайт — все автоматично.
+      <br>
+      <strong>Якщо у стороннього регістратора</strong> — спочатку зміни NS-сервери на CF (інструкція внизу).
+    </div>
+    <label>Новий домен (без http://, без слешу)</label>
+    <input type="text" id="newDomain" placeholder="newshop.store або www.newshop.store" />
+    <div class="hint">Можна вводити як <code>example.com</code>, так і <code>www.example.com</code>. Cloudflare автоматично виписує SSL.</div>
+    <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button class="btn btn-primary" onclick="addDomain()">➕ Додати домен</button>
+      <button class="btn btn-secondary" onclick="loadState()">↻ Оновити список</button>
+    </div>
+    <div id="addResult" style="margin-top: 10px;"></div>
+  </div>
+
+  <div class="card">
+    <h2>🚀 Майстер міграції на новий домен</h2>
+    <div class="warn-banner">
+      ⚠️ Цей процес <strong>не зламає поточний</strong> sotosprint.store. Він просто:
+      <ol style="margin: 6px 0 0 18px; padding: 0;">
+        <li>Знайде <code>Zone ID</code> для нового домена через CF API</li>
+        <li>Оновить <code>settings.primaryDomain</code> і <code>cfZoneId</code></li>
+        <li>Оновить URL Telegram webhook</li>
+      </ol>
+      Старий домен <strong>залишається активним</strong> доки ти його не видалиш вручну.
+    </div>
+
+    <label>Цільовий домен (з тих що вже додані)</label>
+    <input type="text" id="migrateDomain" placeholder="newshop.store" />
+    <div class="hint">Цей домен має бути зі списку <em>«Поточний стан»</em> вище і мати статус <code>active</code>.</div>
+
+    <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+      <button class="btn btn-primary" onclick="finalizeMigration()" id="migrateBtn">🚀 Перейти на цей домен</button>
+      <button class="btn btn-secondary" onclick="updateWebhook()" id="webhookBtn">🤖 Оновити лише Telegram webhook</button>
+    </div>
+    <div class="hint" style="margin-top: 6px;">«Оновити webhook» корисно якщо при першій спробі переходу DNS ще не встиг пропагуватись (типова помилка <em>«Failed to resolve host»</em>). Зачекайте 5-30 хв після додавання домена і спробуйте.</div>
+
+    <div id="migrationSteps" style="margin-top: 14px; display: none;"></div>
+  </div>
+
+  <!-- РЕЗЕРВНИЙ ПРОЕКТ -->
+  <div class="card">
+    <h2>🔒 Резервний проект (запасний магазин)</h2>
+    <div style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8; font-size:13px; margin-bottom: 14px;">
+      ℹ️ Окремий Pages-проект з власним KV/R2 — другий магазин на іншому домені. Можна вимкнути одним кліком (домен відсоединиться, сайт повернеться 522). Дані, код, картинки залишаються — активація знов одним кліком.
+    </div>
+
+    <div class="grid grid-2" style="gap: 12px;">
+      <div>
+        <label>Ім'я Pages-проекту</label>
+        <input type="text" id="reserveProjectName" placeholder="напр. tehno-store" />
+        <div class="hint" style="font-size:12px;">Як він названий у Cloudflare → Pages</div>
+      </div>
+      <div>
+        <label>Домен</label>
+        <input type="text" id="reserveDomain" placeholder="напр. sotosprint.store" />
+        <div class="hint" style="font-size:12px;">Домен який прив'язаний до резерву</div>
+      </div>
+    </div>
+
+    <div style="margin-top: 12px;">
+      <button class="btn btn-secondary" onclick="saveReserveConfig()">💾 Зберегти налаштування</button>
+    </div>
+
+    <div id="reserveStatusBox" style="margin-top: 14px; padding: 12px; background: #f9fafb; border-radius: 8px; display: none;">
+      <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">Поточний стан:</div>
+      <div id="reserveStatusText" style="font-size: 13px;"></div>
+      <div style="margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-success" id="reserveEnableBtn" onclick="reserveEnable()" style="display:none;">✅ Активувати резерв</button>
+        <button class="btn btn-danger" id="reserveDisableBtn" onclick="reserveDisable()" style="display:none;">⏸ Вимкнути в резерв</button>
+        <button class="btn btn-secondary" onclick="reserveStatus()">🔄 Оновити статус</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📚 Інструкції</h2>
+
+    <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+      <h3 style="margin: 0 0 8px; color: #92400e; font-size: 15px;">⚙️ Перед міграцією — налаштуй CF API Token</h3>
+      <p style="margin: 0 0 8px; font-size: 13px; color: #78350f; line-height: 1.5;">
+        Щоб все працювало автоматично, у твоєму CF API token (<a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" style="color:#78350f;">dash.cloudflare.com/profile/api-tokens</a>) повинні бути такі дозволи:
+      </p>
+      <ul style="margin: 0 0 8px; padding-left: 20px; font-size: 13px; color: #78350f; line-height: 1.7;">
+        <li><strong>Account → Cloudflare Pages → Edit</strong> — для додавання custom domain</li>
+        <li><strong>Account → Account Analytics → Read</strong> — для віджета статистики</li>
+        <li><strong>Zone → Cache Purge → Purge</strong> — для миттєвого оновлення кешу</li>
+        <li><strong>Zone → DNS → Edit</strong> — для автоматичного створення CNAME запису</li>
+      </ul>
+      <p style="margin: 0; font-size: 12px; color: #92400e;">
+        <strong>Resources:</strong> <code>Account: Include всі</code> + <code>Zone: All zones from an account</code>
+      </p>
+      <p style="margin: 8px 0 0; font-size: 12px; color: #92400e;">
+        Якщо <em>Zone → DNS → Edit</em> відсутнє — CNAME доведеться створити вручну в CF Dashboard → твій домен → DNS → Records → +Add → CNAME, name <code>@</code>, target <code>sotosprint-shop.pages.dev</code>, Proxied 🟠
+      </p>
+    </div>
+
+    <h3>Випадок 1: Домен куплений у Cloudflare Registrar</h3>
+    <ol style="line-height: 1.7;">
+      <li>Купи домен на <a href="https://dash.cloudflare.com/?to=/:account/registrar" target="_blank">dash.cloudflare.com → Registrar</a></li>
+      <li>Домен автоматично доданий у твій акаунт як сайт</li>
+      <li>Введи його у поле «Додати новий домен» вище → ➕ Додати</li>
+      <li>Через 2-5 хв у списку зʼявиться зі статусом <code>active</code></li>
+      <li>Введи його у «Майстер міграції» → 🚀 Перейти на цей домен</li>
+      <li>Готово — сайт доступний на новому домені</li>
+    </ol>
+
+    <h3>Випадок 2: Домен у стороннього регістратора (Namecheap, GoDaddy і т.д.)</h3>
+    <ol style="line-height: 1.7;">
+      <li>Зайди в <a href="https://dash.cloudflare.com" target="_blank">dash.cloudflare.com</a> → <strong>+ Add a site</strong></li>
+      <li>Введи свій домен → Continue → вибери <strong>Free</strong> план</li>
+      <li>CF покаже 2 NS-сервери (типу <code>aron.ns.cloudflare.com</code>)</li>
+      <li>Зайди в кабінет регістратора (Namecheap/GoDaddy/etc) → знайди налаштування DNS свого домену</li>
+      <li>Зміни NS-сервери на ті що дав CF → збережи</li>
+      <li>Чекай 5 хв - 24 години (зазвичай 30 хв) поки CF побачить що NS прописані. У CF на сторінці домену зʼявиться <strong>«Active»</strong></li>
+      <li>Тепер так само як у Випадку 1: введи домен у «Додати новий домен» → ➕ Додати → дочекайся <code>active</code> → «Майстер міграції»</li>
+    </ol>
+
+    <h3>Що робити після переходу</h3>
+    <ul style="line-height: 1.7;">
+      <li><strong>Зберегти старий з редиректом</strong>: Cloudflare Dashboard → Pages → sotosprint-shop → Custom domains → старий домен → ⋯ → Set up redirect → вибери новий</li>
+      <li><strong>Видалити старий</strong>: тут вище у списку «Поточний стан» → кнопка [ × Видалити ]</li>
+      <li><strong>Telegram webhook</strong>: оновився автоматично під час міграції</li>
+      <li><strong>SEO</strong>: пошуковики помітять новий домен через 1-2 тижні. Прискорити через Google Search Console.</li>
+    </ul>
+  </div>
+
+  <div style="text-align: center; margin: 20px 0; color: #6b7280;">
+    <a href="/admin/">← Повернутись на головну</a>
+  </div>
+</div>
+
+<script>
+async function loadState() {
+  const stateEl = document.getElementById('currentState');
+  stateEl.textContent = 'Завантаження…';
+  try {
+    const r = await fetch('/api/admin/domain', { credentials: 'include' });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+
+    let html = `<div style="margin-bottom: 12px;"><strong>Основний домен:</strong> <code>${d.primaryDomain}</code> · <strong>Pages-проект:</strong> <code>${d.projectName}</code></div>`;
+
+    if (!d.cfConfigured) {
+      html += `<div class="warn-banner">${escapeHtml(d.message || 'CF API не налаштовано')}</div>`;
+    } else if (d.cfError) {
+      html += `<div class="warn-banner">⚠️ Не вдалось отримати список доменів з CF: ${escapeHtml(d.cfError)}</div>`;
+    } else if (d.domains.length === 0) {
+      html += `<div class="hint">Жодного custom domain не додано. Введи новий домен нижче.</div>`;
+    } else {
+      html += `<h3>Домени проекту:</h3>`;
+      d.domains.forEach(dom => {
+        const isPrimary = dom.name === d.primaryDomain;
+        const status = (dom.status || 'unknown').toLowerCase();
+        // active=зелений, initializing/pending=жовтий, інше=червоний
+        const statusClass = status === 'active' ? 'ok' : (status === 'pending' || status === 'initializing' || status === 'verifying') ? 'warn' : 'err';
+        html += `
+          <div class="domain-row ${isPrimary ? 'primary' : ''}">
+            <strong style="flex: 1;">${escapeHtml(dom.name)}</strong>
+            ${isPrimary ? '<span class="badge ok">Основний</span>' : ''}
+            <span class="badge ${statusClass}">${escapeHtml(dom.status || 'unknown')}</span>
+            ${!isPrimary ? `<button class="btn btn-danger" onclick="removeDomain('${escapeAttr(dom.name)}')" style="padding: 4px 10px; font-size: 12px;">× Видалити</button>` : ''}
+          </div>`;
+      });
+      html += `
+        <div style="margin-top: 8px; padding: 8px 12px; background: #f9fafb; border-radius: 6px; font-size: 11px; color: #6b7280; line-height: 1.6;">
+          <strong>Статуси:</strong>
+          <span style="color:#16a34a;">●</span> <code>active</code> — все працює
+          ·
+          <span style="color:#f59e0b;">●</span> <code>initializing</code>/<code>pending</code>/<code>verifying</code> — CF виписує SSL (5-15 хв)
+          ·
+          <span style="color:#dc2626;">●</span> інше — помилка, перевір DNS-запис CNAME
+        </div>`;
+    }
+    stateEl.innerHTML = html;
+  } catch (e) {
+    stateEl.innerHTML = '<div class="warn-banner">❌ ' + escapeHtml(e.message) + '</div>';
+  }
+}
+
+async function addDomain() {
+  const domain = document.getElementById('newDomain').value.trim().toLowerCase();
+  const result = document.getElementById('addResult');
+  result.innerHTML = '<div class="step active"><div class="step-title">⏳ Додаю домен...</div></div>';
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add', domain }),
+    });
+    const d = await r.json();
+    let html = '';
+    (d.steps || []).forEach(s => {
+      const cls = s.ok ? 'done' : 'error';
+      const icon = s.ok ? '✅' : '❌';
+      html += `<div class="step ${cls}"><div class="step-title">${icon} ${escapeHtml(s.name)}</div><div class="step-status">${escapeHtml(s.message || s.error || '')}</div></div>`;
+    });
+    if (d.ok) {
+      html += `<div class="step done"><div class="step-title">🎉 ${escapeHtml(d.message || 'Готово')}</div></div>`;
+      document.getElementById('newDomain').value = '';
+    }
+    result.innerHTML = html;
+    await loadState();
+  } catch (e) {
+    result.innerHTML = `<div class="step error"><div class="step-title">❌ Помилка</div><div class="step-status">${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+async function removeDomain(domain) {
+  if (!confirm('Видалити домен ' + domain + '? Сайт перестане працювати на ньому.')) return;
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'remove', domain }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    await loadState();
+    alert('✅ Видалено');
+  } catch (e) {
+    alert('❌ ' + e.message);
+  }
+}
+
+async function updateWebhook() {
+  const stepsEl = document.getElementById('migrationSteps');
+  stepsEl.style.display = '';
+  stepsEl.innerHTML = '<div class="step active"><div class="step-title">⏳ Оновлюю webhook...</div></div>';
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_webhook' }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      stepsEl.innerHTML = `<div class="step done"><div class="step-title">✅ Готово</div><div class="step-status">${escapeHtml(d.message || 'Webhook оновлено')}</div></div>`;
+    } else {
+      stepsEl.innerHTML = `<div class="step error"><div class="step-title">❌ Помилка</div><div class="step-status">${escapeHtml(d.error || 'Unknown')}</div><div class="step-status" style="margin-top:6px;">Якщо «Failed to resolve host» — зачекайте ще 5-15 хв і спробуйте знову. DNS пропагується.</div></div>`;
+    }
+  } catch (e) {
+    stepsEl.innerHTML = `<div class="step error"><div class="step-title">❌ Помилка</div><div class="step-status">${escapeHtml(e.message)}</div></div>`;
+  }
+}
+
+async function finalizeMigration() {
+  const domain = document.getElementById('migrateDomain').value.trim().toLowerCase();
+  if (!domain) { alert('Введи домен'); return; }
+  if (!confirm(`Перейти на ${domain}?\n\nБуде:\n1. Оновлено primaryDomain\n2. Оновлено Telegram webhook\n\nСтарий домен залишиться активним.`)) return;
+
+  const stepsEl = document.getElementById('migrationSteps');
+  stepsEl.style.display = '';
+  stepsEl.innerHTML = '<div class="step active"><div class="step-title">⏳ Обробляю...</div></div>';
+
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'finalize', domain }),
+    });
+    const d = await r.json();
+    let html = '';
+    (d.steps || []).forEach(s => {
+      const cls = s.ok ? 'done' : 'error';
+      const icon = s.ok ? '✅' : '❌';
+      html += `<div class="step ${cls}"><div class="step-title">${icon} ${escapeHtml(s.name)}</div><div class="step-status">${escapeHtml(s.message || s.error || '')}</div></div>`;
+    });
+    if (d.ok) {
+      html += `<div class="step done"><div class="step-title">🎉 Готово!</div><div class="step-status">Сайт тепер доступний на <a href="https://${domain}" target="_blank">https://${domain}</a></div></div>`;
+    }
+    stepsEl.innerHTML = html;
+    await loadState();
+  } catch (e) {
+    stepsEl.innerHTML = '<div class="step error"><div class="step-title">❌ Помилка</div><div class="step-status">' + escapeHtml(e.message) + '</div></div>';
+  }
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+
+// === Резервний проект ===
+async function loadReserveConfig() {
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.status === 401) return;
+    const d = await r.json();
+    const s = d.settings || d;
+    document.getElementById('reserveProjectName').value = s.reserveProjectName || '';
+    document.getElementById('reserveDomain').value = s.reserveDomain || '';
+    if (s.reserveProjectName && s.reserveDomain) {
+      document.getElementById('reserveStatusBox').style.display = '';
+      reserveStatus();
+    }
+  } catch (e) { console.error(e); }
+}
+
+async function saveReserveConfig() {
+  const proj = document.getElementById('reserveProjectName').value.trim();
+  const dom = document.getElementById('reserveDomain').value.trim();
+  try {
+    // Зчитуємо поточні налаштування
+    const g = await fetch('/api/admin/settings', { credentials: 'include' });
+    const data = await g.json();
+    const settings = data.settings || data;
+    settings.reserveProjectName = proj;
+    settings.reserveDomain = dom;
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    const j = await r.json();
+    if (!j.ok && r.status !== 200) throw new Error(j.error || 'Помилка');
+    alert('✅ Збережено');
+    if (proj && dom) {
+      document.getElementById('reserveStatusBox').style.display = '';
+      reserveStatus();
+    } else {
+      document.getElementById('reserveStatusBox').style.display = 'none';
+    }
+  } catch (e) {
+    alert('❌ ' + e.message);
+  }
+}
+
+async function reserveStatus() {
+  const txt = document.getElementById('reserveStatusText');
+  const enableBtn = document.getElementById('reserveEnableBtn');
+  const disableBtn = document.getElementById('reserveDisableBtn');
+  txt.innerHTML = '⏳ Перевіряю…';
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reserve_status' }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    if (!d.configured) {
+      txt.innerHTML = '<span style="color:#92400e;">⚙️ ' + escapeHtml(d.message) + '</span>';
+      enableBtn.style.display = 'none';
+      disableBtn.style.display = 'none';
+      return;
+    }
+    if (d.attached) {
+      txt.innerHTML = `<span style="color:#16a34a; font-weight:600;">✅ Резерв АКТИВНИЙ</span> · домен <code>${escapeHtml(d.domain)}</code> прив'язаний до <code>${escapeHtml(d.project)}</code> · статус: <code>${escapeHtml(d.status)}</code>`;
+      enableBtn.style.display = 'none';
+      disableBtn.style.display = '';
+    } else {
+      txt.innerHTML = `<span style="color:#dc2626; font-weight:600;">⏸ Резерв СПИТЬ</span> · домен <code>${escapeHtml(d.domain)}</code> НЕ прив'язаний до <code>${escapeHtml(d.project)}</code>. Сайт повертає 522.`;
+      enableBtn.style.display = '';
+      disableBtn.style.display = 'none';
+    }
+  } catch (e) {
+    txt.innerHTML = '<span style="color:#dc2626;">❌ ' + escapeHtml(e.message) + '</span>';
+  }
+}
+
+async function reserveDisable() {
+  if (!confirm('Вимкнути резервний проект? Сайт перестане відкриватися (поверне 522). Дані залишаться, можна буде увімкнути назад.')) return;
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reserve_disable' }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    alert('✅ ' + d.message);
+    reserveStatus();
+  } catch (e) {
+    alert('❌ ' + e.message);
+  }
+}
+
+async function reserveEnable() {
+  if (!confirm("Активувати резерв? Домен буде прив'язаний до проекту, сайт почне відповідати. SSL може ініціалізуватися 1-5 хв.")) return;
+  try {
+    const r = await fetch('/api/admin/domain', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reserve_enable' }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    alert('✅ ' + d.message);
+    reserveStatus();
+  } catch (e) {
+    alert('❌ ' + e.message);
+  }
+}
+
+loadState();
+loadReserveConfig();
+</script>
+</body>
+</html>

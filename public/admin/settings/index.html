@@ -1,0 +1,1085 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Налаштування — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 100px; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    .card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], input[type=number], textarea, select {
+      width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #0b8aff; background: #fff; }
+    .grid { display: grid; gap: 10px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-icon { padding: 6px 10px; font-size: 13px; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+    .toggle-card { padding: 18px; border-radius: 14px; margin-bottom: 14px;
+      border: 2px solid transparent; transition: all .2s; }
+    .toggle-card.on { background: #ecfdf5; border-color: #a7f3d0; }
+    .toggle-card.off { background: #fef2f2; border-color: #fecaca; }
+    .toggle-card .head { display: flex; align-items: center; gap: 12px; }
+    .toggle-card .indicator { width: 14px; height: 14px; border-radius: 50%; box-shadow: 0 0 0 4px rgba(255,255,255,.5); }
+    .toggle-card.on .indicator { background: #16a34a; }
+    .toggle-card.off .indicator { background: #dc2626; animation: pulse 1.5s infinite; }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .toggle-card .title { font-size: 18px; font-weight: 700; flex: 1; }
+    .btn-toggle { padding: 10px 18px; font-size: 14px; font-weight: 600; border: none;
+      border-radius: 10px; cursor: pointer; }
+    .toggle-card.on .btn-toggle { background: #fee2e2; color: #991b1b; }
+    .toggle-card.off .btn-toggle { background: #dcfce7; color: #166534; }
+
+    .list-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .list-row textarea { flex: 1; min-height: 38px; }
+    .field-row { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px;
+      padding: 10px; margin-bottom: 8px; }
+    .checkbox-inline { display: flex; align-items: center; gap: 6px; }
+    .checkbox-inline input { width: auto; }
+
+    .save-bar { position: sticky; bottom: 16px; background: #fff; padding: 12px;
+      border-radius: 12px; box-shadow: 0 4px 20px rgba(20,30,60,.15);
+      display: flex; gap: 10px; align-items: center; }
+    .save-bar .left { flex: 1; font-size: 13px; color: #6b7280; }
+    .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/" data-i18n="crumbs.admin">Адмінка</a> → <span data-i18n="dashboard.settings">Налаштування сайту</span> · <a href="#" onclick="logout(); return false;" style="color:#dc2626;" data-i18n="common.logout">🚪 Вийти</a></div>
+  <h1 data-i18n="settings.title">⚙️ Налаштування сайту</h1>
+  <p class="sub" data-i18n="settings.sub">Тексти, способи доставки, оплати, поля форми замовлення.</p>
+
+  <div id="toggleCard" class="toggle-card on">
+    <div class="head">
+      <span class="indicator"></span>
+      <div>
+        <div class="title" id="toggleTitle">Магазин приймає замовлення</div>
+        <div class="hint" id="toggleHint" style="margin-top:2px;"></div>
+      </div>
+      <button class="btn-toggle" id="toggleBtn" onclick="toggleShop()">Закрити</button>
+    </div>
+    <div style="margin-top: 14px;">
+      <label>Повідомлення клієнтам, коли магазин закритий</label>
+      <input type="text" id="shopDisabledMessage" />
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.numbering_title">📋 Нумерація замовлень</h2>
+    <div class="grid grid-2">
+      <div>
+        <label>Останній виданий номер</label>
+        <input type="number" id="counterCurrent" min="0" />
+        <div class="hint">Если поставишь <code>0</code> — следующий заказ будет <code>#1</code>.</div>
+      </div>
+      <div style="align-self: end;">
+        <button class="btn btn-primary" onclick="saveCounter()">💾 Зберегти</button>
+        <button class="btn btn-danger" onclick="resetCounter()" style="margin-left:6px;">↻ Сброс на 0</button>
+      </div>
+    </div>
+    <div id="counterStatus" class="hint"></div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.shop_info_title">🏪 Інформація про магазин</h2>
+    <div class="grid">
+      <div><label>Заголовок</label><input type="text" id="title" oninput="updateMobilePreview()" /></div>
+      <div><label>⚙️ Підзаголовок у шапці адмінки</label><input type="text" id="adminHeaderText" placeholder="Напр.: Sotosprint — управління сайтом і товарами" />
+        <div class="hint">Текст під заголовком «Адмінка магазину» на головній сторінці адмінки.</div>
+      </div>
+      <div><label>📑 Назва вкладки в браузері</label><input type="text" id="browserTabTitle" placeholder="Якщо порожньо — використовується SEO Title або Заголовок" />
+        <div class="hint">Те що видно в табі/закладці браузера. Бажано до 60 символів.</div>
+      </div>
+      <div><label>📱 Заголовок для мобільних (опціонально, коротший)</label><input type="text" id="mobileTitle" placeholder="Якщо порожньо — використовується звичайний" oninput="updateMobilePreview()" />
+        <div class="hint">Показується на екранах ≤700px замість основного. Корисно якщо назва довга та не вміщається.</div>
+        <!-- Превʼю того, як буде виглядати на мобільному -->
+        <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px;">
+          <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю на мобільному (ширина екрану 375px):</div>
+          <div id="mobilePreviewBox" style="width: 343px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+            <div style="display: flex; align-items: flex-start; gap: 8px;">
+              <div style="font-size: 20px; flex-shrink: 0;">📷</div>
+              <div id="mobilePreviewTitle" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">Sotosprint</div>
+              <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
+            </div>
+          </div>
+          <div id="mobilePreviewWarn" style="font-size: 11px; margin-top: 6px;"></div>
+        </div>
+      </div>
+      <div><label>Підзаголовок</label><input type="text" id="subtitle" /></div>
+      <div class="grid grid-2">
+        <div><label>Заголовок «Каталог»</label><input type="text" id="catalogTitle" /></div>
+        <div><label>Заголовок кошика</label><input type="text" id="cartTitle" /></div>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Кнопка «У кошик»</label><input type="text" id="addToCartText" /></div>
+        <div><label>Кнопка коли товар вже в кошику</label><input type="text" id="inCartText" placeholder="✓ У кошику" /></div>
+        <div><label>Кнопка «Оформити замовлення»</label><input type="text" id="proceedCheckoutText" /></div>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Заголовок сторінки оформлення</label><input type="text" id="checkoutTitle" /></div>
+        <div><label>Кнопка «Відправити замовлення»</label><input type="text" id="submitText" /></div>
+      </div>
+      <div><label>Повідомлення про успішне замовлення</label><input type="text" id="successText" />
+        <div class="hint">Доступно <code>{orderId}</code></div></div>
+      <div><label>Текст «Кошик порожній»</label><input type="text" id="emptyCartText" /></div>
+      <div><label>Підказка під блоком завантаження фото (якщо фото потрібне)</label><input type="text" id="uploadHint" />
+        <div class="hint">Доступні <code>{maxFiles}</code> та <code>{maxSize}</code></div></div>
+
+      <div style="border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 8px;">
+        <strong style="font-size: 13px; color: #6b7280;">📝 Заголовки секцій сторінок (редагуй під свою тематику)</strong>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Заголовок «Склад замовлення»</label><input type="text" id="orderItemsTitle" /></div>
+        <div><label>Заголовок «Фото для друку»</label><input type="text" id="photosBlockTitle" />
+          <div class="hint">Якщо у тебе товари не для друку — змініть на потрібне (напр. «📷 Фото товару»).</div>
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Кнопка вибору фото</label><input type="text" id="choosePhotosText" placeholder="📷 Вибрати фото" />
+          <div class="hint">Великий текст у області завантаження фото для кожного товару.</div>
+        </div>
+        <div><label>Заголовок «Контактні дані»</label><input type="text" id="contactDetailsTitle" /></div>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Заголовок секції «Контакти» внизу сайту</label><input type="text" id="contactsBlockTitle" /></div>
+        <div><label>Заголовок «Доставка»</label><input type="text" id="deliveryBlockTitle" /></div>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Заголовок «Оплата»</label><input type="text" id="paymentBlockTitle" /></div>
+        <div><label>Підпис підсумку в кошику</label><input type="text" id="cartTotalLabel" placeholder="Разом:" /></div>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Кнопка «Видалити» в кошику</label><input type="text" id="cartItemRemoveText" placeholder="Видалити" /></div>
+        <div><label>Кнопка коли нічого не вибрано в кошику</label><input type="text" id="cartNothingSelectedText" placeholder="Оберіть хоча б один товар" /></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.contacts_top_title">📞 Контакти у шапці (зверху сайту)</h2>
+    <div class="checkbox-inline" style="margin-bottom: 10px;">
+      <input type="checkbox" id="topbarContactsEnabled" />
+      <label for="topbarContactsEnabled" style="margin:0">Показувати контакти у шапці</label>
+    </div>
+    <div id="topbarContactsList"></div>
+    <button class="btn btn-secondary btn-icon" onclick="addTopbarContact()">+ Додати рядок</button>
+    <div class="hint" style="margin-top: 8px;">
+      Кожен рядок — окремий контакт. Телефони (типу <code>+380...</code>) автоматично стають клікабельними,
+      <code>@username</code> — посилання на Instagram, <code>https://...</code> — посилання.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.contacts_bottom_title">📞 Контакти внизу сайту (футер)</h2>
+    <div class="checkbox-inline" style="margin-bottom: 10px;">
+      <input type="checkbox" id="contactsEnabled" />
+      <label for="contactsEnabled" style="margin:0">Показувати блок контактів внизу</label>
+    </div>
+    <div id="contactsList"></div>
+    <button class="btn btn-secondary btn-icon" onclick="addContact()">+ Додати рядок</button>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.delivery_title">🚚 Способи доставки</h2>
+    <div id="deliveryList"></div>
+    <button class="btn btn-secondary btn-icon" onclick="addDelivery()">+ Добавить вариант</button>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.payment_title">💳 Способи оплати</h2>
+    <div id="paymentList"></div>
+    <button class="btn btn-secondary btn-icon" onclick="addPayment()">+ Добавить вариант</button>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.fields_title">🗒 Поля форми оформлення замовлення</h2>
+    <div id="fieldsList"></div>
+    <button class="btn btn-secondary btn-icon" onclick="addField()">+ Добавить поле</button>
+  </div>
+
+  <div class="card">
+    <h2>🛒 Швидке додавання в кошик</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="quickAddToCartEnabled" />
+        <label for="quickAddToCartEnabled" style="margin:0">Кнопка «У кошик» прямо на картці товару (без відкриття картки)</label>
+      </div>
+      <div class="hint">Якщо увімкнено — клієнт може додати товар з каталога одним кліком, не відкриваючи картку. Якщо у товара є <strong>варіанти</strong> або потрібно <strong>прикріпити фото</strong> — модалка відкриється все одно.</div>
+      <div class="checkbox-inline" style="margin-top: 8px;">
+        <input type="checkbox" id="inCartClickOpensCart" />
+        <label for="inCartClickOpensCart" style="margin:0">Якщо товар вже в кошику — клік по «✓ У кошику» відкриває кошик (замість повторного додавання)</label>
+      </div>
+      <div class="hint">Зручніше для користувача — він бачить що товар уже там і одразу йде в кошик.</div>
+
+      <div class="checkbox-inline" style="margin-top: 8px;">
+        <input type="checkbox" id="inCartClickOpensCartMobile" />
+        <label for="inCartClickOpensCartMobile" style="margin:0">📱 Те саме, але на мобільному (≤700px)</label>
+      </div>
+      <div class="hint">Якщо вимкнено — на мобільному клік по «✓ У кошику» НЕ відкриває кошик.</div>
+
+      <div style="margin-top: 12px; padding: 10px; background: #fef2f2; border-radius: 8px; border: 1px solid #fecaca;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="inCartClickRemoves" />
+          <label for="inCartClickRemoves" style="margin:0; font-weight:600;">🗑 Клік по «✓ У кошику» <strong>прибирає</strong> товар з кошика (десктоп)</label>
+        </div>
+        <div class="checkbox-inline" style="margin-top: 8px;">
+          <input type="checkbox" id="inCartClickRemovesMobile" />
+          <label for="inCartClickRemovesMobile" style="margin:0; font-weight:600;">📱 Прибирає з кошика — на мобільному (≤700px)</label>
+        </div>
+        <div class="hint" style="font-size:12px; color:#991b1b; margin-top:6px;">
+          ⚠️ Має <strong>пріоритет</strong> над «відкриває кошик». Якщо ввімкнено — клік просто видаляє товар з кошика, кнопка повертається в стан «В корзину».
+        </div>
+
+        <!-- Опції видалення -->
+        <div style="margin-top: 12px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #fca5a5;">
+          <div style="font-weight:600; font-size:13px; margin-bottom:8px; color:#991b1b;">⚙️ Налаштування видалення</div>
+
+          <div class="checkbox-inline">
+            <input type="checkbox" id="inCartConfirmRemove" />
+            <label for="inCartConfirmRemove" style="margin:0">❓ Запитувати підтвердження перед видаленням (десктоп)</label>
+          </div>
+          <div class="checkbox-inline" style="margin-top: 6px;">
+            <input type="checkbox" id="inCartConfirmRemoveMobile" />
+            <label for="inCartConfirmRemoveMobile" style="margin:0">📱 Запитувати підтвердження — на мобільному (≤700px)</label>
+          </div>
+          <div style="margin: 6px 0 8px 24px;">
+            <label style="font-size:12px; color:#6b7280;">Текст підтвердження (спільний для desktop і mobile)</label>
+            <input type="text" id="inCartConfirmRemoveText" placeholder="Прибрати товар з кошика?" style="width: 100%; padding: 6px 10px; font-size: 13px;" />
+          </div>
+
+          <div class="checkbox-inline" style="margin-top: 8px;">
+            <input type="checkbox" id="inCartRemoveAnimation" />
+            <label for="inCartRemoveAnimation" style="margin:0">✨ Анімація зникнення при видаленні</label>
+          </div>
+          <div class="hint" style="font-size:12px; color:#6b7280; margin-left: 24px;">
+            Кнопка коротко стискається й бліднішає (≈300мс) перед видаленням.
+          </div>
+
+          <div style="margin: 12px 0 0;">
+            <label style="font-size:12px; color:#6b7280;">📢 Текст тоста при видаленні (порожнє = без тоста)</label>
+            <input type="text" id="inCartRemoveToastText" placeholder="🗑 Прибрано з кошика" style="width: 100%; padding: 6px 10px; font-size: 13px;" />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📧 Email-сповіщення клієнту</h2>
+    <div style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8; font-size:13px; margin-bottom: 14px;">
+      ℹ️ Після оформлення замовлення клієнт отримає лист зі складом і сумою.
+      Використовується <strong>Resend.com API ключ</strong> який налаштовано в <a href="/admin/bot/" style="color:inherit; text-decoration:underline;">/admin/bot/ → 2FA</a>.
+    </div>
+
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="customerEmailEnabled" />
+        <label for="customerEmailEnabled" style="margin:0; font-weight:600;">Увімкнути email-сповіщення клієнту</label>
+      </div>
+
+      <div class="checkbox-inline" style="margin-top: 8px;">
+        <input type="checkbox" id="customerEmailRequired" />
+        <label for="customerEmailRequired" style="margin:0">⚠️ Email — <strong>обовʼязкове поле</strong> у формі замовлення</label>
+      </div>
+      <div class="hint">
+        <strong>Вимкнено</strong> (за замовчуванням): клієнт може залишити поле порожнім — лист не надішлеться.<br>
+        <strong>Увімкнено</strong>: без email замовлення не оформиться. Лист надсилається завжди.
+      </div>
+
+      <div>
+        <label>Підпис поля у формі замовлення</label>
+        <input type="text" id="customerEmailFieldLabel" placeholder="📧 Email для підтвердження замовлення" />
+      </div>
+
+      <div>
+        <label>Тема листа</label>
+        <input type="text" id="customerEmailSubject" placeholder="Замовлення #{orderId} прийнято — {shopTitle}" />
+        <div class="hint">Доступні: <code>{orderId}</code> <code>{shopTitle}</code> <code>{customerName}</code> <code>{total}</code></div>
+      </div>
+
+      <div>
+        <label>Імʼя відправника</label>
+        <input type="text" id="customerEmailFromName" placeholder="Залиште порожнім — буде використана назва магазину" />
+        <div class="hint">У листі буде: <em>"Імʼя відправника" &lt;onboarding@resend.dev&gt;</em></div>
+      </div>
+
+      <div>
+        <label>Текст у нижній частині листа</label>
+        <textarea id="customerEmailFooter" rows="2" placeholder="Дякуємо за замовлення!" style="width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+      </div>
+    </div>
+
+    <!-- Тест -->
+    <div style="margin-top: 14px; padding: 12px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+      <div style="font-weight: 600; font-size: 13px; color: #14532d; margin-bottom: 8px;">🧪 Тест надсилання</div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <input type="email" id="testEmailTo" placeholder="email куди надіслати тест" style="flex: 1; min-width: 200px; padding: 9px 11px;" />
+        <button class="btn btn-secondary" type="button" onclick="testCustomerEmail()" id="testEmailBtn">📨 Надіслати тестовий лист</button>
+      </div>
+      <div id="testEmailResult" style="margin-top: 8px; font-size: 13px;"></div>
+    </div>
+
+    <!-- Інструкція Resend -->
+    <details style="margin-top: 14px;">
+      <summary style="cursor: pointer; color: #1d4ed8; font-weight: 600; padding: 10px; background: #eff6ff; border-radius: 6px;">
+        📚 Як налаштувати Resend.com (інструкція)
+      </summary>
+      <div style="padding: 14px; background: #fafafa; border-radius: 6px; margin-top: 8px; font-size: 13px; line-height: 1.6;">
+        <h4 style="margin: 0 0 8px;">1️⃣ Реєстрація</h4>
+        <ol style="padding-left: 20px;">
+          <li>Перейди на <a href="https://resend.com/signup" target="_blank">resend.com/signup</a></li>
+          <li>Зареєструйся (можна через Google/GitHub)</li>
+          <li>Підтверди свій email</li>
+        </ol>
+
+        <h4 style="margin: 12px 0 8px;">2️⃣ Створення API-ключа</h4>
+        <ol style="padding-left: 20px;">
+          <li>Зайди в <a href="https://resend.com/api-keys" target="_blank">resend.com/api-keys</a></li>
+          <li>Натисни <strong>"Create API Key"</strong></li>
+          <li>Назва: <code>sotosprint-shop</code> (або як хочеш)</li>
+          <li>Permission: <strong>Full access</strong></li>
+          <li>Створи → скопіюй ключ (виглядає як <code>re_xxxxx...</code>)</li>
+          <li>Встав його в <a href="/admin/bot/">/admin/bot/ → 2FA</a> → поле "Resend API ключ" → Зберегти</li>
+        </ol>
+
+        <h4 style="margin: 12px 0 8px;">3️⃣ Тестування (без власного домена)</h4>
+        <p>За замовчуванням Resend дозволяє слати з адреси <code>onboarding@resend.dev</code> на <strong>будь-який email</strong>. Це підходить для початку — нічого додатково не треба.</p>
+        <p>⚠️ Безкоштовний ліміт: <strong>3000 листів/місяць</strong>, <strong>100/день</strong>. Цього вистачить більшості магазинам.</p>
+
+        <h4 style="margin: 12px 0 8px;">4️⃣ Власний домен (опційно)</h4>
+        <p>Щоб листи приходили з <code>shop@вашсайт.com</code> а не з <code>onboarding@resend.dev</code>:</p>
+        <ol style="padding-left: 20px;">
+          <li>В Resend → <a href="https://resend.com/domains" target="_blank">Domains</a> → Add Domain</li>
+          <li>Введи свій домен (напр. <code>agprnt.com</code>)</li>
+          <li>Resend дасть DNS-записи (TXT + MX) → додай їх в <a href="https://dash.cloudflare.com/" target="_blank">Cloudflare Dashboard → DNS</a></li>
+          <li>Почекай 5-10 хв → натисни Verify в Resend</li>
+          <li>Після верифікації — змін поле "Sender (from)" на <code>shop@agprnt.com</code> в /admin/bot/</li>
+        </ol>
+
+        <h4 style="margin: 12px 0 8px;">5️⃣ Перевірка</h4>
+        <p>Натисни кнопку <strong>"📨 Надіслати тестовий лист"</strong> вище — введи свій email — отримаєш зразок шаблона листа.</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>📱 SMS-сповіщення клієнту</h2>
+    <div style="background:#fef9c3; padding:10px; border-radius:8px; color:#854d0e; font-size:13px; margin-bottom: 14px;">
+      💸 Платний канал. Після оформлення замовлення клієнту надсилається SMS. Обери провайдера, заповни ключі, поповни баланс у нього та увімкни.
+    </div>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="smsEnabled" />
+        <label for="smsEnabled" style="margin:0; font-weight:600;">Увімкнути SMS-сповіщення</label>
+      </div>
+      <div>
+        <label>Провайдер SMS</label>
+        <select id="smsProvider" style="width:100%; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px;">
+          <option value="turbosms">TurboSMS (Україна)</option>
+          <option value="smsclub">SMSClub (Україна)</option>
+          <option value="twilio">Twilio (міжнародний)</option>
+        </select>
+        <div class="hint">TurboSMS / SMSClub — українські (альфа-імʼя відправника). Twilio — глобальний (From-номер + Account SID).</div>
+      </div>
+      <div>
+        <label>API-токен / Auth Token</label>
+        <input type="password" id="smsApiToken" placeholder="залиш порожнім — збережений токен не зміниться" autocomplete="off" />
+        <div class="hint">TurboSMS: <a href="https://turbosms.ua/api.html" target="_blank">Кабінет → API → Bearer-токен</a>. SMSClub: Профіль → токен. Twilio: Auth Token.</div>
+      </div>
+      <div>
+        <label>Account SID <span style="color:#9ca3af">(лише Twilio)</span></label>
+        <input type="text" id="smsAccountSid" placeholder="ACxxxxxxxx — лише для Twilio" autocomplete="off" />
+      </div>
+      <div>
+        <label>Відправник (Alpha-name / From-номер)</label>
+        <input type="text" id="smsSender" placeholder="напр. SOTOSPRINT або +14155551234" />
+        <div class="hint">TurboSMS / SMSClub: затверджене альфа-імʼя. Twilio: ваш Twilio-номер у форматі <code>+...</code></div>
+      </div>
+      <div>
+        <label>Шаблон SMS</label>
+        <input type="text" id="smsTemplate" placeholder="Замовлення #{orderId} прийнято. Сума: {total} грн. Дякуємо!" />
+        <div class="hint">Доступні: <code>{orderId}</code> <code>{shopTitle}</code> <code>{customerName}</code> <code>{total}</code></div>
+      </div>
+    </div>
+    <div style="margin-top: 14px; padding: 12px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+      <div style="font-weight: 600; font-size: 13px; color: #14532d; margin-bottom: 8px;">🧪 Тест надсилання</div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <input type="text" id="testSmsTo" placeholder="+380... куди надіслати тест" style="flex: 1; min-width: 200px; padding: 9px 11px;" />
+        <button class="btn btn-secondary" type="button" onclick="testSms()" id="testSmsBtn">📨 Надіслати тестове SMS</button>
+      </div>
+      <div id="testSmsResult" style="margin-top: 8px; font-size: 13px;"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.sold_title">🛒 Лічильник продажів під товарами</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="showSoldCount" />
+        <label for="showSoldCount" style="margin:0">Показувати «Куплено: N» під кожним товаром</label>
+      </div>
+      <div>
+        <label>Шаблон тексту</label>
+        <input type="text" id="soldCountTemplate" />
+        <div class="hint">Доступний <code>{count}</code></div>
+      </div>
+      <div class="hint">Лічильник кожного товару редагується в розділі <a href="/admin/products/">Товари</a>. Зростає автоматично після кожного замовлення.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.compress_title">📷 Стиснення фото</h2>
+    <div class="grid">
+      <div style="font-weight:600; color:#374151; font-size:14px;">📥 Фото клієнтів (при оформленні замовлення):</div>
+      <div class="checkbox-inline">
+        <input type="checkbox" id="autoCompress" />
+        <label for="autoCompress" style="margin:0">Автоматично стискати великі фото перед відправкою</label>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Макс. сторона (px)</label><input type="number" id="compressMaxSide" min="800" max="8000" />
+          <div class="hint">4000px = 300 DPI на A4. Для меншого формату можна 2400.</div>
+        </div>
+        <div><label>Якість JPEG</label><input type="number" id="compressQuality" min="50" max="100" />
+          <div class="hint">85-92 = оптимум. 95+ — якщо потрібен ідеальний результат.</div>
+        </div>
+      </div>
+
+      <div style="font-weight:600; color:#374151; font-size:14px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">🛍 Фото товарів (в адмінці каталога):</div>
+      <div class="grid grid-2">
+        <div><label>Макс. сторона (px)</label><input type="number" id="productImageMaxSide" min="400" max="3000" placeholder="1200" />
+          <div class="hint">Картинки товарів менші — для каталога достатньо 1200.</div>
+        </div>
+        <div><label>Якість JPEG</label><input type="number" id="productImageQuality" min="50" max="100" placeholder="85" />
+          <div class="hint">85 — золота середина між якістю та розміром.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⚡ Швидкість оновлення та продуктивність</h2>
+    <div class="hint" style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8; margin-bottom: 14px;">
+      ℹ️ Тут ти контролюєш як часто сайт перевіряє оновлення. Чим частіше — тим швидше клієнт побачить зміни,
+      але тим більше навантаження на ліміти Cloudflare. Не зменшуй якщо не впевнений.
+    </div>
+    <div class="grid">
+      <div>
+        <label>🌐 Інтервал оновлення публічного сайту (секунд)</label>
+        <input type="number" id="publicPollIntervalSec" min="1" max="60" placeholder="5" />
+        <div class="hint">
+          Як часто головна сторінка / кошик перевіряють чи змінились товари або налаштування.<br>
+          <strong>Рекомендується: 5 сек</strong> (швидко й безпечно — використовує lightweight version-endpoint).<br>
+          Менше 3 сек — якщо у тебе мало відвідувачів і потрібно реактивно. <br>
+          Більше 10 сек — якщо багато трафіку (1000+ відвідувачів/день).
+        </div>
+      </div>
+      <div>
+        <label>📋 Інтервал перевірки нових замовлень в адмінці (секунд)</label>
+        <input type="number" id="adminPollIntervalSec" min="10" max="300" placeholder="60" />
+        <div class="hint">
+          Як часто polling в адмінці перевіряє нові замовлення (для toast-сповіщень).<br>
+          <strong>Рекомендується: 60 сек.</strong> Менше 30 — реактивніше, але більше Workers invocations.
+        </div>
+      </div>
+      <div>
+        <label>🔁 Авто-оновлення таблиці /admin/orders/ (секунд)</label>
+        <input type="number" id="ordersAutoRefreshSec" min="5" max="120" placeholder="15" />
+        <div class="hint">
+          Як часто список заказів оновлюється коли сторінка /admin/orders/ відкрита.<br>
+          <strong>Рекомендується: 15 сек.</strong> Кожне оновлення — 1 KV.list() (ліміт 1000/день).
+        </div>
+      </div>
+      <div>
+        <label>⚡ CDN-кеш версії магазину (секунд)</label>
+        <input type="number" id="shopVersionCacheSec" min="1" max="30" placeholder="2" />
+        <div class="hint">
+          Скільки CDN тримає відповідь /api/shop-version (lightweight перевірку версії).<br>
+          <strong>Рекомендується: 2 сек.</strong> Менше — миттєві оновлення, більше KV reads.
+        </div>
+      </div>
+      <div>
+        <label>📦 CDN-кеш повних даних магазину (секунд)</label>
+        <input type="number" id="shopFullCacheSec" min="5" max="300" placeholder="30" />
+        <div class="hint">
+          Скільки CDN тримає відповідь /api/shop (товари + налаштування).<br>
+          <strong>Рекомендується: 30 сек.</strong> Версія перевіряється кожні 2 сек (вище), тому ця кеш практично не помітна для клієнта.<br>
+          Менше — швидше оновлення при зміні в адмінці без version-bump (рідко). Більше — менше KV reads.
+        </div>
+      </div>
+      <div style="background: #fef3c7; padding: 10px; border-radius: 8px; color: #92400e; font-size: 12px;">
+        💡 <strong>Як це все працює:</strong>
+        <ol style="margin: 6px 0 0 18px; padding: 0;">
+          <li>Клієнт кожні N секунд перевіряє /api/shop-version (~50 байт)</li>
+          <li>Якщо версія та сама — нічого не робить (CDN cache)</li>
+          <li>Якщо змінилась — тягне повний /api/shop і оновлює UI</li>
+          <li>Версія міняється коли ти зберігаєш settings/products в адмінці</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🛡 Безпека / небезпечні операції</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="showBulkOperations" />
+        <label for="showBulkOperations" style="margin:0">Показувати банер «Масові операції з захистом» в адмінці</label>
+      </div>
+      <div class="hint">Це червоний блок у /admin/orders/ і /admin/products/ з кнопками «Видалити все». Знімі галочку якщо боїшся натиснути випадково.</div>
+
+      <div style="border-top: 1px solid #e5e7eb; margin-top: 8px; padding-top: 12px;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="lockReorder" onchange="toggleLockReorder(this.checked)" />
+          <label for="lockReorder" style="margin:0">🔒 Заморозити порядок карток і плиток (відключити стрілки ▲▼)</label>
+        </div>
+        <div class="hint">Коли увімкнено — кнопки переміщення карток і плиток зникають. Колапс ▾/▸ працює як раніше. Корисно щоб не зрушити випадково.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 data-i18n="settings.errors_title">⚠️ Тексти помилок</h2>
+    <div class="grid">
+      <div><label>«Заповніть це поле»</label><input type="text" id="requiredFieldError" /></div>
+      <div><label>«Введіть номер повністю»</label><input type="text" id="phoneErrorText" /></div>
+      <div><label>«Прикріпіть фото для всіх товарів»</label><input type="text" id="noPhotosError" /></div>
+      <div><label>«Перевищено ліміт фото на замовлення»</label><input type="text" id="totalPhotosError" placeholder="Максимум {max} фото на замовлення (всього). Зайві пропущено." />
+        <div class="hint">Показується коли клієнт намагається додати більше фото ніж дозволено в одному замовленні. Доступний <code>{max}</code></div>
+      </div>
+      <div><label>«Мережа недоступна»</label><input type="text" id="networkErrorText" /></div>
+      <div class="grid grid-2">
+        <div><label>«Підготовка фото…»</label><input type="text" id="preparingText" /></div>
+        <div><label>«Відправляємо замовлення…»</label><input type="text" id="sendingText" /></div>
+      </div>
+      <div><label>Текст повтору відправлення</label><input type="text" id="retryingText" />
+        <div class="hint">Доступні <code>{attempt}</code> та <code>{max}</code></div></div>
+      <div><label>Текст спливаючого вікна нового замовлення (в адмінці)</label><input type="text" id="newOrderToastText" />
+        <div class="hint">Показується в адмінці коли надходить нове замовлення. Доступні <code>{orderId}</code>, <code>{name}</code>, <code>{total}</code></div></div>
+      <div class="checkbox-inline">
+        <input type="checkbox" id="newOrderToastEnabled" />
+        <label for="newOrderToastEnabled" style="margin:0">Показувати спливаюче вікно про нове замовлення</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="save-bar">
+    <div class="left" id="status">Загрузка…</div>
+    <button class="btn btn-secondary" onclick="loadAll()" data-i18n="common.cancel">Скасувати</button>
+    <button class="btn btn-primary" onclick="saveAll()" data-i18n="common.save_all">💾 Зберегти все</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+let settings = {};
+
+// === Превʼю мобільного заголовку ===
+// Показує як назва буде виглядати на мобільному (max 3 рядка, зменшений шрифт)
+function updateMobilePreview() {
+  const input = document.getElementById('mobileTitle');
+  const fallback = document.getElementById('title');
+  const previewBox = document.getElementById('mobilePreviewBox');
+  const previewTitle = document.getElementById('mobilePreviewTitle');
+  const warn = document.getElementById('mobilePreviewWarn');
+  if (!input || !previewTitle) return;
+
+  // Текст: якщо mobileTitle порожнє — використовується звичайний title
+  let text = input.value.trim();
+  let usingFallback = false;
+  if (!text) {
+    text = (fallback?.value || 'Sotosprint').trim();
+    usingFallback = true;
+  }
+
+  // Шрифт мобільного = topbarTitleSize × 0.85 (як на сайті)
+  const baseSize = window.__topbarTitleSize || 17;
+  const mobileSize = baseSize * 0.85;
+  previewTitle.style.fontSize = mobileSize + 'px';
+  previewTitle.textContent = text;
+  previewTitle.style.display = '-webkit-box';
+  previewTitle.style.webkitLineClamp = '3';
+  previewTitle.style.webkitBoxOrient = 'vertical';
+  previewTitle.style.overflow = 'hidden';
+  previewTitle.style.whiteSpace = 'normal';
+  previewTitle.style.lineHeight = '1.2';
+  previewTitle.style.wordBreak = 'break-word';
+
+  // Перевіряємо скільки рядків зайняв
+  setTimeout(() => {
+    const h = previewTitle.offsetHeight;
+    const lineH = mobileSize * 1.2;
+    const lines = Math.max(1, Math.round(h / lineH));
+    let msg = '';
+    let color = '#16a34a';
+    if (lines === 1) msg = '✅ Поміщається в 1 рядок';
+    else if (lines === 2) { msg = '✅ Поміщається в 2 рядки'; color = '#16a34a'; }
+    else if (lines === 3) { msg = '⚠️ Займає 3 рядки — максимум що показується'; color = '#ca8a04'; }
+    else { msg = '🚨 Не вміщається — кінець обрізається. Зробіть текст коротшим або поставте окремий мобільний заголовок.'; color = '#dc2626'; }
+    if (usingFallback) msg = '(використовується основний заголовок) ' + msg;
+    if (warn) {
+      warn.textContent = msg;
+      warn.style.color = color;
+    }
+  }, 30);
+}
+
+const TEXT_FIELDS = [
+  'title','subtitle','catalogTitle','cartTitle','addToCartText','inCartText','proceedCheckoutText','mobileTitle','browserTabTitle',
+  'checkoutTitle','submitText','successText','emptyCartText','uploadHint',
+  'requiredFieldError','phoneErrorText','noPhotosError','totalPhotosError','networkErrorText',
+  'preparingText','sendingText','retryingText','shopDisabledMessage','newOrderToastText',
+  'soldCountTemplate',
+  'orderItemsTitle','photosBlockTitle','choosePhotosText','contactDetailsTitle','deliveryBlockTitle',
+  'paymentBlockTitle','contactsBlockTitle','cartTotalLabel','cartItemRemoveText','cartNothingSelectedText',
+  'adminHeaderText',
+];
+const NUMBER_FIELDS = ['compressMaxSide','compressQuality','productImageMaxSide','productImageQuality',
+  'publicPollIntervalSec','adminPollIntervalSec','ordersAutoRefreshSec','shopVersionCacheSec','shopFullCacheSec'];
+
+async function loadAll() {
+  setStatus('Загрузка…');
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.status === 401) {
+      location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname);
+      return;
+    }
+    if (!r.ok) throw new Error('Ошибка ' + r.status);
+    settings = (await r.json()).settings || {};
+    render();
+    await loadCounter();
+    setStatus('Загружено');
+  } catch (e) { setStatus('Ошибка: ' + e.message, true); }
+}
+
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+async function loadCounter() {
+  try {
+    const data = await fetch('/api/admin/counter', { credentials: 'include' }).then(r => r.json());
+    document.getElementById('counterCurrent').value = data.current;
+    document.getElementById('counterStatus').textContent = `Последний заказ #${data.current}, следующий получит #${data.next}.`;
+  } catch (e) { document.getElementById('counterStatus').textContent = 'Не удалось: ' + e.message; }
+}
+
+function setStatus(text, isError) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.style.color = isError ? '#991b1b' : '#6b7280';
+}
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'success');
+  setTimeout(() => t.className = 'toast ' + (kind || 'success'), 2200);
+}
+
+// Тест надсилання email клієнту
+async function testCustomerEmail() {
+  const toEl = document.getElementById('testEmailTo');
+  const btn = document.getElementById('testEmailBtn');
+  const result = document.getElementById('testEmailResult');
+  const to = (toEl?.value || '').trim();
+  if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+    result.innerHTML = '<span style="color:#dc2626;">❌ Введіть правильний email</span>';
+    return;
+  }
+  btn.disabled = true; btn.textContent = '⏳ Надсилаю...';
+  result.innerHTML = '';
+  try {
+    const r = await fetch('/api/admin/customer-email-test', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      result.innerHTML = `<span style="color:#16a34a;">✅ ${d.message}</span>`;
+    } else {
+      result.innerHTML = `<span style="color:#dc2626;">❌ ${d.error}</span>`;
+    }
+  } catch (e) {
+    result.innerHTML = `<span style="color:#dc2626;">❌ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '📨 Надіслати тестовий лист';
+  }
+}
+
+async function testSms() {
+  const toEl = document.getElementById('testSmsTo');
+  const btn = document.getElementById('testSmsBtn');
+  const result = document.getElementById('testSmsResult');
+  const to = (toEl?.value || '').trim();
+  if (to.replace(/\D/g, '').length < 10) {
+    result.innerHTML = '<span style="color:#dc2626;">❌ Введіть правильний номер</span>';
+    return;
+  }
+  btn.disabled = true; btn.textContent = '⏳ Надсилаю...';
+  result.innerHTML = '';
+  try {
+    const r = await fetch('/api/admin/sms-test', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to }),
+    });
+    const d = await r.json();
+    result.innerHTML = d.ok
+      ? `<span style="color:#16a34a;">✅ ${d.message}</span>`
+      : `<span style="color:#dc2626;">❌ ${d.error}</span>`;
+  } catch (e) {
+    result.innerHTML = `<span style="color:#dc2626;">❌ ${e.message}</span>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '📨 Надіслати тестове SMS';
+  }
+}
+
+function render() {
+  const enabled = settings.shopEnabled !== false;
+  const card = document.getElementById('toggleCard');
+  card.className = 'toggle-card ' + (enabled ? 'on' : 'off');
+  document.getElementById('toggleTitle').textContent = enabled ? '✅ Магазин приймає замовлення' : '🚫 Магазин закритий';
+  document.getElementById('toggleHint').textContent = enabled ? 'Клієнти можуть замовляти.' : 'Сервер відхиляє замовлення.';
+  document.getElementById('toggleBtn').textContent = enabled ? 'Закрити' : 'Відкрити';
+
+  TEXT_FIELDS.forEach(k => { const el = document.getElementById(k); if (el) el.value = settings[k] ?? ''; });
+  NUMBER_FIELDS.forEach(k => { const el = document.getElementById(k); if (el) el.value = settings[k] ?? ''; });
+  // Запам'ятовуємо topbarTitleSize щоб правильно показати превʼю мобільного
+  window.__topbarTitleSize = settings.topbarTitleSize || 17;
+  updateMobilePreview();
+  document.getElementById('autoCompress').checked = settings.autoCompress !== false;
+  document.getElementById('showBulkOperations').checked = settings.showBulkOperations !== false;
+  // Sync lockReorder з settings → localStorage
+  if (typeof syncLockReorder === 'function') syncLockReorder(settings);
+  document.getElementById('lockReorder').checked = !!settings.adminLockReorder;
+
+  // Sold count
+  document.getElementById('showSoldCount').checked = !!settings.showSoldCount;
+  document.getElementById('quickAddToCartEnabled').checked = !!settings.quickAddToCartEnabled;
+  document.getElementById('inCartClickOpensCart').checked = settings.inCartClickOpensCart !== false;
+  document.getElementById('inCartClickOpensCartMobile').checked = settings.inCartClickOpensCartMobile !== false;
+  document.getElementById('inCartClickRemoves').checked = !!settings.inCartClickRemoves;
+  document.getElementById('inCartClickRemovesMobile').checked = !!settings.inCartClickRemovesMobile;
+  document.getElementById('inCartConfirmRemove').checked = !!settings.inCartConfirmRemove;
+  document.getElementById('inCartConfirmRemoveMobile').checked = !!settings.inCartConfirmRemoveMobile;
+  document.getElementById('inCartConfirmRemoveText').value = settings.inCartConfirmRemoveText || '';
+  document.getElementById('inCartRemoveAnimation').checked = !!settings.inCartRemoveAnimation;
+  document.getElementById('inCartRemoveToastText').value = (settings.inCartRemoveToastText !== undefined ? settings.inCartRemoveToastText : '🗑 Прибрано з кошика');
+
+  // Customer email
+  document.getElementById('customerEmailEnabled').checked = !!settings.customerEmailEnabled;
+  document.getElementById('customerEmailRequired').checked = !!settings.customerEmailRequired;
+  document.getElementById('customerEmailFieldLabel').value = settings.customerEmailFieldLabel || '📧 Email для підтвердження замовлення';
+  document.getElementById('customerEmailSubject').value = settings.customerEmailSubject || 'Замовлення #{orderId} прийнято — {shopTitle}';
+  document.getElementById('customerEmailFromName').value = settings.customerEmailFromName || '';
+  document.getElementById('customerEmailFooter').value = settings.customerEmailFooter || 'Дякуємо за замовлення! Ми звʼяжемося з вами найближчим часом.';
+
+  // SMS (TurboSMS)
+  document.getElementById('smsEnabled').checked = !!settings.smsEnabled;
+  document.getElementById('smsProvider').value = settings.smsProvider || 'turbosms';
+  document.getElementById('smsApiToken').value = ''; // секрет — не показуємо
+  document.getElementById('smsAccountSid').value = settings.smsAccountSid || '';
+  document.getElementById('smsSender').value = settings.smsSender || '';
+  document.getElementById('smsTemplate').value = settings.smsTemplate || 'Замовлення #{orderId} прийнято. Сума: {total} грн. Дякуємо!';
+
+  // Toast enabled
+  document.getElementById('newOrderToastEnabled').checked = settings.newOrderToastEnabled !== false;
+
+  // Contacts lists
+  document.getElementById('topbarContactsEnabled').checked = settings.topbarContactsEnabled !== false;
+  document.getElementById('contactsEnabled').checked = settings.contactsEnabled !== false;
+  if (!Array.isArray(settings.topbarContactsList)) settings.topbarContactsList = [];
+  if (!Array.isArray(settings.contactsList)) settings.contactsList = [];
+  renderContactsList('topbarContactsList', settings.topbarContactsList);
+  renderContactsList('contactsList', settings.contactsList);
+
+  renderList('deliveryList', settings.deliveryMethods || [], 'delivery');
+  renderList('paymentList', settings.paymentMethods || [], 'payment');
+  renderFields();
+}
+
+function renderList(containerId, items, kind) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  items.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `
+      <div class="row-arrows">
+        <button type="button" onclick="swapListItem('${kind}', ${i}, -1)" ${i===0?'disabled':''} title="Вгору">▲</button>
+        <button type="button" onclick="swapListItem('${kind}', ${i}, 1)" ${i===items.length-1?'disabled':''} title="Вниз">▼</button>
+      </div>
+      <textarea rows="1">${escapeHtml(m)}</textarea>
+      <button class="btn btn-danger btn-icon" onclick="removeListItem('${kind}', ${i})">×</button>
+    `;
+    el.appendChild(row);
+    row.querySelector('textarea').addEventListener('input', e => {
+      if (kind === 'delivery') settings.deliveryMethods[i] = e.target.value;
+      else settings.paymentMethods[i] = e.target.value;
+    });
+  });
+}
+function swapListItem(kind, idx, dir) {
+  const arr = kind === 'delivery' ? settings.deliveryMethods : settings.paymentMethods;
+  const t = idx + dir;
+  if (t < 0 || t >= arr.length) return;
+  [arr[idx], arr[t]] = [arr[t], arr[idx]];
+  renderList(kind === 'delivery' ? 'deliveryList' : 'paymentList', arr, kind);
+}
+function addDelivery() {
+  if (!Array.isArray(settings.deliveryMethods)) settings.deliveryMethods = [];
+  settings.deliveryMethods.push('Новий варіант доставки');
+  renderList('deliveryList', settings.deliveryMethods, 'delivery');
+}
+function addPayment() {
+  if (!Array.isArray(settings.paymentMethods)) settings.paymentMethods = [];
+  settings.paymentMethods.push('Новий варіант оплати');
+  renderList('paymentList', settings.paymentMethods, 'payment');
+}
+function removeListItem(kind, idx) {
+  if (kind === 'delivery') settings.deliveryMethods.splice(idx, 1);
+  else settings.paymentMethods.splice(idx, 1);
+  render();
+}
+
+// === Поля формы ===
+function renderFields() {
+  const wrap = document.getElementById('fieldsList');
+  wrap.innerHTML = '';
+  if (!Array.isArray(settings.fields)) settings.fields = [];
+  settings.fields.forEach((f, i) => {
+    const row = document.createElement('div');
+    row.className = 'field-row';
+    row.innerHTML = `
+      <div style="display:flex; gap:8px; align-items:flex-start;">
+        <div class="row-arrows">
+          <button type="button" onclick="moveField(${i}, -1)" ${i===0?'disabled':''} title="Вгору">▲</button>
+          <button type="button" onclick="moveField(${i}, 1)" ${i===settings.fields.length-1?'disabled':''} title="Вниз">▼</button>
+        </div>
+        <div style="flex:1;">
+          <div class="grid grid-3">
+            <div><label>Підпис</label><input type="text" value="${escapeAttr(f.label || '')}" data-k="label" /></div>
+            <div><label>ID (a-z)</label><input type="text" value="${escapeAttr(f.id || '')}" data-k="id" /></div>
+            <div><label>Тип</label>
+              <select data-k="type">
+                <option value="text"${f.type === 'text' ? ' selected' : ''}>Текст</option>
+                <option value="tel"${f.type === 'tel' ? ' selected' : ''}>Телефон</option>
+                <option value="email"${f.type === 'email' ? ' selected' : ''}>Email</option>
+                <option value="textarea"${f.type === 'textarea' ? ' selected' : ''}>Довгий текст</option>
+              </select>
+            </div>
+          </div>
+          <div class="grid grid-2" style="margin-top:8px;">
+            <div><label>Підказка (placeholder)</label><input type="text" value="${escapeAttr(f.placeholder || '')}" data-k="placeholder" /></div>
+            <div class="checkbox-inline" style="align-self:end;">
+              <input type="checkbox" id="req_${i}" ${f.required ? 'checked' : ''} data-k="required" />
+              <label for="req_${i}" style="margin:0">Обовʼязкове</label>
+            </div>
+          </div>
+          <button class="btn btn-danger btn-icon" style="margin-top:8px;" onclick="removeField(${i})">Видалити поле</button>
+        </div>
+      </div>
+    `;
+    row.querySelectorAll('[data-k]').forEach(el => {
+      const upd = () => { const k = el.dataset.k; f[k] = el.type === 'checkbox' ? el.checked : el.value; };
+      el.addEventListener('input', upd); el.addEventListener('change', upd);
+    });
+    wrap.appendChild(row);
+  });
+}
+function moveField(i, dir) {
+  const t = i + dir;
+  if (t < 0 || t >= settings.fields.length) return;
+  [settings.fields[i], settings.fields[t]] = [settings.fields[t], settings.fields[i]];
+  renderFields();
+}
+function addField() {
+  if (!Array.isArray(settings.fields)) settings.fields = [];
+  settings.fields.push({ id: 'field' + (settings.fields.length + 1), type: 'text', label: 'Новое поле', required: false });
+  renderFields();
+}
+function removeField(i) { settings.fields.splice(i, 1); renderFields(); }
+
+// === Toggle / Counter / Save ===
+async function toggleShop() {
+  const wasOn = settings.shopEnabled !== false;
+  if (!confirm((wasOn ? 'Закрити' : 'Відкрити') + ' прийом замовлень?')) return;
+  settings.shopEnabled = !wasOn;
+  settings.shopDisabledMessage = document.getElementById('shopDisabledMessage').value;
+  if (await postJson('/api/admin/settings', settings)) {
+    render(); toast(wasOn ? '🚫 Закрито' : '✅ Відкрито', wasOn ? 'error' : 'success');
+  } else { settings.shopEnabled = wasOn; }
+}
+
+async function saveCounter() {
+  const v = parseInt(document.getElementById('counterCurrent').value, 10);
+  if (!Number.isFinite(v) || v < 0) { toast('Введите число ≥ 0', 'error'); return; }
+  if (!confirm(`Встановити лічильник на ${v}? Наступне замовлення буде #${v + 1}.`)) return;
+  if (await postJson('/api/admin/counter', { value: v })) { await loadCounter(); toast('✅ Збережено'); }
+}
+async function resetCounter() {
+  if (!confirm('Скинути лічильник на 0?')) return;
+  document.getElementById('counterCurrent').value = 0;
+  await saveCounter();
+}
+
+async function saveAll() {
+  TEXT_FIELDS.forEach(k => settings[k] = document.getElementById(k).value);
+  settings.compressMaxSide = parseInt(document.getElementById('compressMaxSide').value, 10) || 4000;
+  settings.compressQuality = parseInt(document.getElementById('compressQuality').value, 10) || 95;
+  settings.autoCompress = document.getElementById('autoCompress').checked;
+  settings.showBulkOperations = document.getElementById('showBulkOperations').checked;
+  // Швидкість
+  const clamp = (v, mn, mx, def) => { v = parseInt(v, 10); return (v >= mn && v <= mx) ? v : def; };
+  settings.publicPollIntervalSec = clamp(document.getElementById('publicPollIntervalSec').value, 1, 60, 5);
+  settings.adminPollIntervalSec = clamp(document.getElementById('adminPollIntervalSec').value, 10, 300, 60);
+  settings.ordersAutoRefreshSec = clamp(document.getElementById('ordersAutoRefreshSec').value, 5, 120, 15);
+  settings.shopVersionCacheSec = clamp(document.getElementById('shopVersionCacheSec').value, 1, 30, 2);
+  settings.shopFullCacheSec = clamp(document.getElementById('shopFullCacheSec').value, 5, 300, 30);
+  settings.topbarContactsEnabled = document.getElementById('topbarContactsEnabled').checked;
+  settings.contactsEnabled = document.getElementById('contactsEnabled').checked;
+  // Sold count
+  settings.showSoldCount = document.getElementById('showSoldCount').checked;
+  settings.quickAddToCartEnabled = document.getElementById('quickAddToCartEnabled').checked;
+  settings.inCartClickOpensCart = document.getElementById('inCartClickOpensCart').checked;
+  settings.inCartClickOpensCartMobile = document.getElementById('inCartClickOpensCartMobile').checked;
+  settings.inCartClickRemoves = document.getElementById('inCartClickRemoves').checked;
+  settings.inCartClickRemovesMobile = document.getElementById('inCartClickRemovesMobile').checked;
+  settings.inCartConfirmRemove = document.getElementById('inCartConfirmRemove').checked;
+  settings.inCartConfirmRemoveMobile = document.getElementById('inCartConfirmRemoveMobile').checked;
+  settings.inCartConfirmRemoveText = document.getElementById('inCartConfirmRemoveText').value || 'Прибрати товар з кошика?';
+  settings.inCartRemoveAnimation = document.getElementById('inCartRemoveAnimation').checked;
+  settings.inCartRemoveToastText = document.getElementById('inCartRemoveToastText').value;
+  // Customer email
+  settings.customerEmailEnabled = document.getElementById('customerEmailEnabled').checked;
+  settings.customerEmailRequired = document.getElementById('customerEmailRequired').checked;
+  settings.customerEmailFieldLabel = document.getElementById('customerEmailFieldLabel').value || '📧 Email для підтвердження замовлення';
+  settings.customerEmailSubject = document.getElementById('customerEmailSubject').value || 'Замовлення #{orderId} прийнято';
+  settings.customerEmailFromName = document.getElementById('customerEmailFromName').value || '';
+  settings.customerEmailFooter = document.getElementById('customerEmailFooter').value || 'Дякуємо за замовлення!';
+  // SMS (TurboSMS) — токен не перезаписуємо якщо поле порожнє
+  settings.smsEnabled = document.getElementById('smsEnabled').checked;
+  settings.smsProvider = document.getElementById('smsProvider').value;
+  settings.smsAccountSid = document.getElementById('smsAccountSid').value.trim();
+  settings.smsSender = document.getElementById('smsSender').value.trim();
+  settings.smsTemplate = document.getElementById('smsTemplate').value || 'Замовлення #{orderId} прийнято. Сума: {total} грн. Дякуємо!';
+  { const _t = document.getElementById('smsApiToken').value.trim(); if (_t) settings.smsApiToken = _t; }
+  // Toast
+  settings.newOrderToastEnabled = document.getElementById('newOrderToastEnabled').checked;
+
+  setStatus('Зберігаю…');
+  if (await postJson('/api/admin/settings', settings)) {
+    toast('✅ Збережено');
+    setStatus('Збережено ' + new Date().toLocaleTimeString('uk-UA'));
+    await loadAll();
+  } else { setStatus('Помилка', true); }
+}
+
+// === Канал 2FA ===
+// (Перенесено на /admin/bot/ — страницу безпеки)
+
+// === Контакты-списки ===
+function renderContactsList(arrayKey, items) {
+  const el = document.getElementById(arrayKey);
+  el.innerHTML = '';
+  items.forEach((line, i) => {
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `
+      <div class="row-arrows">
+        <button type="button" ${i===0?'disabled':''} title="Вгору">▲</button>
+        <button type="button" ${i===items.length-1?'disabled':''} title="Вниз">▼</button>
+      </div>
+      <input type="text" value="${escapeAttr(line)}" placeholder="напр. Телефон: +380 99 ..." />
+      <button class="btn btn-danger btn-icon" title="Видалити">×</button>
+    `;
+    row.querySelector('input').addEventListener('input', e => { items[i] = e.target.value; });
+    const btns = row.querySelectorAll('.row-arrows button');
+    btns[0].onclick = () => { if (i > 0) { [items[i], items[i-1]] = [items[i-1], items[i]]; renderContactsList(arrayKey, items); } };
+    btns[1].onclick = () => { if (i < items.length-1) { [items[i], items[i+1]] = [items[i+1], items[i]]; renderContactsList(arrayKey, items); } };
+    row.querySelectorAll('button.btn-danger')[0].onclick = () => { items.splice(i, 1); renderContactsList(arrayKey, items); };
+    el.appendChild(row);
+  });
+}
+function addTopbarContact() {
+  if (!Array.isArray(settings.topbarContactsList)) settings.topbarContactsList = [];
+  settings.topbarContactsList.push('');
+  renderContactsList('topbarContactsList', settings.topbarContactsList);
+}
+function addContact() {
+  if (!Array.isArray(settings.contactsList)) settings.contactsList = [];
+  settings.contactsList.push('');
+  renderContactsList('contactsList', settings.contactsList);
+}
+
+async function toggleLockReorder(checked) {
+  if (checked) localStorage.setItem('adminLockReorder', '1');
+  else localStorage.removeItem('adminLockReorder');
+  // Зберігаємо також у settings KV щоб синхронізувалось між пристроями
+  settings.adminLockReorder = checked;
+  try {
+    await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+  } catch {}
+  toast(checked ? '🔒 Порядок заблоковано — оновлюємо…' : '🔓 Порядок розблоковано — оновлюємо…');
+  setTimeout(() => location.reload(), 800);
+}
+
+loadAll();
+
+async function postJson(url, body) {
+  try {
+    const r = await fetch(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    if (!data.ok) { toast('❌ ' + (data.error || 'Ошибка'), 'error'); return false; }
+    return true;
+  } catch (e) { toast('❌ ' + e.message, 'error'); return false; }
+}
+
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+loadAll();
+</script>
+</body>
+</html>

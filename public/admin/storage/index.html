@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Файлове сховище — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 100px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-icon { padding: 6px 10px; font-size: 13px; }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 2px dashed #d1d5db; border-radius: 12px; padding: 32px;
+      text-align: center; cursor: pointer; transition: background .15s, border-color .15s;
+      background: #fafbfc;
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #0b8aff; background: #eff6ff;
+    }
+    .drop-zone .big-icon { font-size: 48px; margin-bottom: 8px; }
+
+    /* Quota bar */
+    .quota-bar { background: #e5e7eb; border-radius: 999px; height: 8px; overflow: hidden; margin-top: 8px; }
+    .quota-bar > div { height: 100%; background: #0b8aff; transition: width .3s; }
+    .quota-bar > div.warning { background: #f59e0b; }
+    .quota-bar > div.danger { background: #dc2626; }
+
+    /* File grid */
+    .files-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .file-card {
+      border: 1px solid #e5e7eb; border-radius: 10px; padding: 8px; background: #fafbfc;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .file-preview {
+      aspect-ratio: 1; background: #fff; border-radius: 6px; overflow: hidden;
+      display: flex; align-items: center; justify-content: center; font-size: 36px; color: #6b7280;
+    }
+    .file-preview img, .file-preview video { width: 100%; height: 100%; object-fit: cover; }
+    .file-name { font-size: 12px; font-weight: 600; word-break: break-all;
+      color: #1c2129; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta { font-size: 11px; color: #6b7280; }
+    .file-actions { display: flex; gap: 4px; }
+    .file-actions button { flex: 1; padding: 4px 6px; font-size: 11px; }
+
+    .url-input {
+      width: 100%; padding: 6px 8px; font-size: 11px; font-family: 'SF Mono', Menlo, monospace;
+      border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; cursor: text;
+    }
+
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">Адмінка</a> → Файлове сховище · <a href="#" onclick="logout(); return false;" style="color:#dc2626;">🚪 Вийти</a></div>
+  <h1>🗂 Файлове сховище</h1>
+  <p class="sub">Завантажуй іконки, лого, фото, короткі відео. Кожен файл отримує публічне посилання для шарінгу.</p>
+
+  <!-- КВОТА -->
+  <div class="card">
+    <h2>📊 Використання сховища</h2>
+    <div id="quotaInfo">Завантаження…</div>
+    <div class="quota-bar"><div id="quotaFill" style="width: 0%;"></div></div>
+    <div style="display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap;">
+      <label style="font-size: 13px; color: #374151;">Ліміт сховища (MB):</label>
+      <input type="number" id="quotaInput" min="10" max="10000" step="50" style="width: 100px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
+      <button class="btn btn-secondary btn-icon" onclick="saveQuota()">Зберегти</button>
+      <span style="font-size: 12px; color: #6b7280;">Cloudflare R2 безкоштовно дає до 10 GB. Можна виставити до 10000 MB.</span>
+    </div>
+  </div>
+
+  <!-- ЗАГРУЗКА -->
+  <div class="card">
+    <h2>📤 Завантажити нові файли</h2>
+    <div style="background: #f9fafb; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <label style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; cursor: pointer;">
+          <input type="checkbox" id="compressEnabled" onchange="updateCompressUI()" />
+          🗜 Стискати картинки перед завантаженням
+        </label>
+      </div>
+      <div id="compressOptions" style="margin-top: 10px; display: none;">
+        <div style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+          <label style="font-size: 13px; color: #374151;">
+            Макс. сторона (px):
+            <input type="number" id="compressMaxSide" value="1920" min="200" max="4000" step="100" style="width: 80px; padding: 4px 8px; border: 1px solid #e5e7eb; border-radius: 6px; margin-left: 4px;" />
+          </label>
+          <label style="font-size: 13px; color: #374151; flex: 1; min-width: 200px;">
+            Якість JPEG: <strong id="qualityVal">85</strong>%
+            <input type="range" id="compressQuality" value="85" min="50" max="100" step="5" oninput="document.getElementById('qualityVal').textContent=this.value" style="width: 100%;" />
+          </label>
+        </div>
+        <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">
+          ⚠️ Стискання тільки для картинок (PNG/JPG/WEBP). Інші файли (відео, PDF) завантажуються без змін.
+        </div>
+      </div>
+    </div>
+    <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+      <div class="big-icon">📁</div>
+      <div style="font-weight: 600; margin-bottom: 4px;">Перетягни файли сюди</div>
+      <div style="font-size: 13px; color: #6b7280;">або клікни, щоб вибрати з диска</div>
+      <input type="file" id="fileInput" multiple style="display: none;" />
+    </div>
+    <div id="uploadStatus" style="font-size: 13px; color: #6b7280; margin-top: 10px;"></div>
+  </div>
+
+  <!-- СПИСОК -->
+  <div class="card">
+    <h2 style="display: flex; justify-content: space-between; align-items: center;">
+      <span>📁 Файли в сховищі</span>
+      <button class="btn btn-secondary btn-icon" onclick="loadFiles()">↻ Оновити</button>
+    </h2>
+    <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
+      <span style="font-size:13px; font-weight:600;">Вибрано: <span id="bulkCount">0</span></span>
+      <button class="btn btn-danger" onclick="bulkDelete()">🗑 Видалити вибрані</button>
+      <button class="btn btn-secondary" onclick="clearSel()" style="margin-left:auto;">Скасувати</button>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px;">
+      <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
+        <input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)" />
+        Виділити все
+      </label>
+    </div>
+    <div id="filesGrid" class="files-grid"></div>
+
+    <div id="bulkOpsBanner" style="display:none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
+      <strong style="color: #991b1b;">⚠️ Повне очищення сховища</strong>
+      <div class="hint" style="color: #7f1d1d;">Незворотньо. Видалить ВСІ файли в R2 без можливості відновлення.</div>
+      <button class="btn btn-danger" style="margin-top: 8px;" onclick="wipeAll()">🗑 Видалити ВСІ файли</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/admin/_admin.js"></script>
+<script src="/admin/_admin-ui.js"></script>
+<script>
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+let files = [];
+let stats = { count: 0, totalMB: 0, quotaMB: 200, usedPercent: 0 };
+
+async function loadFiles() {
+  try {
+    const [r, sr] = await Promise.all([
+      fetch('/api/admin/storage/list', { credentials: 'include' }),
+      fetch('/api/admin/settings', { credentials: 'include' }),
+    ]);
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    files = data.files;
+    stats = data.stats;
+    // Скрытие banner масових операцій
+    if (sr.ok) {
+      const s = (await sr.json()).settings || {};
+      const banner = document.getElementById('bulkOpsBanner');
+      if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
+    }
+    renderQuota();
+    renderFiles();
+    updateBulkBar();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+function getSelectedKeys() {
+  return Array.from(document.querySelectorAll('.file-check:checked')).map(c => c.dataset.key);
+}
+function updateBulkBar() {
+  const sel = getSelectedKeys();
+  const bar = document.getElementById('bulkBar');
+  bar.style.display = sel.length > 0 ? 'flex' : 'none';
+  document.getElementById('bulkCount').textContent = sel.length;
+  const all = document.querySelectorAll('.file-check').length;
+  document.getElementById('selectAll').checked = sel.length > 0 && sel.length === all;
+}
+function toggleAll(checked) {
+  document.querySelectorAll('.file-check').forEach(c => c.checked = checked);
+  updateBulkBar();
+}
+function clearSel() { toggleAll(false); }
+
+async function bulkDelete() {
+  const keys = getSelectedKeys();
+  if (keys.length === 0) return;
+  if (!confirm(`Видалити ${keys.length} файлів? Незворотньо.`)) return;
+  try {
+    const r = await fetch('/api/admin/storage/delete', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Видалено: ${data.deleted}`);
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function wipeAll() {
+  const word = prompt('УВАГА! Видалити ВСІ файли зі сховища?\nВведіть слово ВИДАЛИТИ-ВСЕ для підтвердження:');
+  if (word !== 'ВИДАЛИТИ-ВСЕ') { toast('Скасовано', 'error'); return; }
+  try {
+    const r = await fetch('/api/admin/storage/delete', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'wipe-all', confirm: 'YES' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Видалено всього: ${data.deleted}`);
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+function renderQuota() {
+  document.getElementById('quotaInfo').innerHTML = `
+    <strong>${stats.totalMB} MB</strong> з ${stats.quotaMB} MB · ${stats.count} файлів · <strong>${stats.usedPercent}%</strong>
+  `;
+  const fill = document.getElementById('quotaFill');
+  fill.style.width = Math.min(100, stats.usedPercent) + '%';
+  fill.classList.remove('warning', 'danger');
+  if (stats.usedPercent >= 90) fill.classList.add('danger');
+  else if (stats.usedPercent >= 75) fill.classList.add('warning');
+  document.getElementById('quotaInput').value = stats.quotaMB;
+}
+
+function fileTypeIcon(contentType) {
+  if (!contentType) return '📄';
+  if (contentType.startsWith('image/')) return '🖼️';
+  if (contentType.startsWith('video/')) return '🎬';
+  if (contentType.startsWith('audio/')) return '🔊';
+  if (contentType.includes('pdf')) return '📕';
+  if (contentType.includes('zip') || contentType.includes('archive')) return '📦';
+  return '📄';
+}
+
+function renderFiles() {
+  const wrap = document.getElementById('filesGrid');
+  if (files.length === 0) {
+    wrap.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #6b7280; padding: 40px;">Сховище порожнє. Завантажте файли вище.</div>';
+    return;
+  }
+  wrap.innerHTML = files.map(f => {
+    const isImage = (f.contentType || '').startsWith('image/');
+    const isVideo = (f.contentType || '').startsWith('video/');
+    const fullUrl = location.origin + f.url;
+    return `
+      <div class="file-card">
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input type="checkbox" class="file-check" data-key="${escapeAttr(f.key)}" onchange="updateBulkBar()" />
+          <span style="font-size: 11px; color: #6b7280; flex: 1;">${(f.size/1024).toFixed(1)} KB · ${new Date(f.uploaded).toLocaleDateString('uk-UA')}</span>
+        </div>
+        <div class="file-preview">
+          ${isImage ? `<img src="${f.url}" alt="" loading="lazy" />` :
+            isVideo ? `<video src="${f.url}" muted preload="metadata"></video>` :
+            fileTypeIcon(f.contentType)}
+        </div>
+        <div class="file-name" title="${escapeAttr(f.key)}">${escapeHtml(f.key)}</div>
+        <input type="text" class="url-input" value="${escapeAttr(fullUrl)}" readonly onclick="this.select()" />
+        <div class="file-actions">
+          <button class="btn btn-secondary btn-icon" onclick="copyUrl('${escapeAttr(fullUrl)}')">📋 URL</button>
+          <button class="btn btn-secondary btn-icon" onclick="window.open('${escapeAttr(f.url)}', '_blank')">👁</button>
+          <button class="btn btn-danger btn-icon" onclick="deleteFile('${escapeAttr(f.key)}')">🗑</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function copyUrl(url) {
+  navigator.clipboard.writeText(url).then(() => toast('✅ URL скопійовано'));
+}
+
+async function deleteFile(key) {
+  if (!confirm('Видалити файл?\n' + key)) return;
+  try {
+    const r = await fetch('/api/admin/storage/delete', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast('✅ Видалено');
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function uploadFile(file) {
+  const status = document.getElementById('uploadStatus');
+  let toUpload = file;
+  const compressOn = document.getElementById('compressEnabled').checked;
+  const isImage = file.type.startsWith('image/');
+  if (compressOn && isImage && !file.type.includes('svg') && !file.type.includes('gif')) {
+    try {
+      status.textContent = `🗜 Стискаю ${file.name}…`;
+      const maxSide = parseInt(document.getElementById('compressMaxSide').value, 10) || 1920;
+      const quality = (parseInt(document.getElementById('compressQuality').value, 10) || 85) / 100;
+      toUpload = await compressImage(file, maxSide, quality);
+    } catch (e) {
+      status.textContent = '⚠️ Не вдалось стиснути, завантажую оригінал: ' + e.message;
+      toUpload = file;
+    }
+  }
+  status.textContent = `Завантажую ${file.name} (${(toUpload.size/1024/1024).toFixed(2)} MB${toUpload !== file ? `, було ${(file.size/1024/1024).toFixed(2)} MB` : ''})…`;
+  status.style.color = '#6b7280';
+  try {
+    const fd = new FormData();
+    fd.append('file', toUpload, file.name);
+    const r = await fetch('/api/admin/storage/upload', {
+      method: 'POST', credentials: 'include', body: fd,
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    status.textContent = `✓ Завантажено: ${data.key}`;
+    status.style.color = '#16a34a';
+    return true;
+  } catch (e) {
+    status.textContent = `❌ ${e.message}`;
+    status.style.color = '#dc2626';
+    return false;
+  }
+}
+
+async function compressImage(file, maxSide, quality) {
+  const img = await new Promise((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = rej;
+    i.src = URL.createObjectURL(file);
+  });
+  const w = img.width, h = img.height;
+  const ratio = Math.min(1, maxSide / Math.max(w, h));
+  const nw = Math.round(w * ratio), nh = Math.round(h * ratio);
+  const canvas = document.createElement('canvas');
+  canvas.width = nw; canvas.height = nh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, nw, nh);
+  URL.revokeObjectURL(img.src);
+  // PNG зберігаємо як JPEG для меншого розміру (якщо немає прозорості — користувач сам вирішить)
+  const outType = file.type === 'image/png' ? 'image/jpeg' : file.type;
+  return new Promise(res => canvas.toBlob(b => res(new File([b], file.name, { type: outType })), outType, quality));
+}
+
+function updateCompressUI() {
+  const opts = document.getElementById('compressOptions');
+  opts.style.display = document.getElementById('compressEnabled').checked ? 'block' : 'none';
+  // Persist to localStorage
+  localStorage.setItem('storageCompress', document.getElementById('compressEnabled').checked ? '1' : '0');
+}
+
+// Restore preference
+(function() {
+  const saved = localStorage.getItem('storageCompress') === '1';
+  document.getElementById('compressEnabled').checked = saved;
+  updateCompressUI();
+})();
+
+async function uploadFiles(fileList) {
+  const arr = Array.from(fileList);
+  let success = 0;
+  for (const f of arr) {
+    const ok = await uploadFile(f);
+    if (ok) success++;
+  }
+  toast(`✅ Завантажено ${success} з ${arr.length}`);
+  await loadFiles();
+}
+
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+fileInput.addEventListener('change', e => uploadFiles(e.target.files));
+
+['dragover', 'dragenter'].forEach(evt => {
+  dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropZone.addEventListener(evt, e => { e.preventDefault(); dropZone.classList.remove('dragover'); });
+});
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  if (e.dataTransfer.files?.length) uploadFiles(e.dataTransfer.files);
+});
+
+async function saveQuota() {
+  const v = parseInt(document.getElementById('quotaInput').value, 10);
+  if (!v || v < 10) return toast('Мінімум 10 MB', 'error');
+  try {
+    // Завантажуємо повні settings, оновлюємо quota, зберігаємо
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    const data = await r.json();
+    const s = data.settings || {};
+    s.storageQuotaMB = v;
+    const r2 = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s),
+    });
+    if (!r2.ok) throw new Error('Помилка збереження');
+    toast('✅ Ліміт збережено: ' + v + ' MB');
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'success');
+  setTimeout(() => t.className = 'toast ' + (kind || 'success'), 2500);
+}
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+loadFiles();
+</script>
+</body>
+</html>

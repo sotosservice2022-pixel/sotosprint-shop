@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Замовлення — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+
+    .stats { display: flex; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+    .stat-card {
+      background: #fff; border-radius: 10px; padding: 12px 16px;
+      box-shadow: 0 2px 8px rgba(20,30,60,.05); min-width: 100px;
+    }
+    .stat-card .v { font-size: 22px; font-weight: 700; }
+    .stat-card .l { font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card.unread .v { color: #dc2626; }
+    .stat-card.today .v { color: #0b8aff; }
+    .stat-card.done .v { color: #16a34a; }
+
+    .toolbar { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+    .filter-btn {
+      padding: 8px 14px; border: 1px solid #e5e7eb; background: #fff;
+      border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600;
+      color: #374151;
+    }
+    .filter-btn.active { background: #0b8aff; color: #fff; border-color: #0b8aff; }
+    .filter-btn:hover:not(.active) { background: #f3f4f6; }
+
+    .orders { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #f3f4f6; font-size: 14px; }
+    th { background: #fafbfc; font-weight: 600; color: #6b7280; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; }
+    tr.unread { background: #eff6ff; font-weight: 600; }
+    tr.unread td:first-child::before {
+      content: ''; display: inline-block; width: 8px; height: 8px;
+      background: #0b8aff; border-radius: 50%; margin-right: 6px;
+    }
+    tr.done { color: #6b7280; }
+    tr.done td:nth-child(2) { text-decoration: line-through; }
+    tr:hover { background: #f9fafb; cursor: pointer; }
+    tr.unread:hover { background: #dbeafe; }
+    .row-actions { display: flex; gap: 4px; justify-content: flex-end; }
+    .btn { padding: 6px 10px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-secondary { background: #f3f4f6; color: #374151; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-success { background: #dcfce7; color: #166534; }
+    .empty { padding: 40px; text-align: center; color: #6b7280; }
+
+    /* Details panel */
+    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: none; z-index: 100; }
+    .overlay.show { display: block; }
+    .panel {
+      position: fixed; top: 0; right: 0; bottom: 0; width: min(540px, 100%);
+      background: #fff; transform: translateX(100%); transition: transform .25s;
+      z-index: 110; overflow-y: auto;
+    }
+    .panel.show { transform: translateX(0); }
+    .panel-header { padding: 16px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 12px; }
+    .panel-header h2 { margin: 0; flex: 1; font-size: 18px; }
+    .panel-close { background: none; border: none; font-size: 26px; cursor: pointer; color: #6b7280; padding: 0 6px; }
+    .panel-body { padding: 16px; }
+    .order-row { padding: 10px 0; border-bottom: 1px solid #f3f4f6; }
+    .order-row .l { font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: .5px; }
+    .order-row .v { margin-top: 2px; font-size: 14px; line-height: 1.5; word-break: break-word; }
+    .order-row .v a { color: #0b8aff; text-decoration: none; }
+    .items-table { width: 100%; margin-top: 6px; border-collapse: collapse; font-size: 13px; }
+    .items-table th { padding: 6px 4px; font-size: 11px; }
+    .items-table td { padding: 6px 4px; }
+    .panel-actions { padding: 14px 16px; border-top: 1px solid #e5e7eb; display: flex; gap: 8px; flex-wrap: wrap; position: sticky; bottom: 0; background: #fff; }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; z-index: 200; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">Адмінка</a> → Замовлення · <a href="#" onclick="logout(); return false;" style="color:#dc2626;">🚪 Вийти</a></div>
+  <h1 data-i18n="orders.title">📋 Замовлення</h1>
+  <p class="sub" data-i18n="orders.sub">Усі замовлення з сайту. Непрочитані підсвічуються синім.</p>
+
+  <div class="stats" id="stats"></div>
+  <div class="toolbar">
+    <button class="filter-btn active" data-filter="all" onclick="setFilter('all')" data-i18n="orders.all">Усі</button>
+    <button class="filter-btn" data-filter="unread" onclick="setFilter('unread')">Непрочитані <span data-orders-unread style="display:none;background:#dc2626;color:#fff;border-radius:99px;padding:0 6px;font-size:11px;margin-left:4px;">0</span></button>
+    <button class="filter-btn" data-filter="pending" onclick="setFilter('pending')" data-i18n="orders.pending">В роботі</button>
+    <button class="filter-btn" data-filter="done" onclick="setFilter('done')" data-i18n="orders.done">Виконані</button>
+    <button class="filter-btn" onclick="loadOrders()" style="margin-left:auto;">↻ Оновити</button>
+  </div>
+
+  <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
+    <span style="font-size:13px; font-weight:600;">Вибрано: <span id="bulkCount">0</span></span>
+    <button class="btn btn-success" onclick="bulkAction('done')">✓ Виконати</button>
+    <button class="btn btn-secondary" onclick="bulkAction('read')">✓ Прочитати</button>
+    <button class="btn btn-danger" onclick="bulkAction('delete')">🗑 Видалити</button>
+    <button class="btn btn-secondary" onclick="clearSelection()" style="margin-left:auto;">Скасувати</button>
+  </div>
+
+  <div class="orders">
+    <table id="ordersTable">
+      <thead>
+        <tr>
+          <th style="width:30px;"><input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)" /></th>
+          <th>#</th>
+          <th>Клієнт</th>
+          <th>Сума</th>
+          <th>Дата</th>
+          <th>Статус</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="ordersBody"></tbody>
+    </table>
+  </div>
+
+  <div id="bulkOpsBanner" style="display: none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
+    <strong style="color: #991b1b;">⚠️ Видалення всіх замовлень</strong>
+    <div class="hint" style="color: #7f1d1d;">Незворотня операція. Видалить ВСІ замовлення без можливості відновлення.</div>
+    <button class="btn btn-danger" style="margin-top: 8px;" onclick="deleteAll()">🗑 Видалити все</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeDetails()"></div>
+<div class="panel" id="panel">
+  <div class="panel-header">
+    <h2 id="panelTitle">Замовлення</h2>
+    <button class="panel-close" onclick="closeDetails()">×</button>
+  </div>
+  <div class="panel-body" id="panelBody"></div>
+  <div class="panel-actions" id="panelActions"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+let orders = [];
+let stats = {};
+let currentFilter = 'all';
+let currentOrder = null;
+
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+async function loadOrders() {
+  try {
+    const [r, sr] = await Promise.all([
+      fetch('/api/admin/orders', { credentials: 'include' }),
+      fetch('/api/admin/settings', { credentials: 'include' }),
+    ]);
+    if (r.status === 401 || sr.status === 401) {
+      location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname);
+      return;
+    }
+    if (!r.ok) throw new Error('Замовлення: HTTP ' + r.status);
+    const data = await safeJson(r);
+    if (!data) throw new Error('Замовлення: невалідна відповідь сервера');
+    orders = data.orders || [];
+    stats = data.stats || {};
+    // Скрытие красного банера массовых операций
+    if (sr.ok) {
+      const settingsResp = await safeJson(sr);
+      const s = settingsResp?.settings || {};
+      const banner = document.getElementById('bulkOpsBanner');
+      if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
+      // Sync lock-reorder з налаштувань (cross-device)
+      if (typeof syncLockReorder === 'function') syncLockReorder(s);
+    }
+    render();
+  } catch (e) {
+    toast('Помилка: ' + e.message, 'error');
+  }
+}
+
+// Безпечний парсинг JSON: повертає null якщо не JSON або помилка
+async function safeJson(response) {
+  try {
+    const text = await response.text();
+    if (!text) return null;
+    return JSON.parse(text);
+  } catch { return null; }
+}
+
+function render() {
+  // Stats
+  document.getElementById('stats').innerHTML = `
+    <div class="stat-card"><div class="v">${stats.total || 0}</div><div class="l">Усього</div></div>
+    <div class="stat-card unread"><div class="v">${stats.unread || 0}</div><div class="l">Непрочитані</div></div>
+    <div class="stat-card today"><div class="v">${stats.today || 0}</div><div class="l">Сьогодні</div></div>
+    <div class="stat-card"><div class="v">${stats.pending || 0}</div><div class="l">В роботі</div></div>
+    <div class="stat-card done"><div class="v">${stats.done || 0}</div><div class="l">Виконані</div></div>
+  `;
+
+  // Filter
+  let filtered = orders;
+  if (currentFilter === 'unread') filtered = orders.filter(o => !o.isRead);
+  else if (currentFilter === 'pending') filtered = orders.filter(o => !o.isDone);
+  else if (currentFilter === 'done') filtered = orders.filter(o => o.isDone);
+
+  const tbody = document.getElementById('ordersBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty">Замовлень нема</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(o => `
+    <tr class="${!o.isRead ? 'unread' : ''} ${o.isDone ? 'done' : ''}" data-key="${escapeAttr(o.kvKey)}">
+      <td onclick="event.stopPropagation()"><input type="checkbox" class="row-check" data-key="${escapeAttr(o.kvKey)}" onchange="updateBulkBar()" /></td>
+      <td onclick="openDetails('${escapeAttr(o.kvKey)}')">#${escapeHtml(o.id)}</td>
+      <td onclick="openDetails('${escapeAttr(o.kvKey)}')">${escapeHtml(o.customerName || '—')}<br><small style="color:#6b7280">${escapeHtml(o.phone || '')}</small></td>
+      <td onclick="openDetails('${escapeAttr(o.kvKey)}')"><strong>${o.totalPrice} ₴</strong></td>
+      <td onclick="openDetails('${escapeAttr(o.kvKey)}')">${formatDate(o.createdAt)}</td>
+      <td onclick="openDetails('${escapeAttr(o.kvKey)}')">${o.isDone ? '✅' : '⏳'}</td>
+      <td class="row-actions" onclick="event.stopPropagation()">
+        ${o.isDone ? '' : `<button class="btn btn-success" onclick="markAction('${escapeAttr(o.kvKey)}', 'done')">✓</button>`}
+        <button class="btn btn-danger" onclick="confirmDelete('${escapeAttr(o.kvKey)}')">🗑</button>
+      </td>
+    </tr>
+  `).join('');
+  updateBulkBar();
+}
+
+function getSelectedKeys() {
+  return Array.from(document.querySelectorAll('.row-check:checked')).map(c => c.dataset.key);
+}
+function updateBulkBar() {
+  const sel = getSelectedKeys();
+  const bar = document.getElementById('bulkBar');
+  bar.style.display = sel.length > 0 ? 'flex' : 'none';
+  document.getElementById('bulkCount').textContent = sel.length;
+  document.getElementById('selectAll').checked = sel.length > 0 && sel.length === document.querySelectorAll('.row-check').length;
+}
+function toggleAll(checked) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = checked);
+  updateBulkBar();
+}
+function clearSelection() { toggleAll(false); }
+
+async function bulkAction(action) {
+  const keys = getSelectedKeys();
+  if (keys.length === 0) return;
+  const confirms = {
+    delete: `Видалити ${keys.length} замовлень? Незворотньо.`,
+    done: `Помітити ${keys.length} замовлень як виконані?`,
+    read: `Помітити ${keys.length} як прочитані?`,
+  };
+  if (!confirm(confirms[action] || 'Підтвердити дію?')) return;
+  try {
+    const r = await fetch('/api/admin/orders-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ action, kvKeys: keys }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Оброблено: ${data.processed}`);
+    await loadOrders();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteAll() {
+  const word = prompt('Видалити ВСІ замовлення без можливості відновлення?\nВведи слово ВИДАЛИТИ для підтвердження:');
+  if (word !== 'ВИДАЛИТИ') { toast('Скасовано', 'error'); return; }
+  try {
+    const r = await fetch('/api/admin/orders-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ action: 'delete-all', confirm: 'YES' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Видалено: ${data.deleted}`);
+    await loadOrders();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  render();
+}
+
+function formatDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString('uk-UA', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  } catch { return iso; }
+}
+
+async function openDetails(kvKey) {
+  const order = orders.find(o => o.kvKey === kvKey);
+  if (!order) return;
+  currentOrder = order;
+  document.getElementById('panelTitle').textContent = `Замовлення #${order.id}`;
+  document.getElementById('panelBody').innerHTML = renderDetails(order);
+  document.getElementById('panelActions').innerHTML = renderActions(order);
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('panel').classList.add('show');
+
+  // Сразу помечаем как прочитанный
+  if (!order.isRead) {
+    await markAction(kvKey, 'read', { silent: true });
+  }
+}
+
+function contactIcons(phone) {
+  const d = (phone || '').replace(/\D/g, '');
+  if (!d) return '';
+  const plus = '+' + d;
+  const ic = {
+    sms: '<svg viewBox="0 0 24 24" width="24" height="24"><path fill="#1e88e5" d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/><circle cx="7" cy="9.5" r="1.3" fill="#fff"/><circle cx="12" cy="9.5" r="1.3" fill="#fff"/><circle cx="17" cy="9.5" r="1.3" fill="#fff"/></svg>',
+    tg: '<svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="12" fill="#26A5E4"/><path fill="#fff" d="M5.5 11.8l11-4.24c.51-.18.96.12.79.91l-1.87 8.82c-.13.62-.5.77-1.01.48l-2.8-2.07-1.35 1.3c-.15.15-.28.28-.57.28l.2-2.86 5.2-4.7c.23-.2-.05-.31-.35-.12l-6.43 4.05-2.77-.86c-.6-.19-.62-.6.13-.89z"/></svg>',
+    viber: '<svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="12" fill="#7360F2"/><path fill="#fff" d="M16.6 14.3c-.3-.15-1.73-.85-2-.95-.27-.1-.46-.15-.65.15-.19.29-.74.94-.91 1.13-.17.19-.33.21-.62.07-.29-.15-1.22-.45-2.33-1.43-.86-.77-1.44-1.72-1.61-2.01-.17-.29-.02-.45.13-.6.13-.13.29-.34.43-.51.14-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.07-.15-.65-1.56-.89-2.13-.23-.55-.47-.48-.65-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.39 0 1.41 1.03 2.77 1.17 2.96.14.19 2.02 3.09 4.9 4.33.68.29 1.22.47 1.64.6.69.22 1.31.19 1.8.12.55-.08 1.7-.7 1.94-1.37.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34z"/></svg>',
+    wa: '<svg viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="12" fill="#25D366"/><path fill="#fff" d="M16.6 14.3c-.3-.15-1.73-.85-2-.95-.27-.1-.46-.15-.65.15-.19.29-.74.94-.91 1.13-.17.19-.33.21-.62.07-.29-.15-1.22-.45-2.33-1.43-.86-.77-1.44-1.72-1.61-2.01-.17-.29-.02-.45.13-.6.13-.13.29-.34.43-.51.14-.17.19-.29.29-.48.1-.19.05-.36-.02-.51-.07-.15-.65-1.56-.89-2.13-.23-.55-.47-.48-.65-.49h-.55c-.19 0-.5.07-.76.36-.26.29-1 .98-1 2.39 0 1.41 1.03 2.77 1.17 2.96.14.19 2.02 3.09 4.9 4.33.68.29 1.22.47 1.64.6.69.22 1.31.19 1.8.12.55-.08 1.7-.7 1.94-1.37.24-.67.24-1.24.17-1.36-.07-.12-.26-.19-.55-.34z"/></svg>',
+  };
+  return `<span style="margin-left:10px;display:inline-flex;gap:8px;vertical-align:middle;align-items:center">
+    <a href="sms:${plus}" title="SMS" style="line-height:0">${ic.sms}</a>
+    <a href="tg://resolve?phone=${d}" title="Telegram" style="line-height:0">${ic.tg}</a>
+    <a href="viber://chat?number=${plus}" title="Viber" style="line-height:0">${ic.viber}</a>
+    <a href="https://wa.me/${d}" target="_blank" rel="noopener" title="WhatsApp" style="line-height:0">${ic.wa}</a>
+  </span>`;
+}
+
+function renderDetails(o) {
+  return `
+    <div class="order-row">
+      <div class="l">Створено</div>
+      <div class="v">${formatDate(o.createdAt)}</div>
+    </div>
+    <div class="order-row">
+      <div class="l">Клієнт</div>
+      <div class="v"><strong>${escapeHtml(o.customerName || '—')}</strong></div>
+    </div>
+    ${o.phone ? `<div class="order-row"><div class="l">Телефон</div><div class="v"><a href="tel:${escapeAttr(o.phone.replace(/\D/g, ''))}">${escapeHtml(o.phone)}</a>${contactIcons(o.phone)}</div></div>` : ''}
+    ${o.delivery ? `<div class="order-row"><div class="l">Доставка</div><div class="v">${escapeHtml(o.delivery)}</div></div>` : ''}
+    ${o.npCity ? `<div class="order-row"><div class="l">Місто (НП)</div><div class="v">${escapeHtml(o.npCity)}</div></div>` : ''}
+    ${o.npWarehouse ? `<div class="order-row"><div class="l">Відділення</div><div class="v">${escapeHtml(o.npWarehouse)}</div></div>` : ''}
+    ${o.payment ? `<div class="order-row"><div class="l">Оплата</div><div class="v">${escapeHtml(o.payment)}${copyBtn(o.payment)}</div></div>` : ''}
+    ${o.comment ? `<div class="order-row"><div class="l">Коментар</div><div class="v" style="white-space:pre-wrap">${escapeHtml(o.comment)}</div></div>` : ''}
+    <div class="order-row">
+      <div class="l">Склад замовлення</div>
+      <table class="items-table">
+        <thead><tr><th>Товар</th><th>Кільк.</th><th>Сума</th></tr></thead>
+        <tbody>
+          ${(o.items || []).map(it => `
+            <tr>
+              <td>${escapeHtml(it.productName)}${it.optionLabel ? ` <small style="color:#6b7280">(${escapeHtml(it.optionLabel)})</small>` : ''}${it.photoCount ? ` <small style="color:#0b8aff">📷×${it.photoCount}</small>` : ''}</td>
+              <td>${it.quantity}</td>
+              <td><strong>${it.lineTotal} ${escapeHtml(it.currency || '₴')}</strong></td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="order-row" style="border:none;">
+      <div class="l">Разом</div>
+      <div class="v" style="font-size:20px;font-weight:700;">${o.totalPrice} ₴${o.totalPhotos ? ` · 📷 ${o.totalPhotos} фото` : ''}</div>
+    </div>
+    <div class="order-row" style="border:none;">
+      <div class="l">Фото в Telegram</div>
+      <div class="v" style="color:#6b7280;font-size:13px;">Фото клієнта надіслані в Telegram-чат боту, не зберігаються тут.</div>
+    </div>
+  `;
+}
+
+function renderActions(o) {
+  return `
+    <button class="btn ${o.isDone ? 'btn-secondary' : 'btn-success'}" onclick="markAction('${escapeAttr(o.kvKey)}', '${o.isDone ? 'undone' : 'done'}')">
+      ${o.isDone ? '↩ Скасувати виконано' : '✓ Виконано'}
+    </button>
+    <button class="btn btn-secondary" onclick="markAction('${escapeAttr(o.kvKey)}', '${o.isRead ? 'unread' : 'read'}')">
+      ${o.isRead ? '○ Як непрочитане' : '✓ Як прочитане'}
+    </button>
+    <button class="btn btn-danger" style="margin-left:auto;" onclick="confirmDelete('${escapeAttr(o.kvKey)}')">🗑 Видалити</button>
+  `;
+}
+
+async function markAction(kvKey, action, opts = {}) {
+  try {
+    const r = await fetch(`/api/admin/order/${encodeURIComponent(kvKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    // Обновляем локально
+    const idx = orders.findIndex(o => o.kvKey === kvKey);
+    if (idx >= 0) orders[idx] = data.order;
+    if (currentOrder && currentOrder.kvKey === kvKey) {
+      currentOrder = data.order;
+      document.getElementById('panelActions').innerHTML = renderActions(data.order);
+    }
+    // Пересчитаем статы
+    const today = new Date().toISOString().slice(0, 10);
+    stats = {
+      total: orders.length,
+      unread: orders.filter(o => !o.isRead).length,
+      today: orders.filter(o => (o.createdAt || '').startsWith(today)).length,
+      done: orders.filter(o => o.isDone).length,
+      pending: orders.filter(o => !o.isDone).length,
+    };
+    render();
+    if (!opts.silent) toast('✅ Збережено');
+  } catch (e) {
+    toast('Помилка: ' + e.message, 'error');
+  }
+}
+
+async function confirmDelete(kvKey) {
+  if (!confirm('Видалити замовлення?')) return;
+  try {
+    const r = await fetch(`/api/admin/order/${encodeURIComponent(kvKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action: 'delete' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    orders = orders.filter(o => o.kvKey !== kvKey);
+    closeDetails();
+    render();
+    toast('✅ Видалено');
+  } catch (e) {
+    toast('Помилка: ' + e.message, 'error');
+  }
+}
+
+function closeDetails() {
+  currentOrder = null;
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('panel').classList.remove('show');
+}
+
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'success');
+  setTimeout(() => t.className = 'toast ' + (kind || 'success'), 2200);
+}
+
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+// Копіює текст у буфер обміну (з fallback для старих браузерів) і показує toast.
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    toast('✅ Скопійовано');
+  } catch (e) {
+    toast('❌ Не вдалося скопіювати', 'error');
+  }
+}
+
+// Кнопка-іконка «копіювати» поруч із текстом. text — що копіювати.
+function copyBtn(text) {
+  const safe = escapeAttr(text);
+  return `<button type="button" onclick="copyText(this.dataset.copy)" data-copy="${safe}" title="Скопіювати" style="margin-left:6px;border:none;background:none;cursor:pointer;padding:2px;vertical-align:middle;line-height:0">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+  </button>`;
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetails(); });
+
+window.loadOrders = loadOrders;
+loadOrders();
+// Авто-обновление списка каждые 15 секунд
+// Авто-оновлення з settings (потрібно дочекатися loadOrders щоб взяти налаштування)
+let ordersRefreshTimer = null;
+function setupOrdersAutoRefresh() {
+  // Беремо із settings якщо є — інакше 15 сек
+  let sec = 15;
+  fetch('/api/admin/settings', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(d => {
+    const v = parseInt(d?.settings?.ordersAutoRefreshSec, 10);
+    if (v >= 5 && v <= 120) sec = v;
+    if (ordersRefreshTimer) clearInterval(ordersRefreshTimer);
+    ordersRefreshTimer = setInterval(() => { if (document.visibilityState === 'visible') loadOrders(); }, sec * 1000);
+  }).catch(() => {
+    ordersRefreshTimer = setInterval(() => { if (document.visibilityState === 'visible') loadOrders(); }, sec * 1000);
+  });
+}
+setupOrdersAutoRefresh();
+</script>
+</body>
+</html>

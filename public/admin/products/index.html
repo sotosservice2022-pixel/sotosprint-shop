@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Товари — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 100px; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], input[type=number], input[type=url], textarea, select {
+      width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #0b8aff; background: #fff; }
+    .grid { display: grid; gap: 10px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-icon { padding: 6px 10px; font-size: 13px; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+    /* Список товаров */
+    .product-list { display: grid; gap: 10px; margin-bottom: 14px; }
+    .product-row {
+      display: flex; gap: 12px; align-items: center;
+      background: #fff; padding: 10px 14px; border-radius: 10px;
+      border: 2px solid transparent;
+      box-shadow: 0 2px 8px rgba(20,30,60,.04);
+      cursor: pointer; transition: box-shadow .15s, border-color .15s, background .15s;
+    }
+    .product-row:hover { box-shadow: 0 4px 14px rgba(20,30,60,.08); }
+    .product-row.editing {
+      border: 2px solid #0b8aff; background: #eff6ff;
+      box-shadow: 0 4px 16px rgba(11,138,255,.18);
+    }
+    .product-row .thumb {
+      width: 64px; height: 64px; border-radius: 8px; background: #eef0f3;
+      display: flex; align-items: center; justify-content: center; font-size: 24px; color: #c0c4cc;
+      overflow: hidden; flex-shrink: 0;
+    }
+    .product-row .thumb img { width: 100%; height: 100%; object-fit: cover; }
+    .product-row .info { flex: 1; min-width: 0; }
+    .product-row .name { font-weight: 600; font-size: 14px; }
+    .product-row .meta { font-size: 12px; color: #6b7280; }
+    .product-row .badge { font-size: 11px; padding: 2px 8px; border-radius: 99px; flex-shrink: 0; }
+    .product-row .badge.on { background: #dcfce7; color: #166534; }
+    .product-row .badge.off { background: #fee2e2; color: #991b1b; }
+    .product-row .actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    /* Toggle switch (вкл/викл товару) */
+    .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; cursor: pointer; inset: 0;
+      background: #cbd5e1; border-radius: 24px;
+      transition: background .2s;
+    }
+    .toggle-slider:before {
+      position: absolute; content: ""; height: 18px; width: 18px;
+      left: 3px; bottom: 3px; background: #fff; border-radius: 50%;
+      transition: transform .2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
+    }
+    input:checked + .toggle-slider { background: #16a34a; }
+    input:checked + .toggle-slider:before { transform: translateX(20px); }
+
+    /* Редактор товара */
+    .editor {
+      background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05);
+    }
+    .editor h3 { margin: 0 0 14px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+    .section { margin-bottom: 18px; }
+    .section h4 { font-size: 13px; color: #6b7280; margin: 0 0 8px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; }
+
+    /* Галерея картинок в редакторе */
+    .gallery {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 8px; margin-bottom: 10px;
+    }
+    .gallery-item {
+      position: relative; border-radius: 8px;
+      background: #fff; border: 2px solid transparent; overflow: hidden;
+    }
+    .gallery-item.main { border-color: #0b8aff; }
+    .gallery-item .image-area { position: relative; aspect-ratio: 1; overflow: hidden; background: #eef0f3; }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .gallery-item .actions {
+      position: absolute; top: 4px; right: 4px;
+      display: flex; gap: 4px; opacity: 0; transition: opacity .15s;
+    }
+    .gallery-item:hover .actions { opacity: 1; }
+    .gallery-item .actions button {
+      width: 24px; height: 24px; border-radius: 50%; border: none; background: rgba(0,0,0,.7);
+      color: #fff; cursor: pointer; font-size: 12px; line-height: 1;
+    }
+    .gallery-item .main-tag {
+      position: absolute; bottom: 4px; left: 4px;
+      font-size: 10px; padding: 2px 6px; border-radius: 4px;
+      background: #0b8aff; color: #fff; font-weight: 600;
+    }
+    .gallery-item .img-settings {
+      padding: 6px 8px; background: #f9fafb; border-top: 1px solid #e5e7eb;
+      display: flex; flex-direction: column; gap: 4px; font-size: 12px;
+    }
+    .gallery-item .img-settings label {
+      display: flex; gap: 4px; align-items: center; cursor: pointer; margin: 0; font-weight: 400;
+    }
+    .gallery-item .img-settings input[type=url] {
+      width: 100%; padding: 4px 6px; font-size: 11px; border: 1px solid #e5e7eb;
+      border-radius: 4px; background: #fff;
+    }
+    .upload-zone {
+      aspect-ratio: 1; border: 2px dashed #e5e7eb; border-radius: 8px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      cursor: pointer; background: #fafbfc; color: #6b7280;
+      font-size: 12px; text-align: center; padding: 8px;
+    }
+    .upload-zone:hover { border-color: #0b8aff; background: #f0f7ff; color: #0b8aff; }
+    .upload-zone .icon { font-size: 24px; margin-bottom: 2px; }
+
+    /* Атрибуты */
+    .attr-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; margin-bottom: 6px; }
+
+    /* Варианты */
+    .opt-row { display: grid; grid-template-columns: 1fr 100px auto; gap: 6px; margin-bottom: 6px; }
+
+    .checkbox-inline { display: flex; align-items: center; gap: 6px; }
+    .checkbox-inline input { width: auto; }
+
+    .save-bar { position: sticky; bottom: 16px; background: #fff; padding: 12px;
+      border-radius: 12px; box-shadow: 0 4px 20px rgba(20,30,60,.15);
+      display: flex; gap: 10px; align-items: center; z-index: 100; }
+    .save-bar .left { flex: 1; font-size: 13px; color: #6b7280; }
+    .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; z-index: 200; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+
+    .empty { text-align: center; padding: 40px; color: #6b7280; }
+
+    /* Перемикач стану магазину (відкрито/закрито) — як на сторінці налаштувань */
+    .toggle-card { padding: 14px 16px; border-radius: 14px; margin-bottom: 14px;
+      border: 2px solid transparent; transition: all .2s; }
+    .toggle-card.on { background: #ecfdf5; border-color: #a7f3d0; }
+    .toggle-card.off { background: #fef2f2; border-color: #fecaca; }
+    .toggle-card .head { display: flex; align-items: center; gap: 12px; }
+    .toggle-card .indicator { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 0 4px rgba(255,255,255,.5); }
+    .toggle-card.on .indicator { background: #16a34a; }
+    .toggle-card.off .indicator { background: #dc2626; }
+    .toggle-card .title { font-size: 16px; font-weight: 700; flex: 1; }
+    .btn-toggle { padding: 9px 16px; font-size: 14px; font-weight: 600; border: none;
+      border-radius: 10px; cursor: pointer; }
+    .toggle-card.on .btn-toggle { background: #fee2e2; color: #991b1b; }
+    .toggle-card.off .btn-toggle { background: #dcfce7; color: #166534; }
+
+    /* Згортання блоків (категорії, редактор товару) */
+    .collapse-head { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+    .collapse-head:hover { color: #1d4ed8; }
+    .collapse-head .collapse-arrow { font-size: 16px; color: #6b7280; transition: transform .15s; flex-shrink: 0; }
+    .collapsed-block > :not(.collapse-head) { display: none !important; }
+    .collapsed-block .collapse-head { margin-bottom: 0 !important; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/" data-i18n="crumbs.admin">Адмінка</a> → <span data-i18n="dashboard.products">Товари</span> · <a href="#" onclick="logout(); return false;" style="color:#dc2626;" data-i18n="common.logout">🚪 Вийти</a></div>
+  <h1 data-i18n="products.title">📦 Товари</h1>
+  <p class="sub" data-i18n="products.sub">Каталог: додавай, редагуй, ставиш ціни, прикріпляй картинки та відео.</p>
+
+  <!-- Стан магазину: індикатор + перемикач відкрито/закрито -->
+  <div id="shopToggleCard" class="toggle-card on no-collapse">
+    <div class="head">
+      <span class="indicator"></span>
+      <div class="title" id="shopToggleTitle">Магазин…</div>
+      <button class="btn-toggle" id="shopToggleBtn" onclick="toggleShopState()">…</button>
+    </div>
+  </div>
+
+  <div class="product-list" id="productList"></div>
+
+  <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
+    <span style="font-size:13px; font-weight:600;">Вибрано: <span id="bulkCount">0</span></span>
+    <button class="btn btn-success" onclick="bulkProducts('enable')">👁 Показати</button>
+    <button class="btn btn-secondary" onclick="bulkProducts('disable')">🙈 Сховати</button>
+    <button class="btn btn-danger" onclick="bulkProducts('delete')">🗑 Видалити</button>
+    <button class="btn btn-secondary" onclick="clearSelection()" style="margin-left:auto;">Скасувати</button>
+  </div>
+
+  <div style="display: flex; gap: 8px; margin-bottom: 14px;">
+    <button class="btn btn-primary" onclick="addProduct()" data-i18n="products.add">+ Додати товар</button>
+    <a href="/?preview=1" target="_blank" class="btn btn-secondary" style="text-decoration:none;" data-i18n="products.open_shop">👁 Відкрити магазин</a>
+    <label style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+      <input type="checkbox" id="selectAllProducts" onchange="toggleAllProducts(this.checked)" />
+      <span>Виділити всі</span>
+    </label>
+  </div>
+
+  <div id="editorWrap"></div>
+
+  <div class="card no-collapse" id="categoriesCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 id="categoriesHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">📁 Категорії товарів</h2>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+      <input type="checkbox" id="showCategoriesNav" />
+      <label for="showCategoriesNav" style="margin:0; font-weight:600; font-size:13px;">Показувати вкладки категорій на головній сторінці</label>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding-left: 22px;">
+      <input type="checkbox" id="showAllCategoriesTab" />
+      <label for="showAllCategoriesTab" style="margin:0; font-size:13px;">Показувати вкладку «Усі товари» (першу)</label>
+    </div>
+    <div style="margin-bottom: 10px;">
+      <label style="font-weight:600; font-size:13px; display:block; margin-bottom:4px;">Назва вкладки «Усі товари»</label>
+      <input type="text" id="defaultCategoryName" style="width:100%; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Перша вкладка показує всі товари без фільтра.</div>
+    </div>
+    <div style="margin-top: 12px;">
+      <label style="font-weight:600; font-size:13px; display:block; margin-bottom:4px;">Список категорій</label>
+      <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px; padding: 6px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+        💡 У кожному рядку <strong>2 поля</strong>: <strong>зліва</strong> назва (Чашки) — клієнту видно, <strong>справа</strong> slug (cups) — латинський ID для URL. Slug унікальний, без пробілів.
+      </div>
+      <div id="categoriesList"></div>
+      <button class="btn btn-secondary btn-icon" onclick="addCategory()">+ Додати категорію</button>
+      <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">У редакторі товару виберете — до якої категорії належить.</div>
+    </div>
+    <div style="margin-top: 14px; display: flex; gap: 8px; align-items: center;">
+      <button class="btn btn-primary" onclick="saveCategories()">💾 Зберегти категорії</button>
+      <span id="catStatus" style="font-size: 13px; color: #6b7280;"></span>
+    </div>
+  </div>
+
+  <div id="bulkOpsBanner" style="display: none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
+    <strong style="color: #991b1b;">⚠️ Масові операції з захистом</strong>
+    <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+      <button class="btn btn-danger" onclick="deleteDisabled()">🙈 Видалити всі сховані</button>
+      <button class="btn btn-danger" onclick="deleteAllProducts()">🗑 Видалити все</button>
+    </div>
+    <div class="hint" style="color: #7f1d1d; margin-top: 6px;">Незворотньо. Зажадає введення слова для підтвердження.</div>
+  </div>
+
+  <div class="save-bar">
+    <div class="left" id="status">Загрузка…</div>
+    <button class="btn btn-secondary" onclick="loadAll()" data-i18n="common.cancel">Скасувати</button>
+    <button class="btn btn-primary" onclick="saveAll()" data-i18n="common.save_all">💾 Зберегти все</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_r2-upload.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+let products = [];
+let categories = [];
+let appSettings = {}; // повний об'єкт settings (для зберігання з категоріями)
+
+async function loadAll() {
+  setStatus('Завантаження…');
+  try {
+    const [pRes, sRes] = await Promise.all([
+      fetch('/api/admin/products', { credentials: 'include' }),
+      fetch('/api/admin/settings', { credentials: 'include' }),
+    ]);
+    if (pRes.status === 401 || sRes.status === 401) {
+      location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname);
+      return;
+    }
+    if (!pRes.ok) throw new Error('Помилка завантаження товарів: ' + pRes.status);
+    products = (await pRes.json()).products || [];
+    if (sRes.ok) {
+      const sj = await sRes.json();
+      appSettings = sj.settings || {};
+      categories = appSettings.categories || [];
+      const banner = document.getElementById('bulkOpsBanner');
+      if (banner) banner.style.display = (appSettings.showBulkOperations === false) ? 'none' : 'block';
+      renderShopToggle();
+      // Sync lock-reorder з налаштувань
+      syncLockReorder(appSettings);
+      window.PRODUCT_IMG_MAX_SIDE = appSettings.productImageMaxSide || 1200;
+      window.PRODUCT_IMG_QUALITY = (appSettings.productImageQuality || 85) / 100;
+      // Заполняем поля категорий
+      const navEl = document.getElementById('showCategoriesNav');
+      const allTabEl = document.getElementById('showAllCategoriesTab');
+      const defNameEl = document.getElementById('defaultCategoryName');
+      if (navEl) navEl.checked = appSettings.showCategoriesNav !== false;
+      if (allTabEl) allTabEl.checked = appSettings.showAllCategoriesTab !== false;
+      if (defNameEl) defNameEl.value = appSettings.defaultCategoryName || 'Усі товари';
+      renderCategories();
+      // Робимо блок категорій згортуваним (за замовчуванням згорнутий, щоб не заважав)
+      makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
+    }
+    renderList();
+    setStatus('Завантажено');
+  } catch (e) { setStatus('Помилка: ' + e.message, true); }
+}
+
+// === Категорії ===
+function renderCategories() {
+  const wrap = document.getElementById('categoriesList');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!Array.isArray(categories)) categories = [];
+  if (categories.length === 0) {
+    wrap.innerHTML = '<div style="font-size:12px; color:#6b7280; margin-bottom: 8px;">Жодної категорії. Усі товари будуть в одному списку.</div>';
+    return;
+  }
+  categories.forEach((cat, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; gap: 6px; margin-bottom: 6px; align-items: center;';
+    row.innerHTML = `
+      <div class="row-arrows">
+        <button type="button" onclick="moveCategory(${i}, -1)" ${i===0?'disabled':''} title="Вгору">▲</button>
+        <button type="button" onclick="moveCategory(${i}, 1)" ${i===categories.length-1?'disabled':''} title="Вниз">▼</button>
+      </div>
+      <input type="text" value="${escapeAttr(cat.name || '')}" placeholder="Назва (наприклад: Чашки)" title="Назва категорії — що побачить клієнт у вкладці" data-k="name" style="flex: 2; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      <input type="text" value="${escapeAttr(cat.slug || '')}" placeholder="slug (cups, metal-prints) — латиниця" title="Slug — латинський ідентифікатор для URL ?category=..." data-k="slug" style="flex: 1; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      <button class="btn btn-danger btn-icon" onclick="removeCategory(${i})">×</button>
+    `;
+    wrap.appendChild(row);
+    row.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const key = e.target.dataset.k;
+        let val = e.target.value;
+        if (key === 'slug') {
+          val = val.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-');
+          categories[i].slug = val;
+          // Якщо користувач сам ввів slug — позначаємо що він "власний"
+          // (далі не будемо перезаписувати автоматично)
+          categories[i]._slugCustom = val.length > 0;
+        } else if (key === 'name') {
+          categories[i].name = val;
+          // Авто-генерація slug з назви (тільки якщо користувач сам не вводив свій)
+          if (!categories[i]._slugCustom) {
+            categories[i].slug = transliterateToSlug(val);
+            const slugInput = inp.parentElement.querySelector('input[data-k="slug"]');
+            if (slugInput) slugInput.value = categories[i].slug;
+          }
+        }
+      });
+    });
+  });
+}
+// Транслітерація кирилиці в латиницю для slug.
+// "Чашки на металі" → "chashky-na-metali"
+function transliterateToSlug(text) {
+  const map = {
+    'а':'a','б':'b','в':'v','г':'h','ґ':'g','д':'d','е':'e','є':'ie','ж':'zh','з':'z',
+    'и':'y','і':'i','ї':'i','й':'i','к':'k','л':'l','м':'m','н':'n','о':'o','п':'p',
+    'р':'r','с':'s','т':'t','у':'u','ф':'f','х':'kh','ц':'ts','ч':'ch','ш':'sh',
+    'щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'iu','я':'ia','ё':'e',
+  };
+  return String(text || '')
+    .toLowerCase()
+    .split('')
+    .map(c => map[c] !== undefined ? map[c] : c)
+    .join('')
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function addCategory() {
+  if (!Array.isArray(categories)) categories = [];
+  const id = 'cat_' + Math.random().toString(36).slice(2, 9);
+  categories.push({ id, name: '', slug: '' });
+  renderCategories();
+}
+function removeCategory(i) {
+  if (!confirm('Видалити категорію? Товари цієї категорії стануть «без категорії».')) return;
+  categories.splice(i, 1);
+  renderCategories();
+}
+function moveCategory(i, dir) {
+  const t = i + dir;
+  if (t < 0 || t >= categories.length) return;
+  [categories[i], categories[t]] = [categories[t], categories[i]];
+  renderCategories();
+}
+async function saveCategories() {
+  const status = document.getElementById('catStatus');
+  status.textContent = 'Зберігаю…';
+  status.style.color = '#6b7280';
+  appSettings.categories = categories;
+  appSettings.showCategoriesNav = document.getElementById('showCategoriesNav').checked;
+  appSettings.showAllCategoriesTab = document.getElementById('showAllCategoriesTab').checked;
+  appSettings.defaultCategoryName = document.getElementById('defaultCategoryName').value.trim() || 'Усі товари';
+  try {
+    // ВАЖЛИВО: спершу зберігаємо товари, щоб НЕ втратити правки у відкритому редакторі.
+    // products і settings — різні KV-ключі, тому зберігаємо обидва незалежно.
+    sanitizeProducts();
+    const pRes = await fetch('/api/admin/products', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(products),
+    });
+    if (!pRes.ok) throw new Error('Товари HTTP ' + pRes.status);
+
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appSettings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    status.textContent = '✓ Збережено';
+    status.style.color = '#16a34a';
+    toast('✅ Категорії та товари збережено');
+    // НЕ викликаємо loadAll() — він перезатер би масив products і скинув би
+    // незбережені правки. Оновлюємо лише список категорій у відкритому редакторі.
+    renderCategories();
+    if (window.currentIdx != null && products[window.currentIdx]) {
+      editProduct(window.currentIdx);
+    }
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.style.color = '#dc2626';
+  }
+}
+
+// === Згортання блоку (категорії / редактор) ===
+// headingEl — заголовок (h2/h3) всередині блоку card. key — ключ для localStorage.
+function makeCollapsible(cardEl, headingEl, key, defaultCollapsed) {
+  if (!cardEl || !headingEl || cardEl.dataset.collapsibleReady) return;
+  cardEl.dataset.collapsibleReady = '1';
+  headingEl.classList.add('collapse-head');
+  const arrow = document.createElement('span');
+  arrow.className = 'collapse-arrow';
+  headingEl.insertBefore(arrow, headingEl.firstChild);
+  let collapsed;
+  try { collapsed = localStorage.getItem(key) === '1'; } catch { collapsed = false; }
+  if (collapsed === false && defaultCollapsed && localStorage.getItem(key) === null) collapsed = true;
+  const apply = () => {
+    cardEl.classList.toggle('collapsed-block', collapsed);
+    arrow.textContent = collapsed ? '▸' : '▾';
+  };
+  apply();
+  headingEl.addEventListener('click', (e) => {
+    if (e.target.closest('a, button, input, select')) return;
+    collapsed = !collapsed;
+    try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch {}
+    apply();
+  });
+}
+
+// === Стан магазину (відкрито/закрито) ===
+function renderShopToggle() {
+  const card = document.getElementById('shopToggleCard');
+  if (!card) return;
+  const enabled = appSettings.shopEnabled !== false;
+  card.className = 'toggle-card no-collapse ' + (enabled ? 'on' : 'off');
+  document.getElementById('shopToggleTitle').textContent = enabled
+    ? '✅ Магазин відкритий — приймає замовлення'
+    : '🚫 Магазин закритий для клієнтів';
+  document.getElementById('shopToggleBtn').textContent = enabled ? 'Закрити' : 'Відкрити';
+}
+async function toggleShopState() {
+  const wasOn = appSettings.shopEnabled !== false;
+  if (!confirm((wasOn ? 'Закрити' : 'Відкрити') + ' прийом замовлень?')) return;
+  appSettings.shopEnabled = !wasOn;
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(appSettings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    renderShopToggle();
+    toast(wasOn ? '🚫 Магазин закрито' : '✅ Магазин відкрито');
+  } catch (e) {
+    appSettings.shopEnabled = wasOn; // откат
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+function setStatus(text, isError) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.style.color = isError ? '#991b1b' : '#6b7280';
+}
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'success');
+  setTimeout(() => t.className = 'toast ' + (kind || 'success'), 2200);
+}
+
+function renderList() {
+  const wrap = document.getElementById('productList');
+  if (products.length === 0) {
+    wrap.innerHTML = '<div class="empty">Товаров пока нет. Нажми «+ Добавить товар».</div>';
+    return;
+  }
+  wrap.innerHTML = '';
+  products.forEach((p, idx) => {
+    const row = document.createElement('div');
+    row.className = 'product-row' + (window.currentIdx === idx ? ' editing' : '');
+    const firstImg = p.images?.[0];
+    const mainImg = (typeof firstImg === 'object' ? firstImg?.url : firstImg) || p.image || '';
+    const catName = p.categoryId ? (categories.find(c => c.id === p.categoryId)?.name || '?') : '';
+    row.innerHTML = `
+      <input type="checkbox" class="row-check" data-pid="${escapeAttr(p.id)}" onchange="updateProductBulkBar()" onclick="event.stopPropagation()" style="flex-shrink: 0;" />
+      <div class="thumb">${mainImg ? `<img src="${mainImg}" />` : '🖼️'}</div>
+      <div class="info">
+        <div class="name">${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
+        <div class="meta">${p.price || 0} ${escapeHtml(p.currency || '₴')} · ${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
+      </div>
+      <label class="toggle-switch" onclick="event.stopPropagation()" title="${p.enabled !== false ? 'Прихований' : 'Видимий'}">
+        <input type="checkbox" ${p.enabled !== false ? 'checked' : ''} onchange="quickToggleEnabled(${idx}, this.checked)" />
+        <span class="toggle-slider"></span>
+      </label>
+      <div class="actions">
+        <button class="btn btn-secondary btn-icon" onclick="event.stopPropagation(); moveProduct(${idx}, -1)" ${idx===0?'disabled':''}>↑</button>
+        <button class="btn btn-secondary btn-icon" onclick="event.stopPropagation(); moveProduct(${idx}, 1)" ${idx===products.length-1?'disabled':''}>↓</button>
+        <button class="btn btn-secondary btn-icon" onclick="event.stopPropagation(); editProduct(${idx})">✏️</button>
+        <button class="btn btn-secondary btn-icon" title="Скопіювати товар" onclick="event.stopPropagation(); duplicateProduct(${idx})">📋</button>
+        <button class="btn btn-danger btn-icon" onclick="event.stopPropagation(); removeProduct(${idx})">🗑</button>
+      </div>
+    `;
+    row.addEventListener('click', () => editProduct(idx));
+    wrap.appendChild(row);
+  });
+}
+
+function editProduct(idx) {
+  const p = products[idx];
+  const wrap = document.getElementById('editorWrap');
+  wrap.innerHTML = '';
+
+  // Нормализация старого формата: image → images
+  if (!Array.isArray(p.images)) p.images = [];
+  if (p.image && p.images.length === 0) { p.images.push(p.image); p.image = ''; }
+  if (!Array.isArray(p.attributes)) p.attributes = [];
+  if (!Array.isArray(p.options)) p.options = [];
+
+  const ed = document.createElement('div');
+  ed.className = 'editor';
+  ed.id = 'editor';
+  ed.innerHTML = `
+    <h3 id="ed-heading">✏️ Редагування: <span id="ed-title">${escapeHtml(p.name || '')}</span></h3>
+
+    <div class="section">
+      <h4>Основне</h4>
+      <div class="grid">
+        <div><label>Назва</label><input type="text" data-prop="name" value="${escapeAttr(p.name || '')}" /></div>
+        <div><label>Короткий опис (для модального вікна)</label><textarea rows="3" data-prop="description">${escapeHtml(p.description || '')}</textarea></div>
+        <div class="grid grid-3">
+          <div><label>Ціна</label><input type="number" data-prop="price" value="${p.price || 0}" min="0" step="1" /></div>
+          <div><label>Валюта</label><input type="text" data-prop="currency" value="${escapeAttr(p.currency || '₴')}" maxlength="5" /></div>
+          <div><label>ID</label><input type="text" data-prop="id" value="${escapeAttr(p.id || '')}" /></div>
+        </div>
+        <div class="grid grid-2">
+          <div>
+            <label>Куплено разів</label>
+            <input type="number" id="soldCount_${idx}" value="${p.soldCount || 0}" min="0" step="1" data-prop="soldCount" />
+            <div class="hint">Автоматично зростає на кожне замовлення. Можна задати або скинути на 0.</div>
+          </div>
+          <div style="align-self: end;">
+            <button class="btn btn-secondary btn-icon" type="button" onclick="resetSoldCount(${idx})">↻ Скинути на 0</button>
+          </div>
+        </div>
+        <div>
+          <label>Категорія</label>
+          <select data-prop="categoryId">
+            <option value="">— Без категорії —</option>
+            ${(categories || []).map(c => `<option value="${escapeAttr(c.id)}" ${p.categoryId === c.id ? 'selected' : ''}>${escapeHtml(c.name || '(без імені)')}</option>`).join('')}
+          </select>
+          <div class="hint">Категорії редагуються в Налаштування → 📁 Категорії.</div>
+        </div>
+        <div class="checkbox-inline">
+          <input type="checkbox" id="ed-enabled" ${p.enabled !== false ? 'checked' : ''} />
+          <label for="ed-enabled" style="margin:0">Показувати в каталозі</label>
+        </div>
+        <div class="checkbox-inline">
+          <input type="checkbox" id="ed-reqphoto" ${p.requiresPhoto !== false ? 'checked' : ''} />
+          <label for="ed-reqphoto" style="margin:0">Клієнт повинен прикріпити фото при оформленні</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h4>📷 Галерея (до 8 картинок · перша — головна)</h4>
+      <div class="gallery" id="gallery"></div>
+      <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною.</div>
+    </div>
+
+    <div class="section">
+      <h4>🎬 Відео (YouTube, Google Drive або з нашого сховища R2)</h4>
+      <input type="url" data-prop="video" placeholder="https://youtu.be/... або /api/storage/promo.mp4" value="${escapeAttr(p.video || '')}" id="videoInput_${idx}" oninput="updateVideoPreview(${idx})" />
+      <div class="hint">Підтримуються: <strong>YouTube</strong>, <strong>Google Drive</strong>, або прямий MP4/WebM/MOV (наприклад з <a href="/admin/storage/" target="_blank">/admin/storage/</a> — завантаж файл і скопіюй посилання). Зʼявиться кнопка «Відео» у модальному вікні товару.</div>
+      <div id="videoPreview_${idx}" style="margin-top: 8px;"></div>
+    </div>
+
+    <div class="section">
+      <h4>🏷 Шильдики на картинці</h4>
+      <div id="badgeList"></div>
+      <button class="btn btn-secondary btn-icon" type="button" onclick="addBadge()">+ Додати шильдик</button>
+      <div style="display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap;">
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('🔥 ХІТ', '#dc2626')">🔥 ХІТ</button>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('АКЦІЯ', '#f59e0b')">АКЦІЯ</button>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('NEW', '#16a34a')">NEW</button>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('-30%', '#7c3aed')">-30%</button>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addBadgePreset('TOP', '#0b8aff')">TOP</button>
+      </div>
+      <div class="hint">Текст у лівому верхньому куті картинки товара. Можна декілька. Колір — будь-який.</div>
+    </div>
+
+    <div class="section">
+      <h4>📋 Характеристики</h4>
+      <div id="attrList"></div>
+      <button class="btn btn-secondary btn-icon" type="button" onclick="addAttr()">+ Додати характеристику</button>
+      <div class="hint">Наприклад: «Матеріал → Бавовна», «Розмір → 40-44». Показується в модалці клієнту.</div>
+    </div>
+
+    <div class="section">
+      <h4>⚙️ Варіанти (опціонально)</h4>
+      <div id="optList"></div>
+      <button class="btn btn-secondary btn-icon" type="button" onclick="addOpt()">+ Додати варіант</button>
+      <div class="hint">Наприклад: «Глянцевий → +0», «На полотні → +50». Якщо немає варіантів — клієнт купує звичайний товар.</div>
+    </div>
+
+    <div class="section">
+      <h4>🎟 Промокоди для цього товару</h4>
+      <div id="promoList"></div>
+      <div class="hint">Познач промокоди, які діють на цей товар. Промокод почне діяти лише на цей товар (scope «товари»). Зміни збережуться при «💾 Зберегти все».</div>
+    </div>
+
+    <div style="display: flex; gap: 8px; margin-top: 12px;">
+      <button class="btn btn-secondary" onclick="closeEditor()">Закрити редактор</button>
+      <button class="btn btn-danger" onclick="removeProduct(currentIdx)">🗑 Видалити товар</button>
+    </div>
+  `;
+  wrap.appendChild(ed);
+  window.currentIdx = idx;
+  renderList(); // підсвічуємо рядок товару, який редагується
+  // Показуємо прев'ю якщо вже є відео
+  setTimeout(() => updateVideoPreview(idx), 50);
+
+  // Обработчики основного
+  ed.querySelectorAll('[data-prop]').forEach(el => {
+    el.addEventListener('input', () => {
+      const k = el.dataset.prop;
+      if (k === 'price') p[k] = parseFloat(el.value) || 0;
+      else if (k === 'soldCount') p[k] = parseInt(el.value) || 0;
+      else p[k] = el.value;
+      if (k === 'name') document.getElementById('ed-title').textContent = el.value;
+    });
+  });
+  document.getElementById('ed-enabled').addEventListener('change', e => { p.enabled = e.target.checked; });
+  document.getElementById('ed-reqphoto').addEventListener('change', e => { p.requiresPhoto = e.target.checked; });
+
+  renderGallery(p);
+  renderAttrs(p);
+  renderOpts(p);
+  renderBadges(p);
+  renderProductPromos(p);
+
+  // Редактор згортуваний (завжди відкритий при відкритті товару)
+  try { localStorage.removeItem('collapse_editor'); } catch {}
+  makeCollapsible(ed, document.getElementById('ed-heading'), 'collapse_editor', false);
+
+  ed.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function closeEditor() {
+  document.getElementById('editorWrap').innerHTML = '';
+  window.currentIdx = null;
+  renderList(); // знімаємо підсвічування редагованого рядка
+}
+
+// === Галерея ===
+function renderGallery(p) {
+  const el = document.getElementById('gallery');
+  if (!el) return;
+  el.innerHTML = '';
+  // Нормалізуємо: string → {url, zoomable, link}
+  p.images = p.images.map(img => {
+    if (typeof img === 'string') return { url: img, zoomable: true, link: '' };
+    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '' };
+  }).filter(img => img.url);
+  p.images.forEach((img, i) => {
+    const item = document.createElement('div');
+    item.className = 'gallery-item' + (i === 0 ? ' main' : '');
+    item.innerHTML = `
+      <div class="image-area">
+        <img src="${escapeAttr(img.url)}" />
+        ${i === 0 ? '<span class="main-tag">Головна</span>' : ''}
+        <div class="actions">
+          ${i > 0 ? '<button title="Зробити головною" onclick="setMain('+i+')">★</button>' : ''}
+          <button title="Удалить" onclick="removeImage('+i+')">×</button>
+        </div>
+      </div>
+      <div class="img-settings">
+        <label>
+          <input type="checkbox" ${img.zoomable ? 'checked' : ''} onchange="setImgZoom(${i}, this.checked)" />
+          🔍 Дозволити збільшення
+        </label>
+        <input type="url" value="${escapeAttr(img.link)}" placeholder="Посилання (опц.) — клік відкриє цю URL" oninput="setImgLink(${i}, this.value)" />
+      </div>
+    `;
+    el.appendChild(item);
+  });
+  // upload zone
+  if (p.images.length < 8) {
+    const z = document.createElement('label');
+    z.className = 'upload-zone';
+    z.innerHTML = `<span class="icon">📷</span><span>Додати фото</span><input type="file" accept="image/*" style="display:none" onchange="onImageSelect(event)" multiple />`;
+    el.appendChild(z);
+  }
+}
+
+window.setImgZoom = (i, val) => {
+  const p = products[currentIdx];
+  if (!p.images[i]) return;
+  if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
+  p.images[i].zoomable = val;
+};
+
+window.setImgLink = (i, val) => {
+  const p = products[currentIdx];
+  if (!p.images[i]) return;
+  if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
+  p.images[i].link = val.trim();
+};
+
+window.setMain = (i) => {
+  const p = products[currentIdx];
+  if (i <= 0 || i >= p.images.length) return;
+  const [item] = p.images.splice(i, 1);
+  p.images.unshift(item);
+  renderGallery(p);
+  renderList();
+};
+window.removeImage = (i) => {
+  const p = products[currentIdx];
+  p.images.splice(i, 1);
+  renderGallery(p);
+  renderList();
+};
+
+async function onImageSelect(e) {
+  const p = products[currentIdx];
+  const files = Array.from(e.target.files || []);
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    if (p.images.length >= 8) { toast('Максимум 8 картинок', 'error'); break; }
+    try {
+      const maxSide = window.PRODUCT_IMG_MAX_SIDE || 1200;
+      const quality = window.PRODUCT_IMG_QUALITY || 0.85;
+      const url = await uploadToR2(f, { compress: true, maxSide, quality, prefix: 'product' });
+      p.images.push({ url, zoomable: true, link: '' });
+    } catch (err) { toast('Помилка завантаження: ' + err.message, 'error'); }
+  }
+  renderGallery(p);
+  renderList();
+  e.target.value = '';
+}
+
+async function compressToDataUrl(file, maxSide, quality) {
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch {
+    src = await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = URL.createObjectURL(file); });
+  }
+  const w = src.width, h = src.height;
+  const ratio = Math.min(1, maxSide / Math.max(w, h));
+  const nw = Math.round(w * ratio), nh = Math.round(h * ratio);
+  const canvas = document.createElement('canvas');
+  canvas.width = nw; canvas.height = nh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, nw, nh);
+  try { src.close?.(); } catch {}
+  return canvas.toDataURL('image/jpeg', quality);
+}
+
+// === Атрибуты ===
+function renderAttrs(p) {
+  const el = document.getElementById('attrList');
+  if (!el) return;
+  el.innerHTML = '';
+  p.attributes.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'attr-row';
+    row.innerHTML = `
+      <input type="text" placeholder="Название (например: Материал)" value="${escapeAttr(a.label || '')}" data-k="label" />
+      <input type="text" placeholder="Значение (например: Хлопок)" value="${escapeAttr(a.value || '')}" data-k="value" />
+      <button class="btn btn-danger btn-icon" type="button">×</button>
+    `;
+    row.querySelectorAll('[data-k]').forEach(input => {
+      input.addEventListener('input', () => { a[input.dataset.k] = input.value; });
+    });
+    row.querySelector('button').onclick = () => { p.attributes.splice(i, 1); renderAttrs(p); renderList(); };
+    el.appendChild(row);
+  });
+}
+window.addAttr = () => {
+  const p = products[currentIdx];
+  p.attributes.push({ label: '', value: '' });
+  renderAttrs(p);
+};
+
+// === Шильдики ===
+function renderBadges(p) {
+  const el = document.getElementById('badgeList');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!Array.isArray(p.badges)) p.badges = [];
+  p.badges.forEach((b, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; gap: 6px; align-items: center; margin-bottom: 6px;';
+    row.innerHTML = `
+      <input type="text" placeholder="Текст (наприклад: ХІТ)" value="${escapeAttr(b.text || '')}" data-k="text" maxlength="20" style="flex: 1; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280;">Фон:
+        <input type="color" value="${b.color || '#dc2626'}" data-k="color" style="width: 36px; height: 32px; padding: 2px; border-radius: 6px; cursor: pointer;" />
+      </label>
+      <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; color: #6b7280;">Текст:
+        <input type="color" value="${b.textColor || '#ffffff'}" data-k="textColor" style="width: 36px; height: 32px; padding: 2px; border-radius: 6px; cursor: pointer;" />
+      </label>
+      <span class="product-badge-preview" style="background:${b.color || '#dc2626'};color:${b.textColor || '#ffffff'};font-size:11px;font-weight:700;padding:3px 8px;border-radius:4px;text-transform:uppercase;">${escapeHtml(b.text || 'ПРЕВЮ')}</span>
+      <button class="btn btn-danger btn-icon" type="button">×</button>
+    `;
+    row.querySelectorAll('[data-k]').forEach(input => {
+      input.addEventListener('input', () => {
+        b[input.dataset.k] = input.value;
+        // Оновлюємо превью
+        const preview = row.querySelector('.product-badge-preview');
+        preview.textContent = b.text || 'ПРЕВЮ';
+        preview.style.background = b.color || '#dc2626';
+        preview.style.color = b.textColor || '#ffffff';
+      });
+    });
+    row.querySelector('button.btn-danger').onclick = () => { p.badges.splice(i, 1); renderBadges(p); };
+    el.appendChild(row);
+  });
+}
+window.addBadge = () => {
+  const p = products[currentIdx];
+  if (!Array.isArray(p.badges)) p.badges = [];
+  p.badges.push({ text: 'ХІТ', color: '#dc2626', textColor: '#ffffff' });
+  renderBadges(p);
+};
+window.addBadgePreset = (text, color) => {
+  const p = products[currentIdx];
+  if (!Array.isArray(p.badges)) p.badges = [];
+  p.badges.push({ text, color, textColor: '#ffffff' });
+  renderBadges(p);
+};
+
+// === Варианты ===
+function renderOpts(p) {
+  const el = document.getElementById('optList');
+  if (!el) return;
+  el.innerHTML = '';
+  p.options.forEach((o, i) => {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    row.innerHTML = `
+      <input type="text" placeholder="Название варианта" value="${escapeAttr(o.name || '')}" data-k="name" />
+      <input type="number" placeholder="+0" value="${o.priceDelta || 0}" data-k="priceDelta" step="1" />
+      <button class="btn btn-danger btn-icon" type="button">×</button>
+    `;
+    row.querySelectorAll('[data-k]').forEach(input => {
+      input.addEventListener('input', () => {
+        const k = input.dataset.k;
+        if (k === 'priceDelta') o[k] = parseFloat(input.value) || 0;
+        else { o[k] = input.value; o.id = makeOptId(input.value, i); }
+      });
+    });
+    row.querySelector('button').onclick = () => { p.options.splice(i, 1); renderOpts(p); };
+    el.appendChild(row);
+  });
+}
+function makeOptId(name, idx) {
+  const slug = String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 20);
+  return slug || ('opt' + idx);
+}
+
+// === Промокоди для товару ===
+// Зв'язок зберігається у самому промокоді (appSettings.promoCodes[].productIds).
+function renderProductPromos(p) {
+  const el = document.getElementById('promoList');
+  if (!el) return;
+  const promos = Array.isArray(appSettings.promoCodes) ? appSettings.promoCodes : [];
+  if (!promos.length) {
+    el.innerHTML = '<div class="hint">Промокодів ще немає. Створи їх у розділі 🎟 Промокоди.</div>';
+    return;
+  }
+  el.innerHTML = promos.map((promo, i) => {
+    const onProduct = (promo.scope === 'products') && Array.isArray(promo.productIds) && promo.productIds.includes(p.id);
+    // Інформаційна пометка для промокодів іншого scope
+    const note = promo.scope === 'all' ? '<span style="color:#6b7280;font-size:11px;"> (зараз діє усюди)</span>'
+               : promo.scope === 'categories' ? '<span style="color:#6b7280;font-size:11px;"> (зараз діє по категоріях)</span>'
+               : '';
+    const valueText = promo.type === 'percent' ? `${promo.value}%` : promo.type === 'fixed' ? `${promo.value}₴` : 'безкошт.дост.';
+    return `<label class="checkbox-inline" style="margin-bottom:6px;">
+      <input type="checkbox" data-promo-idx="${i}" ${onProduct ? 'checked' : ''} onchange="toggleProductPromo(${i}, '${escapeAttr(p.id)}', this.checked)" />
+      <span><strong>${escapeHtml(promo.code)}</strong> · ${valueText}${note}</span>
+    </label>`;
+  }).join('');
+}
+window.toggleProductPromo = (promoIdx, productId, checked) => {
+  const promo = appSettings.promoCodes?.[promoIdx];
+  if (!promo) return;
+  if (!Array.isArray(promo.productIds)) promo.productIds = [];
+  if (checked) {
+    // Прив'язуємо промокод до цього товару → робимо scope='products'
+    promo.scope = 'products';
+    if (!promo.productIds.includes(productId)) promo.productIds.push(productId);
+  } else {
+    promo.productIds = promo.productIds.filter(id => id !== productId);
+  }
+  toast('🎟 Зміну буде збережено при «Зберегти все»');
+};
+
+window.resetSoldCount = (idx) => {
+  if (!confirm(`Скинути лічильник продажів для «${products[idx]?.name}» на 0?`)) return;
+  products[idx].soldCount = 0;
+  const el = document.getElementById('soldCount_' + idx);
+  if (el) el.value = '0';
+  toast('✅ Лічильник скинуто (натисни «Зберегти все»)');
+};
+window.addOpt = () => {
+  const p = products[currentIdx];
+  p.options.push({ id: 'opt' + p.options.length, name: '', priceDelta: 0 });
+  renderOpts(p);
+};
+
+// === Список товаров: операции ===
+function moveProduct(idx, dir) {
+  const target = idx + dir;
+  if (target < 0 || target >= products.length) return;
+  [products[idx], products[target]] = [products[target], products[idx]];
+  renderList();
+  if (window.currentIdx === idx) window.currentIdx = target;
+  else if (window.currentIdx === target) window.currentIdx = idx;
+}
+
+// === Bulk операції ===
+function getSelectedProductIds() {
+  return Array.from(document.querySelectorAll('.row-check:checked')).map(c => c.dataset.pid);
+}
+function updateProductBulkBar() {
+  const sel = getSelectedProductIds();
+  const bar = document.getElementById('bulkBar');
+  bar.style.display = sel.length > 0 ? 'flex' : 'none';
+  document.getElementById('bulkCount').textContent = sel.length;
+  const all = document.querySelectorAll('.row-check').length;
+  document.getElementById('selectAllProducts').checked = sel.length > 0 && sel.length === all;
+}
+function toggleAllProducts(checked) {
+  document.querySelectorAll('.row-check').forEach(c => c.checked = checked);
+  updateProductBulkBar();
+}
+function clearSelection() { toggleAllProducts(false); }
+
+async function bulkProducts(action) {
+  const ids = getSelectedProductIds();
+  if (ids.length === 0) return;
+  const confirms = {
+    delete: `Видалити ${ids.length} товарів? Незворотньо.`,
+    enable: `Показати ${ids.length} товарів у каталозі?`,
+    disable: `Сховати ${ids.length} товарів з каталогу?`,
+  };
+  if (!confirm(confirms[action])) return;
+  try {
+    const r = await fetch('/api/admin/products-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ action, productIds: ids }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Оброблено: ${data.processed}`);
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteDisabled() {
+  const word = prompt('Видалити ВСІ ПРИХОВАНІ товари без можливості відновлення?\nВведіть слово ВИДАЛИТИ для підтвердження:');
+  if (word !== 'ВИДАЛИТИ') { toast('Скасовано', 'error'); return; }
+  try {
+    const r = await fetch('/api/admin/products-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ action: 'delete-disabled', confirm: 'YES' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Видалено: ${data.processed}`);
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteAllProducts() {
+  const word = prompt('УВАГА! Видалити ВСІ товари без можливості відновлення?\nВведіть слово ВИДАЛИТИ-ВСЕ для підтвердження:');
+  if (word !== 'ВИДАЛИТИ-ВСЕ') { toast('Скасовано', 'error'); return; }
+  try {
+    const r = await fetch('/api/admin/products-bulk', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify({ action: 'delete-all', confirm: 'YES' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Видалено: ${data.processed}`);
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// Быстрый toggle "видимый/скрытый" прямо в списке. Сохраняет на сервер.
+async function quickToggleEnabled(idx, enabled) {
+  if (!products[idx]) return;
+  products[idx].enabled = enabled;
+  // Обновляем визуально
+  renderList();
+  // Сохраняем на сервер
+  try {
+    const r = await fetch('/api/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(products),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(enabled ? '✅ Видимий' : '🙈 Прихований');
+  } catch (e) {
+    products[idx].enabled = !enabled; // откат
+    renderList();
+    toast('❌ ' + e.message, 'error');
+  }
+}
+function removeProduct(idx) {
+  if (!confirm(`Удалить товар «${products[idx].name}»?`)) return;
+  products.splice(idx, 1);
+  if (window.currentIdx === idx) closeEditor();
+  renderList();
+}
+function addProduct() {
+  const id = 'p' + Math.random().toString(36).slice(2, 8);
+  products.push({
+    id, name: 'Новий товар', description: '', price: 0, currency: '₴',
+    images: [], video: '', attributes: [], options: [],
+    enabled: true, requiresPhoto: false,
+  });
+  renderList();
+  editProduct(products.length - 1);
+}
+
+// Дублювання товару: створює копію з новим ID одразу під оригіналом,
+// додає «(копія)» до назви, відкриває в редакторі та зберігає на сервер.
+async function duplicateProduct(idx) {
+  const src = products[idx];
+  if (!src) return;
+  // Глибока копія (щоб картинки/характеристики/варіанти не були спільними посиланнями)
+  const copy = (typeof structuredClone === 'function')
+    ? structuredClone(src)
+    : JSON.parse(JSON.stringify(src));
+  // Новий унікальний ID — обовʼязково, інакше зламаються чекбокси/масові операції
+  copy.id = 'p' + Math.random().toString(36).slice(2, 8);
+  copy.name = (src.name || '(без імені)') + ' (копія)';
+  // Скидаємо лічильник продажів у дубліката
+  copy.soldCount = 0;
+  // Вставляємо одразу під оригіналом
+  products.splice(idx + 1, 0, copy);
+  renderList();
+  editProduct(idx + 1);
+  // Зберігаємо на сервер, щоб дублікат не зник при перезавантаженні
+  try {
+    const r = await fetch('/api/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(products),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast('✅ Копію створено — редагуй та натисни «Зберегти все»');
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// === Сохранение ===
+// Чистка товаров перед сохранением (нормализация id, цены, опций, картинок).
+function sanitizeProducts() {
+  for (const p of products) {
+    if (!p.id) p.id = 'p' + Math.random().toString(36).slice(2, 8);
+    p.price = parseFloat(p.price) || 0;
+    if (Array.isArray(p.options)) {
+      p.options = p.options.filter(o => o.name);
+      p.options.forEach((o, i) => { if (!o.id) o.id = 'opt' + i; });
+    }
+    if (Array.isArray(p.attributes)) {
+      p.attributes = p.attributes.filter(a => a.label || a.value);
+    }
+    if (!Array.isArray(p.images)) p.images = [];
+    // Поддержка legacy: первая картинка дублируется в .image
+    if (p.images.length > 0) {
+      const f = p.images[0];
+      p.image = (typeof f === 'object' ? f.url : f) || '';
+    }
+    else delete p.image;
+  }
+}
+
+async function saveAll() {
+  sanitizeProducts();
+
+  setStatus('Зберігаю…');
+  try {
+    // Зберігаємо settings, якщо в них могли змінитися промокоди (прив'язка товар↔промокод
+    // у редакторі товару пише в appSettings.promoCodes). products і settings — різні KV-ключі.
+    if (appSettings && Array.isArray(appSettings.promoCodes)) {
+      const sRes = await fetch('/api/admin/settings', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', body: JSON.stringify(appSettings),
+      });
+      if (!sRes.ok) throw new Error('Налаштування HTTP ' + sRes.status);
+    }
+    const r = await fetch('/api/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(products),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast('✅ Збережено');
+    setStatus('Збережено ' + new Date().toLocaleTimeString('ru-RU'));
+    // Перезагружаем с сервера чтобы UI совпадал с фактическим состоянием
+    const fresh = await fetch('/api/admin/products', { credentials: 'include' }).then(r => r.json());
+    products = fresh.products || [];
+    renderList();
+    if (window.currentIdx != null && products[window.currentIdx]) {
+      // Если редактор был открыт — обновляем его
+      editProduct(window.currentIdx);
+    }
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+    setStatus('Помилка: ' + e.message, true);
+  }
+}
+
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s) { return escapeHtml(s); }
+
+// Превью видео в редакторе
+function parseVideoUrl(url) {
+  const s = String(url || '').trim();
+  if (!s) return null;
+  const yt = s.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  if (yt) return { type: 'youtube', id: yt[1], embedUrl: `https://www.youtube.com/embed/${yt[1]}`, thumb: `https://img.youtube.com/vi/${yt[1]}/hqdefault.jpg` };
+  const gd = s.match(/drive\.google\.com\/(?:file\/d\/|open\?id=)([a-zA-Z0-9_-]+)/);
+  if (gd) return { type: 'drive', id: gd[1], embedUrl: `https://drive.google.com/file/d/${gd[1]}/preview`, thumb: '' };
+  return null;
+}
+
+function updateVideoPreview(idx) {
+  const input = document.getElementById('videoInput_' + idx);
+  const previewEl = document.getElementById('videoPreview_' + idx);
+  if (!input || !previewEl) return;
+  const v = parseVideoUrl(input.value);
+  if (!v) {
+    previewEl.innerHTML = input.value
+      ? '<div style="color:#dc2626; font-size:12px;">⚠️ URL не розпізнано (підтримуються YouTube та Google Drive)</div>'
+      : '';
+    return;
+  }
+  if (v.type === 'youtube') {
+    previewEl.innerHTML = `
+      <div style="display: inline-block; position: relative; max-width: 240px; cursor: pointer; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.1);" onclick="openVideoModal('${escapeAttr(v.embedUrl)}')">
+        <img src="${v.thumb}" style="width: 100%; display: block;" alt="Превью відео" />
+        <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+          <div style="width: 0; height: 0; border-left: 22px solid #fff; border-top: 14px solid transparent; border-bottom: 14px solid transparent; filter: drop-shadow(0 2px 6px rgba(0,0,0,.5)); margin-left: 4px;"></div>
+        </div>
+      </div>
+      <div style="font-size: 12px; color: #16a34a; margin-top: 4px;">✓ YouTube — превʼю буде автоматичне</div>
+    `;
+  } else if (v.type === 'drive') {
+    previewEl.innerHTML = `
+      <div style="display: inline-block; position: relative; width: 240px; height: 135px; background: linear-gradient(135deg,#0b8aff,#1d6fcf); border-radius: 8px; cursor: pointer;" onclick="openVideoModal('${escapeAttr(v.embedUrl)}')">
+        <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff;">
+          <div style="width: 0; height: 0; border-left: 22px solid #fff; border-top: 14px solid transparent; border-bottom: 14px solid transparent; margin-bottom: 6px; margin-left: 4px;"></div>
+          <div style="font-size: 12px;">Google Drive · клік для перегляду</div>
+        </div>
+      </div>
+      <div style="font-size: 12px; color: #f59e0b; margin-top: 4px;">⚠️ Google Drive — потрібна картинка-заставка (завантаж в галерею)</div>
+    `;
+  }
+}
+
+window.openVideoModal = function(embedUrl) {
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+  overlay.innerHTML = `
+    <button style="position:absolute;top:16px;right:16px;background:rgba(255,255,255,.15);color:#fff;border:none;width:40px;height:40px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
+    <iframe src="${escapeAttr(embedUrl)}?autoplay=1" allow="autoplay; encrypted-media" allowfullscreen style="width:100%;max-width:900px;aspect-ratio:16/9;background:#000;border-radius:12px;border:0;"></iframe>
+  `;
+  overlay.addEventListener('click', e => { if (e.target === overlay || e.target.tagName === 'BUTTON') overlay.remove(); });
+  document.body.appendChild(overlay);
+};
+
+loadAll();
+</script>
+</body>
+</html>

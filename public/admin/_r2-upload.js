@@ -1,0 +1,75 @@
+// _r2-upload.js — спільна функція для завантаження файлів в R2 з адмінки.
+// Використання:
+//   const url = await uploadToR2(file, { compress: true, maxSide: 1200, quality: 0.85, prefix: 'logo' });
+// Повертає URL виду `/api/storage/<ts>_<name>` або кидає помилку.
+
+// Видаляє файл з R2 за URL (тихо ігнорує помилки і non-R2 URL)
+window.deleteFromR2 = async function(url) {
+  if (!url || typeof url !== 'string') return;
+  // Витягаємо key з URL виду /api/storage/<key>
+  const m = url.match(/\/api\/storage\/(.+)$/);
+  if (!m) return; // Не R2 URL (можливо data: або зовнішній)
+  const key = decodeURIComponent(m[1]);
+  try {
+    await fetch('/api/admin/storage/delete', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key }),
+    });
+  } catch {}
+};
+
+window.uploadToR2 = async function(file, opts = {}) {  if (!file) throw new Error('Файл не передано');
+  let toUpload = file;
+
+  // Опціональне стиснення (тільки для зображень, окрім SVG/GIF)
+  if (opts.compress && file.type.startsWith('image/') && !file.type.includes('svg') && !file.type.includes('gif')) {
+    try {
+      const maxSide = opts.maxSide || 1200;
+      const quality = opts.quality || 0.85;
+      toUpload = await compressR2Image(file, maxSide, quality);
+    } catch (e) {
+      console.warn('Compress failed, uploading original:', e.message);
+      toUpload = file;
+    }
+  }
+
+  // Префікс імені (logo_, banner_, product_) для зручності розрізнення
+  const fd = new FormData();
+  const prefix = opts.prefix ? `${opts.prefix}_` : '';
+  fd.append('file', toUpload, prefix + (file.name || 'upload'));
+
+  const r = await fetch('/api/admin/storage/upload', {
+    method: 'POST', credentials: 'include', body: fd,
+  });
+  const data = await r.json();
+  if (!data.ok) throw new Error(data.error || 'Помилка завантаження');
+  return data.url; // /api/storage/<key>
+};
+
+async function compressR2Image(file, maxSide, quality) {
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch {
+    src = await new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  const w = src.width, h = src.height;
+  const ratio = Math.min(1, maxSide / Math.max(w, h));
+  const nw = Math.round(w * ratio), nh = Math.round(h * ratio);
+  const canvas = document.createElement('canvas');
+  canvas.width = nw; canvas.height = nh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, nw, nh);
+  try { src.close?.(); } catch {}
+  // PNG → JPEG (мельче), якщо є альфа — залишаємо PNG
+  const outType = file.type === 'image/png' ? 'image/jpeg' : file.type;
+  return new Promise(res =>
+    canvas.toBlob(b => res(new File([b], file.name, { type: outType })), outType, quality)
+  );
+}

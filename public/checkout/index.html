@@ -1,0 +1,964 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b8aff" />
+  <title>Оформлення замовлення</title>
+  <style>
+    :root {
+      --accent: #0b8aff; --accent-text: #fff; --accent-dark: #0670d9;
+      --bg: #f4f6fa; --card: #fff; --text: #1c2129; --muted: #6b7280;
+      --border: #e5e7eb; --success: #16a34a; --error: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); margin: 0;
+      padding: 16px; padding-bottom: calc(env(safe-area-inset-bottom) + 88px);
+    }
+    .wrap { max-width: 600px; margin: 0 auto; }
+    .back-link {
+      display: inline-block; color: var(--muted); text-decoration: none;
+      margin-bottom: 12px; font-size: 14px;
+    }
+    .back-link:hover { color: var(--accent); }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+    .card {
+      background: var(--card); border-radius: 14px; padding: 16px;
+      box-shadow: 0 4px 16px rgba(20,30,60,.06); margin-bottom: 14px;
+    }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 14px; }
+    label .req { color: var(--error); margin-left: 2px; }
+    input[type=text], input[type=tel], textarea, select {
+      width: 100%; padding: 12px 14px; border: 1px solid var(--border);
+      border-radius: 10px; font-size: 16px; font-family: inherit;
+      background: #fafbfc;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); background: #fff; }
+    textarea { resize: vertical; min-height: 80px; }
+    .row { margin-bottom: 14px; }
+    .row:last-child { margin-bottom: 0; }
+    input.invalid { border-color: var(--error) !important; }
+    .field-error { color: var(--error); font-size: 12px; margin-top: 4px; display: none; }
+    .field-error.show { display: block; }
+
+    /* Корзина */
+    .cart-line {
+      display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border);
+    }
+    .cart-line:last-child { border-bottom: none; }
+    .cart-line .info { flex: 1; }
+    .cart-line .name { font-weight: 600; font-size: 14px; }
+    .cart-line .opt { font-size: 12px; color: var(--muted); }
+    .cart-line .price { font-size: 13px; color: var(--muted); }
+    .cart-total { font-weight: 700; font-size: 18px; text-align: right; padding-top: 10px; border-top: 1px solid var(--border); margin-top: 6px; }
+
+    /* Файлы */
+    .item-photo-block {
+      background: #fafbfc; border-radius: 10px; padding: 12px;
+      margin-bottom: 14px;
+    }
+    .item-photo-block .head { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+    .file-zone {
+      border: 2px dashed var(--border); border-radius: 10px; padding: 16px 12px;
+      text-align: center; background: #fff; cursor: pointer; font-size: 13px;
+      color: var(--muted);
+    }
+    .file-zone:hover { border-color: var(--accent); background: #f0f7ff; color: var(--text); }
+    .file-zone strong { color: var(--text); display: block; font-size: 14px; margin-bottom: 2px; }
+    input[type=file] { display: none; }
+    .preview { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+      gap: 6px; margin-top: 10px; max-height: 220px; overflow-y: auto; padding: 2px; }
+    .preview-item { position: relative; aspect-ratio: 1; border-radius: 6px; overflow: hidden; background: #eef0f3; }
+    .preview-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-item button {
+      position: absolute; top: 2px; right: 2px; width: 20px; height: 20px;
+      border-radius: 50%; border: none; background: rgba(0,0,0,.65); color: #fff;
+      font-size: 13px; cursor: pointer; line-height: 1;
+    }
+    .item-error {
+      margin-top: 8px; padding: 8px 10px; background: #fef2f2; color: var(--error);
+      border: 1px solid #fecaca; border-radius: 8px; font-size: 12px; display: none;
+    }
+    .item-error.show { display: block; }
+
+    /* Радио для доставки/оплаты */
+    .radio-group { display: flex; flex-direction: column; gap: 8px; }
+    .radio-row {
+      display: flex; align-items: flex-start; gap: 10px; padding: 10px;
+      border: 1px solid var(--border); border-radius: 8px; background: #fafbfc;
+      cursor: pointer;
+    }
+    .radio-row:hover { border-color: var(--accent); }
+    .radio-row.selected { border-color: var(--accent); background: #f0f7ff; }
+    .radio-row input { width: 18px; height: 18px; margin-top: 2px; }
+    .radio-row .text { font-size: 14px; line-height: 1.4; flex: 1; white-space: pre-wrap; }
+
+    /* Sticky submit */
+    .submit-bar {
+      position: sticky; bottom: 0;
+      background: linear-gradient(to top, var(--bg) 70%, rgba(244,246,250,0));
+      padding: 12px 0 calc(env(safe-area-inset-bottom) + 4px);
+      z-index: 10;
+    }
+    button.submit {
+      width: 100%; padding: 14px; background: var(--accent); color: var(--accent-text);
+      border: none; border-radius: 12px; font-size: 16px; font-weight: 600;
+      cursor: pointer; box-shadow: 0 4px 16px rgba(11,138,255,.25);
+    }
+    button.submit:hover:not(:disabled) { background: var(--accent-dark); }
+    button.submit:disabled { background: #9ca3af; cursor: not-allowed; }
+
+    .status { margin-top: 8px; padding: 12px 14px; border-radius: 10px; font-size: 14px; display: none; }
+    .status.show { display: block; }
+    .status.success { background: #ecfdf5; color: var(--success); border: 1px solid #a7f3d0; }
+    .status.error { background: #fef2f2; color: var(--error); border: 1px solid #fecaca; }
+
+    .progress { display: none; height: 6px; background: #e5e7eb; border-radius: 3px;
+      overflow: hidden; margin-top: 6px; }
+    .progress.show { display: block; }
+    .progress-bar { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+    .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .empty a { color: var(--accent); }
+  </style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div style="text-align:center; padding:60px 20px; color:#6b7280;">Загрузка…</div>
+</div>
+
+<script>
+const CART_KEY = 'sotosprint_cart_v1';
+let shop = null, cart = [], filesPerItem = []; // [[File, ...], ...]
+
+(async () => {
+  try {
+    shop = await fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+  } catch {
+    document.getElementById('app').innerHTML = '<div class="empty">Не удалось загрузить магазин. <a href="/">Вернуться</a></div>';
+    return;
+  }
+  // Тема + кольори кнопок
+  document.documentElement.setAttribute('data-theme', shop.theme === 'dark' ? 'dark' : 'light');
+  if (shop.buttonColor) {
+    document.documentElement.style.setProperty('--accent', shop.buttonColor);
+    document.documentElement.style.setProperty('--accent-dark', shop.buttonHoverColor || shop.buttonColor);
+  }
+  if (shop.buttonTextColor) document.documentElement.style.setProperty('--accent-text', shop.buttonTextColor);
+  if (shop.shopEnabled === false) {
+    document.getElementById('app').innerHTML = `<div class="empty">${escapeHtml(shop.shopDisabledMessage)} <br><a href="/">Назад</a></div>`;
+    return;
+  }
+  cart = getCart();
+  // Берём только товары с галкой (selected !== false). По умолчанию selected = true.
+  cart = cart.filter(item => item.selected !== false);
+  if (cart.length === 0) {
+    document.getElementById('app').innerHTML = `<div class="empty">${escapeHtml(shop.emptyCartText || 'Кошик порожній')} <br><a href="/">Повернутись до каталогу</a></div>`;
+    return;
+  }
+  filesPerItem = cart.map(() => []);
+  render();
+  // initCheckoutPromo звертається до window.checkPromoCode, який визначається нижче за кодом —
+  // тому відкладаємо виклик до завершення парсингу скрипту.
+  setTimeout(initCheckoutPromo, 0);
+})();
+
+function getCart() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; } catch { return []; }
+}
+function saveCart() { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+
+function render() {
+  const productById = new Map((shop.products || []).map(p => [p.id, p]));
+  // Считаем итог
+  let total = 0;
+  for (const item of cart) total += item.unitPrice * item.quantity;
+
+  document.getElementById('app').innerHTML = `
+    <a href="/" class="back-link">← Назад к каталогу</a>
+    <h1>${escapeHtml(shop.checkoutTitle || 'Оформлення замовлення')}</h1>
+
+    <div class="card">
+      <h2>${escapeHtml(shop.orderItemsTitle || '📦 Склад замовлення')}</h2>
+      ${cart.map((item, idx) => `
+        <div class="cart-line">
+          <div class="info">
+            <div class="name">${escapeHtml(item.productName)}</div>
+            ${item.optionName ? `<div class="opt">${escapeHtml(item.optionName)}</div>` : ''}
+            <div class="price" id="coLinePrice_${idx}">${item.unitPrice} ${escapeHtml(item.currency)} × ${item.quantity} = <strong>${item.unitPrice * item.quantity} ${escapeHtml(item.currency)}</strong></div>
+          </div>
+        </div>
+      `).join('')}
+      <div class="cart-total" id="coTotalLine">Разом: ${total} ₴</div>
+    </div>
+
+    ${(() => {
+      // Только товары, которые требуют фото
+      const photoItems = cart.filter(item => productById.get(item.productId)?.requiresPhoto !== false);
+      if (photoItems.length === 0) return ''; // ВЕСЬ блок скрыт если ни один товар не требует фото
+      return `
+        <div class="card">
+          <h2 style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <span>${escapeHtml(shop.photosBlockTitle || '📷 Фотографії для друку')}</span>
+            <span id="photoCounter" style="font-size: 13px; font-weight: 500; color: var(--muted);">0 / ${shop.limits.maxTotalPhotos} фото</span>
+          </h2>
+          ${photoItems.map(item => {
+            const idx = cart.indexOf(item);
+            return `
+              <div class="item-photo-block" data-idx="${idx}">
+                <div class="head">${idx + 1}. ${escapeHtml(item.productName)}${item.optionName ? ` (${escapeHtml(item.optionName)})` : ''} × ${item.quantity}</div>
+                <label class="file-zone" for="files_${idx}">
+                  <strong>${escapeHtml(shop.choosePhotosText || '📷 Вибрати фото')}</strong>
+                  <span>${escapeHtml(shop.uploadHint?.replace('{maxFiles}', shop.limits.maxPhotosPerItem).replace('{maxSize}', shop.limits.maxPhotoSizeMB) || `до ${shop.limits.maxPhotoSizeMB} МБ`)}</span>
+                </label>
+                <input type="file" id="files_${idx}" accept="image/*" multiple onchange="addFiles(${idx}, this.files); this.value='';" />
+                <div class="preview" id="preview_${idx}"></div>
+                <div class="item-error" id="item-err_${idx}"></div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    })()}
+
+    <div class="card">
+      <h2>${escapeHtml(shop.contactDetailsTitle || '📝 Контактні дані')}</h2>
+      ${(shop.fields || []).map(fieldHtml).join('')}
+    </div>
+
+    ${(() => {
+      const methods = (shop.deliveryMethods || []).slice();
+      const npLabel = shop.npLabel || '📦 Нова Пошта';
+      const npActive = !!shop.npAvailable;
+      // Если NP активна — добавляем её в самое начало (фиксированный пункт)
+      const allMethods = npActive ? [npLabel, ...methods] : methods;
+      if (allMethods.length === 0) return '';
+      return `
+      <div class="card">
+        <h2>${escapeHtml(shop.deliveryBlockTitle || '🚚 Доставка')}</h2>
+        <div class="radio-group" id="deliveryGroup">
+          ${allMethods.map((m, i) => `
+            <label class="radio-row${i === 0 ? ' selected' : ''}">
+              <input type="radio" name="delivery" value="${escapeAttr(m)}" ${i === 0 ? 'checked' : ''} data-is-np="${npActive && i === 0 ? '1' : '0'}" onchange="markRadio(this); onDeliveryChange();" />
+              <span class="text">${escapeHtml(m)}</span>
+            </label>
+          `).join('')}
+        </div>
+        ${npActive ? `
+          <div id="npBlock" style="display:none; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border);">
+            <div class="row">
+              <label>${escapeHtml(shop.npCityLabel || 'Місто (Нова Пошта)')} <span class="req">*</span></label>
+              <input type="text" id="npCity" placeholder="${escapeAttr(shop.npCityPlaceholder || 'Почніть вводити назву…')}" autocomplete="off" />
+              <div id="npCitySuggest" style="display:none; max-height: 200px; overflow-y: auto; margin-top:4px; border:1px solid var(--border); border-radius:8px; background:#fff;"></div>
+              <input type="hidden" id="npCityRef" />
+            </div>
+            <div class="row">
+              <label>${escapeHtml(shop.npWarehouseLabel || 'Відділення')} <span class="req">*</span></label>
+              <select id="npWarehouse" disabled>
+                <option value="">${escapeHtml(shop.npWarehouseEmptyPlaceholder || '— спочатку виберіть місто —')}</option>
+              </select>
+            </div>
+            <div id="npError" class="field-error" style="margin-top: 4px;"></div>
+          </div>
+        ` : ''}
+      </div>
+      `;
+    })()}
+
+    ${(shop.paymentMethods || []).length > 0 ? `
+      <div class="card">
+        <h2>${escapeHtml(shop.paymentBlockTitle || '💳 Оплата')}</h2>
+        <div class="radio-group" id="paymentGroup">
+          ${shop.paymentMethods.map((m, i) => `
+            <label class="radio-row${i === 0 ? ' selected' : ''}">
+              <input type="radio" name="payment" value="${escapeAttr(m)}" ${i === 0 ? 'checked' : ''} onchange="markRadio(this)" />
+              <span class="text">${escapeHtml(m)}</span>
+            </label>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+
+    ${shop.customerEmailEnabled ? `
+      <div class="block">
+        <h2>${escapeHtml(shop.customerEmailFieldLabel || '📧 Email для підтвердження замовлення')}${shop.customerEmailRequired ? ' <span style="color:#ef4444; font-size: 14px;">*</span>' : ''}</h2>
+        <input type="email" id="customerEmailInput" placeholder="ваш@email.com" autocomplete="email"
+               ${shop.customerEmailRequired ? 'data-required="true" required' : ''}
+               style="width: 100%; padding: 11px 13px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" />
+        <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">
+          ${shop.customerEmailRequired
+            ? 'Обовʼязкове поле. Надішлемо лист зі складом замовлення і сумою.'
+            : 'Не обовʼязково. Якщо вкажете — надішлемо підтвердження зі складом замовлення.'}
+        </div>
+      </div>
+    ` : ''}
+
+    ${shop.promoEnabled !== false ? `
+      <div class="block" id="promoBlock" style="display:none;">
+        <h2>🎟 Промокод</h2>
+        <div id="promoStatus" style="font-size: 14px;"></div>
+        <input type="hidden" id="promoCodeInput" />
+      </div>
+    ` : ''}
+
+    <div class="submit-bar">
+      <button class="submit" id="submitBtn" onclick="submitOrder()">${escapeHtml(shop.submitText || 'Відправити замовлення')} · <span id="submitTotal">${total}</span> ₴</button>
+      <div class="progress" id="progress"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="status" id="status"></div>
+    </div>
+  `;
+
+  // Phone mask
+  const phoneEl = document.querySelector('input[type=tel]');
+  if (phoneEl) attachPhoneMask(phoneEl);
+  // Required fields - custom validation message
+  document.querySelectorAll('[data-required="true"]').forEach(el => {
+    el.addEventListener('invalid', () => el.setCustomValidity(shop.requiredFieldError || 'Заповніть це поле'));
+    el.addEventListener('input', () => el.setCustomValidity(''));
+  });
+  // NP setup
+  setupNP();
+  onDeliveryChange();
+}
+
+function fieldHtml(f) {
+  const star = f.required ? ' <span class="req">*</span>' : '';
+  const ml = f.maxLength ? `maxlength="${f.maxLength}"` : '';
+  const ph = f.placeholder ? `placeholder="${escapeAttr(f.placeholder)}"` : '';
+  const required = f.required ? 'required data-required="true"' : '';
+  if (f.type === 'textarea') {
+    return `<div class="row"><label for="f_${f.id}">${escapeHtml(f.label)}${star}</label>
+      <textarea id="f_${f.id}" name="${f.id}" ${ph} ${required} ${ml}></textarea></div>`;
+  }
+  return `<div class="row"><label for="f_${f.id}">${escapeHtml(f.label)}${star}</label>
+    <input type="${f.type}" id="f_${f.id}" name="${f.id}" ${ph} ${required} ${ml} />
+    ${f.type === 'tel' ? '<div class="field-error" id="phoneError"></div>' : ''}</div>`;
+}
+
+function markRadio(input) {
+  const group = input.closest('.radio-group');
+  group.querySelectorAll('.radio-row').forEach(r => r.classList.remove('selected'));
+  input.closest('.radio-row').classList.add('selected');
+}
+
+// Показывать NP-блок только когда выбрана доставка с упоминанием "Пошт" / "Почт" / "НП"
+function onDeliveryChange() {
+  const block = document.getElementById('npBlock');
+  if (!block) return;
+  const sel = document.querySelector('input[name=delivery]:checked');
+  // Жорстко: фіксований пункт NP позначається через data-is-np="1"
+  const isNp = sel && sel.dataset.isNp === '1';
+  block.style.display = isNp ? '' : 'none';
+}
+
+// Автодополнение городов НП
+let npCityTimer = null;
+let npCities = [];
+function setupNP() {
+  const cityEl = document.getElementById('npCity');
+  if (!cityEl) return;
+  const suggestEl = document.getElementById('npCitySuggest');
+  const cityRefEl = document.getElementById('npCityRef');
+  const wEl = document.getElementById('npWarehouse');
+
+  cityEl.addEventListener('input', () => {
+    cityRefEl.value = '';
+    wEl.disabled = true;
+    wEl.innerHTML = '<option value="">— спочатку оберіть місто —</option>';
+    const q = cityEl.value.trim();
+    clearTimeout(npCityTimer);
+    if (q.length < 2) { suggestEl.style.display = 'none'; return; }
+    npCityTimer = setTimeout(async () => {
+      try {
+        const r = await fetch('/api/nova-poshta/cities', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q }),
+        });
+        const data = await r.json();
+        if (!data.ok) {
+          suggestEl.style.display = 'none';
+          return;
+        }
+        npCities = data.cities || [];
+        if (npCities.length === 0) { suggestEl.style.display = 'none'; return; }
+        suggestEl.innerHTML = npCities.map((c, i) => `
+          <div data-i="${i}" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--border); font-size: 14px;"
+               onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''"
+               onclick="pickCity(${i})">
+            ${escapeHtml(c.label)}
+          </div>
+        `).join('');
+        suggestEl.style.display = '';
+      } catch {}
+    }, 300);
+  });
+
+  cityEl.addEventListener('blur', () => setTimeout(() => { suggestEl.style.display = 'none'; }, 200));
+}
+
+window.pickCity = async (i) => {
+  const c = npCities[i];
+  if (!c) return;
+  document.getElementById('npCity').value = c.label;
+  document.getElementById('npCityRef').value = c.ref;
+  document.getElementById('npCitySuggest').style.display = 'none';
+
+  const wEl = document.getElementById('npWarehouse');
+  wEl.disabled = true;
+  wEl.innerHTML = `<option value="">${escapeHtml(shop.npLoadingText || 'Завантажую відділення…')}</option>`;
+  try {
+    const r = await fetch('/api/nova-poshta/warehouses', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cityRef: c.ref }),
+    });
+    const data = await r.json();
+    if (!data.ok) {
+      wEl.innerHTML = '<option value="">Помилка завантаження відділень</option>';
+      return;
+    }
+    if (!data.warehouses?.length) {
+      wEl.innerHTML = '<option value="">— немає відділень —</option>';
+      return;
+    }
+    wEl.innerHTML = `<option value="">${escapeHtml(shop.npWarehouseEmptyPlaceholder || '— виберіть відділення —').replace(/спочатку\s*/i, '')}</option>`
+      + data.warehouses.map(w => `<option value="${escapeAttr(w.name)}">${escapeHtml(w.name)}</option>`).join('');
+    wEl.disabled = false;
+  } catch (e) {
+    wEl.innerHTML = '<option value="">Помилка: ' + e.message + '</option>';
+  }
+};
+
+// Маска телефона +380
+function attachPhoneMask(el) {
+  const PREFIX = '+380 ';
+  el.value = PREFIX;
+  el.placeholder = '+380 (00) 000 00 00';
+  const errEl = document.getElementById('phoneError');
+  if (errEl) errEl.textContent = shop.phoneErrorText || 'Введите номер полностью (12 цифр)';
+
+  const isValid = () => {
+    const d = el.value.replace(/\D/g, '');
+    return d.length === 12 && d.startsWith('380');
+  };
+  const setErr = on => { errEl?.classList.toggle('show', on); el.classList.toggle('invalid', on); };
+
+  el.addEventListener('focus', () => {
+    if (!el.value.startsWith('+380')) el.value = PREFIX;
+    requestAnimationFrame(() => {
+      try { el.setSelectionRange(Math.max(el.selectionStart, PREFIX.length), Math.max(el.selectionStart, PREFIX.length)); } catch {}
+    });
+  });
+  el.addEventListener('input', () => {
+    let v = el.value.replace(/[^\d+\s()\-]/g, '');
+    if (!v.startsWith('+380')) {
+      const digits = v.replace(/\D/g, '').replace(/^380/, '');
+      v = PREFIX + digits;
+    }
+    if (v.length > 20) v = v.slice(0, 20);
+    if (el.value !== v) el.value = v;
+    if (isValid()) setErr(false);
+  });
+  el.addEventListener('blur', () => {
+    const d = el.value.replace(/\D/g, '');
+    setErr(d.length > 3 && !isValid());
+  });
+  el.addEventListener('keydown', e => {
+    if (e.key.length === 1 && !/[\d+\s()\-]/.test(e.key)) e.preventDefault();
+    if ((e.key === 'Backspace' && el.selectionStart <= PREFIX.length && el.selectionEnd <= PREFIX.length) ||
+        (e.key === 'Delete' && el.selectionStart < PREFIX.length)) {
+      e.preventDefault();
+      try { el.setSelectionRange(PREFIX.length, PREFIX.length); } catch {}
+    }
+  });
+  el._validate = () => { const ok = isValid(); setErr(!ok); return ok; };
+}
+
+function totalPhotosInCart() {
+  return filesPerItem.reduce((sum, arr) => sum + (arr?.length || 0), 0);
+}
+
+function addFiles(idx, fileList) {
+  const maxPerItem = shop.limits.maxPhotosPerItem;
+  const maxTotal = shop.limits.maxTotalPhotos;
+  const maxSize = shop.limits.maxPhotoSizeMB * 1024 * 1024;
+  const totalErrText = (shop.totalPhotosError || 'Максимум {max} фото на замовлення (всього). Зайві пропущено.').replace('{max}', maxTotal);
+  for (const f of fileList) {
+    if (filesPerItem[idx].length >= maxPerItem) {
+      showItemError(idx, `Максимум ${maxPerItem} фото для цієї позиції`);
+      break;
+    }
+    if (totalPhotosInCart() >= maxTotal) {
+      showItemError(idx, totalErrText);
+      break;
+    }
+    if (!f.type.startsWith('image/')) continue;
+    if (f.size > maxSize) {
+      showItemError(idx, `«${f.name}» більше ${shop.limits.maxPhotoSizeMB} МБ — пропущено`);
+      continue;
+    }
+    filesPerItem[idx].push(f);
+  }
+  renderPreview(idx);
+  updatePhotoCounter();
+}
+
+// Показывает счётчик «загружено N з M» в каждом блоке загрузки
+function updatePhotoCounter() {
+  const total = totalPhotosInCart();
+  const max = shop.limits.maxTotalPhotos;
+  const el = document.getElementById('photoCounter');
+  if (el) {
+    el.textContent = `${total} / ${max} фото`;
+    el.style.color = total >= max ? '#dc2626' : (total >= max - 2 ? '#f59e0b' : '');
+  }
+}
+
+function showItemError(idx, msg) {
+  const el = document.getElementById('item-err_' + idx);
+  if (!el) return;
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 5000);
+}
+
+function renderPreview(idx) {
+  const el = document.getElementById('preview_' + idx);
+  if (!el) return;
+  el.innerHTML = '';
+  filesPerItem[idx].forEach((f, i) => {
+    const item = document.createElement('div');
+    item.className = 'preview-item';
+    const img = document.createElement('img');
+    if (!f._previewUrl) f._previewUrl = URL.createObjectURL(f);
+    img.src = f._previewUrl;
+    const btn = document.createElement('button');
+    btn.type = 'button'; btn.textContent = '×';
+    btn.onclick = () => {
+      const removed = filesPerItem[idx].splice(i, 1)[0];
+      if (removed?._previewUrl) URL.revokeObjectURL(removed._previewUrl);
+      renderPreview(idx);
+      updatePhotoCounter();
+    };
+    item.appendChild(img); item.appendChild(btn);
+    el.appendChild(item);
+  });
+}
+
+async function submitOrder() {
+  const submitBtn = document.getElementById('submitBtn');
+  const statusEl = document.getElementById('status');
+  const progress = document.getElementById('progress');
+  const progressBar = document.getElementById('progressBar');
+  statusEl.className = 'status';
+
+  // Валидация полей
+  for (const f of (shop.fields || [])) {
+    const el = document.getElementById('f_' + f.id);
+    if (f.required && !el.value.trim()) {
+      showStatus(shop.requiredFieldError || 'Заповніть усі обовʼязкові поля', 'error');
+      el.focus();
+      return;
+    }
+    if (f.type === 'tel' && el._validate && !el._validate()) {
+      showStatus(shop.phoneErrorText || 'Проверьте телефон', 'error');
+      el.focus();
+      return;
+    }
+  }
+
+  // Валидация email якщо обов'язковий
+  if (shop.customerEmailEnabled && shop.customerEmailRequired) {
+    const emailEl = document.getElementById('customerEmailInput');
+    if (emailEl) {
+      const v = emailEl.value.trim();
+      if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        showStatus('Введіть правильний email', 'error');
+        emailEl.focus();
+        return;
+      }
+    }
+  } else if (shop.customerEmailEnabled) {
+    // Якщо не обов'язковий але вказали — перевірити формат
+    const emailEl = document.getElementById('customerEmailInput');
+    if (emailEl && emailEl.value.trim()) {
+      const v = emailEl.value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+        showStatus('Невалидний формат email', 'error');
+        emailEl.focus();
+        return;
+      }
+    }
+  }
+
+  // Проверка что для всех товаров где требуется фото — оно есть
+  const productById = new Map((shop.products || []).map(p => [p.id, p]));
+  for (let i = 0; i < cart.length; i++) {
+    const product = productById.get(cart[i].productId);
+    if (product?.requiresPhoto !== false && filesPerItem[i].length === 0) {
+      showItemError(i, 'Для цієї позиції потрібне фото');
+      showStatus(shop.noPhotosError || 'Прикрепите фото для всех товаров', 'error');
+      document.getElementById('item-err_' + i)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+  }
+
+  // Валидация НП (если выбрана)
+  const npBlock = document.getElementById('npBlock');
+  let npCity = '', npWarehouse = '', npCityRef = '';
+  if (npBlock && npBlock.style.display !== 'none') {
+    npCity = document.getElementById('npCity').value.trim();
+    npCityRef = document.getElementById('npCityRef').value;
+    npWarehouse = document.getElementById('npWarehouse').value;
+    if (!npCity || !npCityRef) {
+      const errEl = document.getElementById('npError');
+      if (errEl) { errEl.textContent = 'Оберіть місто зі списку'; errEl.classList.add('show'); }
+      document.getElementById('npCity').focus();
+      showStatus('Оберіть місто Нової Пошти', 'error');
+      return;
+    }
+    if (!npWarehouse) {
+      const errEl = document.getElementById('npError');
+      if (errEl) { errEl.textContent = 'Оберіть відділення'; errEl.classList.add('show'); }
+      document.getElementById('npWarehouse').focus();
+      showStatus('Оберіть відділення Нової Пошти', 'error');
+      return;
+    }
+  }
+
+  submitBtn.disabled = true;
+
+  // Сжатие фото перед отправкой. Параметры:
+  // base — исходные настройки из админки, на каждом ретрае уменьшаются.
+  let baseMaxSide = shop.compressMaxSide || 4000;
+  let baseQuality = (shop.compressQuality || 95) / 100;
+  const COMPRESS_THRESHOLD = 3 * 1024 * 1024;
+
+  async function prepareFiles(maxSide, quality) {
+    if (!shop.autoCompress) return filesPerItem;
+    return Promise.all(filesPerItem.map(async list =>
+      Promise.all(list.map(async f => {
+        if (f.size > COMPRESS_THRESHOLD) {
+          try { return await compressImage(f, maxSide, quality); }
+          catch { return f; }
+        }
+        return f;
+      }))
+    ));
+  }
+
+  let preparedFiles = filesPerItem;
+  if (shop.autoCompress) {
+    submitBtn.textContent = shop.preparingText || 'Підготовка фото…';
+    preparedFiles = await prepareFiles(baseMaxSide, baseQuality);
+  }
+
+  submitBtn.textContent = shop.sendingText || 'Відправляємо…';
+  progress.classList.add('show');
+  progressBar.style.width = '0%';
+
+  // Авто-повтор с прогрессивным уменьшением фото при сетевом сбое
+  let attempt = 0, MAX = 5, lastErr = null;
+  // Параметры для каждой следующей попытки сжатия (на случай сетевых сбоев)
+  const RETRY_LADDER = [
+    { maxSide: baseMaxSide, quality: baseQuality },         // как обычно
+    { maxSide: 2400, quality: 0.88 },                        // первый retry — заметно меньше
+    { maxSide: 1600, quality: 0.82 },                        // ещё меньше
+    { maxSide: 1280, quality: 0.78 },                        // совсем уменьшаем
+    { maxSide: 1024, quality: 0.7 },                         // последний — минимум
+  ];
+
+  while (attempt < MAX) {
+    attempt++;
+    try {
+      // На повторе — пересжимаем агрессивнее
+      if (attempt > 1 && shop.autoCompress) {
+        const cfg = RETRY_LADDER[Math.min(attempt - 1, RETRY_LADDER.length - 1)];
+        submitBtn.textContent = `${shop.preparingText || 'Підготовка фото…'} (${cfg.maxSide}px)`;
+        preparedFiles = await prepareFiles(cfg.maxSide, cfg.quality);
+      }
+      // Каждый раз свежая FormData
+      const fd = new FormData();
+      const cartPayload = cart.map((item, idx) => ({
+        productId: item.productId, productName: item.productName,
+        optionId: item.optionId, optionName: item.optionName,
+        quantity: item.quantity, unitPrice: item.unitPrice,
+      }));
+      fd.append('cart', JSON.stringify(cartPayload));
+      for (const f of (shop.fields || [])) {
+        const el = document.getElementById('f_' + f.id);
+        fd.append(f.id, el?.value?.trim() || '');
+      }
+      const deliveryEl = document.querySelector('input[name=delivery]:checked');
+      const paymentEl = document.querySelector('input[name=payment]:checked');
+      if (deliveryEl) fd.append('delivery', deliveryEl.value);
+      if (paymentEl) fd.append('payment', paymentEl.value);
+      if (npCity && npWarehouse) {
+        fd.append('npCity', npCity);
+        fd.append('npWarehouse', npWarehouse);
+      }
+      // Промокод (якщо введено)
+      const promoInput = document.getElementById('promoCodeInput');
+      if (promoInput && promoInput.value.trim()) {
+        fd.append('promo_code', promoInput.value.trim().toUpperCase());
+      }
+      // Email клієнта (поле завжди видиме якщо increasecustomerEmailEnabled)
+      const emailInput = document.getElementById('customerEmailInput');
+      if (emailInput && emailInput.value.trim()) {
+        const em = emailInput.value.trim();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+          fd.append('email', em);
+        }
+      }
+      preparedFiles.forEach((list, idx) => list.forEach(f => fd.append(`photos_${idx}`, f, f.name)));
+
+      const result = await uploadOrder(fd, p => progressBar.style.width = `${p}%`);
+      if (result.ok) {
+        const msg = (shop.successText || '✅ Замовлення #{orderId} прийнято').replace('{orderId}', result.orderId);
+        showStatus(msg, 'success');
+        // В корзине оставляем только товары которые НЕ были вибрані (selected === false)
+        // — те что человек добавил но не купил этот раз
+        try {
+          const allCart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
+          const remaining = allCart.filter(item => item.selected === false);
+          if (remaining.length === 0) localStorage.removeItem(CART_KEY);
+          else localStorage.setItem(CART_KEY, JSON.stringify(remaining));
+        } catch {
+          localStorage.removeItem(CART_KEY);
+        }
+        // Промокод використано — прибираємо застосування, щоб не прилипало до наступного замовлення
+        try { localStorage.removeItem(PROMO_KEY); } catch {}
+        filesPerItem.forEach(list => list.forEach(f => { if (f._previewUrl) URL.revokeObjectURL(f._previewUrl); }));
+        // Через 2 сек редиректим на главную
+        setTimeout(() => location.href = '/', 2500);
+        return;
+      } else {
+        showStatus(`❌ ${result.error || 'Ошибка отправки'}`, 'error');
+        break;
+      }
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX) {
+        const tpl = shop.retryingText || 'Повтор {attempt}…';
+        submitBtn.textContent = tpl.replace('{attempt}', attempt).replace('{max}', MAX - 1);
+        progressBar.style.width = '0%';
+        if (navigator.onLine === false) {
+          await new Promise(res => {
+            const on = () => { window.removeEventListener('online', on); res(); };
+            window.addEventListener('online', on);
+            setTimeout(() => { window.removeEventListener('online', on); res(); }, 5000);
+          });
+          await new Promise(r => setTimeout(r, 1500));
+        } else {
+          await new Promise(r => setTimeout(r, 800));
+        }
+      }
+    }
+  }
+  if (lastErr) showStatus(`❌ ${lastErr.message}`, 'error');
+
+  submitBtn.disabled = false;
+  // Восстанавливаем сумму на кнопке
+  let total = 0;
+  for (const item of cart) total += item.unitPrice * item.quantity;
+  submitBtn.textContent = `${shop.submitText || 'Відправити замовлення'} · ${total} ₴`;
+  setTimeout(() => progress.classList.remove('show'), 600);
+}
+
+function uploadOrder(formData, onProgress) {
+  return new Promise(async (resolve, reject) => {
+    const ctrl = new AbortController();
+    const tid = setTimeout(() => ctrl.abort('timeout'), 5 * 60 * 1000);
+    onProgress(50);
+    try {
+      const url = '/api/order?t=' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+      const res = await fetch(url, {
+        method: 'POST', body: formData, signal: ctrl.signal,
+        cache: 'no-store', credentials: 'omit', keepalive: false,
+      });
+      clearTimeout(tid);
+      onProgress(100);
+      if (res.status === 413) return reject(new Error('Файли занадто великі. Зменшіть кількість.'));
+      if (res.status >= 500) return reject(new Error(`Ошибка сервера (${res.status})`));
+      try { resolve(await res.json()); } catch { reject(new Error('Невірна відповідь сервера')); }
+    } catch (err) {
+      clearTimeout(tid);
+      if (err.name === 'AbortError' || ctrl.signal.aborted) reject(new Error('Слишком долгая загрузка'));
+      else reject(new Error(shop.networkErrorText || 'Сеть недоступна'));
+    }
+  });
+}
+
+async function compressImage(file, maxSide, quality) {
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch {
+    src = await new Promise((res, rej) => {
+      const img = new Image();
+      img.onload = () => res(img);
+      img.onerror = rej;
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  const w = src.width, h = src.height;
+  const ratio = Math.min(1, maxSide / Math.max(w, h));
+  if (ratio === 1 && file.type === 'image/jpeg') { try { src.close?.(); } catch {} return file; }
+  const nw = Math.max(1, Math.round(w * ratio));
+  const nh = Math.max(1, Math.round(h * ratio));
+  const canvas = document.createElement('canvas');
+  canvas.width = nw; canvas.height = nh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, nw, nh);
+  try { src.close?.(); } catch {}
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', quality));
+  return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+}
+
+function showStatus(msg, type) {
+  const s = document.getElementById('status');
+  s.textContent = msg; s.className = `status show ${type}`;
+}
+
+// Промокод переноситься з кошика (localStorage). Тут лише ВІДОБРАЖАЄМО застосований код
+// і рахуємо підсумкову суму. Поле вводу прибрано — клієнт вводить код у кошику.
+const PROMO_KEY = 'sotosprint_promo_v1';
+function initCheckoutPromo() {
+  let code = '';
+  try { code = localStorage.getItem(PROMO_KEY) || ''; } catch {}
+  const input = document.getElementById('promoCodeInput');
+  if (input) input.value = code;
+  checkPromoCode();
+}
+
+window.checkPromoCode = function() {
+  const input = document.getElementById('promoCodeInput');
+  const status = document.getElementById('promoStatus');
+  const block = document.getElementById('promoBlock');
+  const code = (input?.value || '').trim().toUpperCase();
+  const hideBlock = () => { if (block) block.style.display = 'none'; };
+
+  if (!code) { if (status) status.innerHTML = ''; hideBlock(); return; }
+
+  const list = shop.promoCodes || [];
+  const promo = list.find(p => (p.code || '').toUpperCase() === code && p.enabled !== false);
+  if (!promo) {
+    // Код більше не дійсний — прибираємо застосування
+    try { localStorage.removeItem(PROMO_KEY); } catch {}
+    if (input) input.value = '';
+    hideBlock();
+    return;
+  }
+  if (block) block.style.display = 'block';
+  const now = new Date();
+  if (promo.validFrom && new Date(promo.validFrom) > now) {
+    status.innerHTML = `<span style="color:#dc2626;">❌ Код ще не активний (з ${promo.validFrom})</span>`;
+    return;
+  }
+  if (promo.validUntil && new Date(promo.validUntil) < now) {
+    status.innerHTML = '<span style="color:#dc2626;">❌ Код протерміновано</span>';
+    return;
+  }
+  if (promo.maxUses && promo.maxUses > 0 && (promo.used || 0) >= promo.maxUses) {
+    status.innerHTML = '<span style="color:#dc2626;">❌ Код використано максимум разів</span>';
+    return;
+  }
+  // Рахуємо total
+  let curTotal = 0;
+  for (const item of cart) {
+    curTotal += (parseFloat(item.unitPrice) || 0) * (parseInt(item.quantity, 10) || 1);
+  }
+  if (promo.minOrder && curTotal < promo.minOrder) {
+    status.innerHTML = `<span style="color:#dc2626;">❌ Мінімальна сума замовлення: ${promo.minOrder}₴ (зараз ${curTotal}₴)</span>`;
+    return;
+  }
+  // Прив'язка промокоду до категорій/товарів (scope). Знижка — лише з підходящих позицій.
+  const pById = new Map((shop.products || []).map(p => [p.id, p]));
+  const scope = promo.scope || 'all';
+  const catIds = Array.isArray(promo.categoryIds) ? promo.categoryIds : [];
+  const prodIds = Array.isArray(promo.productIds) ? promo.productIds : [];
+  const isEligible = (item) => {
+    if (scope === 'categories') return catIds.includes(pById.get(item.productId)?.categoryId);
+    if (scope === 'products') return prodIds.includes(item.productId);
+    return true;
+  };
+  let eligibleTotal = 0;
+  for (const item of cart) {
+    if (isEligible(item)) eligibleTotal += (parseFloat(item.unitPrice) || 0) * (parseInt(item.quantity, 10) || 1);
+  }
+  if (scope !== 'all' && eligibleTotal <= 0) {
+    status.innerHTML = '<span style="color:#dc2626;">❌ Промокод не діє на товари у кошику</span>';
+    return;
+  }
+  const discountBase = scope === 'all' ? curTotal : eligibleTotal;
+  // Рахуємо знижку
+  let discount = 0;
+  let extra = '';
+  if (promo.type === 'percent') {
+    discount = Math.round(discountBase * ((promo.value || 0) / 100));
+    extra = `-${discount}₴ (${promo.value}%${scope !== 'all' ? ' на підходящі товари' : ''})`;
+  } else if (promo.type === 'fixed') {
+    discount = Math.min(promo.value || 0, discountBase);
+    extra = `-${discount}₴`;
+  } else if (promo.type === 'shipping') {
+    extra = '🚚 Безкоштовна доставка';
+  }
+  const newTotal = curTotal - discount;
+  status.innerHTML = `<span style="color:#16a34a; font-weight:600;">✅ Промокод <strong>${escapeHtml(code)}</strong> застосовано: ${extra}</span><br><span style="color:#6b7280;">До оплати: <strong>${newTotal}₴</strong></span>`;
+  // Оновлюємо суму на кнопці
+  const submitTotalEl = document.getElementById('submitTotal');
+  if (submitTotalEl) submitTotalEl.textContent = newTotal;
+
+  // Знижка по кожному рядку складу замовлення (як у кошику)
+  const lineDisc = {};
+  const eligItems = cart.filter(isEligible);
+  if (promo.type === 'percent' && discountBase > 0) {
+    cart.forEach((it, i) => {
+      if (isEligible(it)) lineDisc[i] = Math.round(it.unitPrice * it.quantity * ((promo.value || 0) / 100));
+    });
+  } else if (promo.type === 'fixed' && discountBase > 0) {
+    let acc = 0, last = -1;
+    cart.forEach((it, i) => { if (isEligible(it)) last = i; });
+    cart.forEach((it, i) => {
+      if (!isEligible(it)) return;
+      const lt = it.unitPrice * it.quantity;
+      let d;
+      if (i === last) d = discount - acc;
+      else { d = Math.round(discount * (lt / discountBase)); acc += d; }
+      lineDisc[i] = Math.max(0, d);
+    });
+  }
+  cart.forEach((it, i) => {
+    const el = document.getElementById('coLinePrice_' + i);
+    if (!el) return;
+    const lt = it.unitPrice * it.quantity;
+    const cur = escapeHtml(it.currency);
+    const d = lineDisc[i] || 0;
+    if (d > 0) {
+      const nl = Math.max(0, lt - d);
+      el.innerHTML = `${it.unitPrice} ${cur} × ${it.quantity} = <s style="color:#9ca3af;">${lt} ${cur}</s> <strong style="color:#16a34a;">${nl} ${cur}</strong><br><span style="color:#7c3aed; font-size:12px;">🎟 промокод: −${d} ${cur}</span>`;
+    } else {
+      el.innerHTML = `${it.unitPrice} ${cur} × ${it.quantity} = <strong>${lt} ${cur}</strong>`;
+    }
+  });
+  // Оновлюємо «Разом» зі знижкою
+  const totalLine = document.getElementById('coTotalLine');
+  if (totalLine) {
+    if (discount > 0) {
+      totalLine.innerHTML = `Разом: <s style="color:#9ca3af; font-weight:400;">${curTotal} ₴</s> <strong style="color:#16a34a;">${newTotal} ₴</strong>`;
+    } else {
+      totalLine.textContent = `Разом: ${curTotal} ₴`;
+    }
+  }
+};
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(s) { return escapeHtml(s); }
+</script>
+</body>
+</html>

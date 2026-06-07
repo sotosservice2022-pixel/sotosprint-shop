@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Інтеграції — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 100px; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    .card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    .card.coming-soon { opacity: 0.7; background: #fafafa; }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], input[type=number], input[type=password], textarea, select {
+      width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #0b8aff; background: #fff; }
+    .grid { display: grid; gap: 10px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-icon { padding: 6px 10px; font-size: 13px; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; line-height: 1.5; }
+    .hint code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+    .checkbox-inline { display: flex; align-items: center; gap: 6px; }
+    .checkbox-inline input { width: auto; }
+
+    .status-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 12px;
+      font-size: 12px; font-weight: 600; margin-left: 8px;
+    }
+    .status-badge.active { background: #dcfce7; color: #166534; }
+    .status-badge.inactive { background: #fee2e2; color: #991b1b; }
+    .status-badge.soon { background: #fef3c7; color: #92400e; }
+
+    .save-bar { position: sticky; bottom: 16px; background: #fff; padding: 12px;
+      border-radius: 12px; box-shadow: 0 4px 20px rgba(20,30,60,.15);
+      display: flex; gap: 10px; align-items: center; }
+    .save-bar .left { flex: 1; font-size: 13px; color: #6b7280; }
+    .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">Адмінка</a> → Інтеграції · <a href="#" onclick="logout(); return false;" style="color:#dc2626;">🚪 Вийти</a></div>
+  <h1>🔌 Інтеграції</h1>
+  <p class="sub">Зовнішні сервіси: доставка, оплата, email. Кожна інтеграція — окремо.</p>
+
+  <!-- НОВАЯ ПОЧТА -->
+  <div class="card">
+    <h2>📦 Нова Пошта <span class="status-badge" id="npStatus">—</span></h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="npEnabled" />
+        <label for="npEnabled" style="margin:0">✅ Активна інтеграція з Новою Поштою</label>
+      </div>
+      <div class="hint" style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8;">
+        ℹ️ Коли увімкнено — у клієнта в кошику автоматично зʼявляється пункт «Нова Пошта» першим у списку доставки + автозаповнення міст і відділень. Цей пункт <strong>не зникає</strong> навіть якщо ти видалиш його з нижнього списку «Способи доставки».
+      </div>
+      <div>
+        <label>Назва пункту в списку доставки</label>
+        <input type="text" id="npLabel" placeholder="📦 Нова Пошта" />
+        <div class="hint">Як буде виглядати у клієнта в радіокнопці. За замовчуванням: «📦 Нова Пошта».</div>
+      </div>
+      <div>
+        <label>API-ключ Нової Пошти</label>
+        <input type="text" id="npApiKey" placeholder="Наприклад: a1b2c3d4e5f6..." autocomplete="off" />
+        <div class="hint">
+          Отримати безкоштовно: <a href="https://new.novaposhta.ua/dashboard/settings/developers" target="_blank">Кабінет НП → Налаштування → Для розробників</a> → «Створити API ключ» → скопіюй сюди.
+          <br>Ключ видно лише в адмінці, у публічний API не передається.
+        </div>
+      </div>
+      <button class="btn btn-secondary btn-icon" onclick="testNP()" style="align-self: start;">🧪 Перевірити ключ</button>
+      <div id="npTestResult" class="hint"></div>
+
+      <div style="margin-top: 14px; padding-top: 14px; border-top: 1px solid #e5e7eb;">
+        <label style="font-size: 14px; color: #374151;">Підписи полів НП на сторінці оформлення</label>
+        <div class="grid grid-2" style="margin-top: 6px;">
+          <div>
+            <label>Лейбл «Місто»</label>
+            <input type="text" id="npCityLabel" />
+          </div>
+          <div>
+            <label>Плейсхолдер міста</label>
+            <input type="text" id="npCityPlaceholder" />
+          </div>
+        </div>
+        <div class="grid grid-2" style="margin-top: 6px;">
+          <div>
+            <label>Лейбл «Відділення»</label>
+            <input type="text" id="npWarehouseLabel" />
+          </div>
+          <div>
+            <label>Плейсхолдер відділення</label>
+            <input type="text" id="npWarehouseEmptyPlaceholder" />
+          </div>
+        </div>
+        <div style="margin-top: 6px;">
+          <label>Текст «Завантаження…»</label>
+          <input type="text" id="npLoadingText" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ОНЛАЙН-ОПЛАТА -->
+  <div class="card coming-soon">
+    <h2>💳 Онлайн-оплата <span class="status-badge soon">Заготовка</span></h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="onlinePaymentEnabled" />
+        <label for="onlinePaymentEnabled" style="margin:0">Увімкнути онлайн-оплату (буде в наступних версіях)</label>
+      </div>
+      <div>
+        <label>Постачальник</label>
+        <select id="onlinePaymentProvider">
+          <option value="">— оберіть —</option>
+          <option value="liqpay">LiqPay (ПриватБанк)</option>
+          <option value="fondy">Fondy</option>
+          <option value="monobank">Monobank Acquiring</option>
+          <option value="wayforpay">WayForPay</option>
+        </select>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Merchant ID / Public Key</label><input type="text" id="onlinePaymentMerchantId" /></div>
+        <div><label>Secret Key / API Key</label><input type="password" id="onlinePaymentApiKey" autocomplete="off" /></div>
+      </div>
+      <div class="hint" style="background: #eff6ff; padding: 10px; border-radius: 8px; color: #1d4ed8;">
+        ℹ️ Поки що поле для зберігання — інтеграція буде в одному з наступних оновлень.
+        <br><br>
+        <strong>Рекомендую:</strong>
+        <ul style="margin: 4px 0 0 18px; padding: 0;">
+          <li><a href="https://www.liqpay.ua/" target="_blank">LiqPay</a> — найпростіше для України, ~1.5%/100₴/міс</li>
+          <li><a href="https://www.monobank.ua/business/acquiring" target="_blank">Monobank Acquiring</a> — 1.4-1.7%</li>
+          <li><a href="https://fondy.ua/" target="_blank">Fondy</a> — гнучкі тарифи</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- АНАЛИТИКА (заготовка) -->
+  <!-- SEO -->
+  <div class="card">
+    <h2>🔍 SEO — для пошукових систем (Google, Bing) <span class="status-badge" id="seoStatus">—</span></h2>
+    <div class="grid">
+      <div>
+        <label>Title (заголовок у вкладці браузера та у видачі Google)</label>
+        <input type="text" id="seoTitle" maxlength="65" />
+        <div class="hint">До 60 символів. Найважливіший SEO-елемент.</div>
+      </div>
+      <div>
+        <label>Meta Description (опис під заголовком у видачі)</label>
+        <textarea id="seoDescription" rows="2" maxlength="160" style="width:100%; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; font-family:inherit; background:#fafbfc;"></textarea>
+        <div class="hint">До 155 символів. Має пояснити чим ти займаєшся.</div>
+      </div>
+      <div>
+        <label>Keywords (ключові слова через кому)</label>
+        <input type="text" id="seoKeywords" />
+        <div class="hint">Google їх майже не використовує, але Bing/Yahoo — так.</div>
+      </div>
+      <div>
+        <label>URL картинки для превʼю в соцмережах (1200×630 px)</label>
+        <input type="text" id="seoOgImage" placeholder="https://sotosprint.store/og-image.jpg" />
+        <div class="hint">Що видно у Facebook/Telegram/Viber коли ділишся посиланням.</div>
+      </div>
+      <div style="background: #eff6ff; border-radius: 8px; padding: 12px; color: #1d4ed8; font-size: 13px;">
+        <strong>📌 Як зареєструвати сайт у Google:</strong>
+        <ol style="margin: 6px 0 0 16px; padding: 0;">
+          <li>Зайди на <a href="https://search.google.com/search-console" target="_blank">Google Search Console</a></li>
+          <li>Add property → введи домен</li>
+          <li>Verify → DNS-метод (через Cloudflare) або HTML-tag (вкажи код у полі нижче)</li>
+          <li>Submit sitemap: <code>https://sotosprint.store/sitemap.xml</code></li>
+        </ol>
+      </div>
+      <div>
+        <label>Код підтвердження від Google Search Console (опціонально)</label>
+        <input type="text" id="seoGoogleVerification" placeholder="наприклад: google-site-verification=ABCxxx..." />
+        <div class="hint">Або використай DNS-верифікацію через Cloudflare.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- АНАЛИТИКА -->
+  <div class="card">
+    <h2>📊 Аналітика та реклама</h2>
+    <div class="grid">
+      <div class="hint" style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8;">
+        ℹ️ Введіть ID-и сервісів — скрипти автоматично додадуться у &lt;head&gt; сайту. Не потрібно правити код.
+      </div>
+      <div>
+        <label>Google Analytics 4 (GA4) Measurement ID</label>
+        <input type="text" id="googleAnalyticsId" placeholder="G-XXXXXXXXXX" />
+        <div class="hint">Знайди в <a href="https://analytics.google.com" target="_blank">Google Analytics</a> → Admin → Data Streams → Web → Measurement ID. Формат: <code>G-XXXXXXXXXX</code></div>
+      </div>
+      <div>
+        <label>Google Tag Manager Container ID (опціонально)</label>
+        <input type="text" id="googleTagManagerId" placeholder="GTM-XXXXXXX" />
+        <div class="hint">Якщо використовуєш GTM. <a href="https://tagmanager.google.com" target="_blank">tagmanager.google.com</a> → Admin → Container ID. Формат: <code>GTM-XXXXXXX</code></div>
+      </div>
+      <div>
+        <label>Facebook Pixel ID (для Facebook/Instagram реклами)</label>
+        <input type="text" id="facebookPixelId" placeholder="123456789012345" />
+        <div class="hint"><a href="https://business.facebook.com/events_manager" target="_blank">Events Manager</a> → твій піксель → Settings → Pixel ID</div>
+      </div>
+      <div style="background: #fef3c7; padding: 10px; border-radius: 8px; color: #92400e; font-size: 13px;">
+        💡 <strong>Google Ads:</strong> підключається через Google Tag Manager або через GA4 (звʼязок з Ads робиться у самому Google Ads). Окремого поля не потрібно.
+      </div>
+    </div>
+  </div>
+
+  <!-- CLOUDFLARE ANALYTICS API -->
+  <div class="card">
+    <h2>☁️ Cloudflare Analytics API <span style="font-size:12px; background:#dbeafe; color:#1e40af; padding:3px 8px; border-radius:4px; font-weight:500;">опціонально</span></h2>
+    <div class="grid">
+      <div class="hint" style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8;">
+        ℹ️ Дозволяє бачити <strong>реальне використання</strong> KV/R2/Pages за сьогодні (читання, записи, трафік) прямо в нашій <a href="/admin/stats/">/admin/stats/</a>. Без цього — тільки в Cloudflare Dashboard.
+      </div>
+
+      <div>
+        <label>Cloudflare API Token</label>
+        <input type="password" id="cfApiToken" placeholder="[ваш API токен]" autocomplete="new-password" />
+        <div class="hint">
+          <strong>Як створити:</strong>
+          <ol style="margin:6px 0 0 18px; padding:0;">
+            <li>Іди на <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank">dash.cloudflare.com/profile/api-tokens</a></li>
+            <li>Натисни <strong>«Create Token»</strong></li>
+            <li>Знайди шаблон <strong>«Read analytics and read account analytics»</strong> → Use Template (або Custom Token)</li>
+            <li>Permissions: <code>Account → Account Analytics → Read</code></li>
+            <li>Account Resources: <code>Include → твій акаунт</code></li>
+            <li>Continue → Create → <strong>скопіюй токен ОДРАЗУ</strong> (більше не покажеться)</li>
+          </ol>
+        </div>
+      </div>
+
+      <div>
+        <label>Cloudflare Account ID</label>
+        <input type="text" id="cfAccountId" placeholder="32-символьний hex" />
+        <div class="hint">
+          <strong>Де взяти:</strong> <a href="https://dash.cloudflare.com" target="_blank">Cloudflare Dashboard</a> → справа внизу <strong>«Account ID»</strong> → Copy.
+        </div>
+      </div>
+
+      <div>
+        <label>KV Namespace ID (SHOP_KV)</label>
+        <input type="text" id="cfNamespaceId" placeholder="2b33bf309cd7409aa255274b8eb25380" />
+        <div class="hint">
+          Заповнено за замовчуванням. Якщо змінив namespace — постав сюди свій. Знайти: <code>Storage & Databases → KV → SHOP_KV</code> → ID.
+        </div>
+      </div>
+
+      <div>
+        <label>🌐 Zone ID (для миттєвого оновлення)</label>
+        <input type="text" id="cfZoneId" placeholder="32-символьний hex (опціонально)" />
+        <div class="hint">
+          <strong>Опціонально, але дуже корисно.</strong> Дозволяє миттєво очищати кеш сайту при змінах в адмінці або через Telegram-бот (магазин включається/вимикається одразу, без 30-60 сек затримки).
+          <br><br>
+          <strong>Як знайти:</strong> <a href="https://dash.cloudflare.com" target="_blank">Cloudflare Dashboard</a> → клікни на свій домен (<code>sotosprint.store</code>) → справа внизу <strong>«Zone ID»</strong> → Copy.
+          <br><br>
+          <strong>Важливо:</strong> Твій API token також має мати permission <code>Zone → Cache Purge → Edit</code>. Якщо ні — додай. (My Profile → API Tokens → твій токен → Edit → Add permission).
+        </div>
+      </div>
+
+      <div style="background: #fef3c7; padding: 10px; border-radius: 8px; color: #92400e; font-size: 13px;">
+        ⚠️ Токен зберігається тільки в нашому KV (як інші паролі). Не передається назовні. Якщо хочеш видалити — очисти поле і збережи.
+      </div>
+
+      <div>
+        <button type="button" class="btn btn-secondary" onclick="testCfToken()">🔍 Тестувати з'єднання</button>
+        <span id="cfTestResult" style="margin-left: 12px; font-size: 13px;"></span>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 4px;">
+        <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+          <input type="checkbox" id="adminShowCfWidget" />
+          📊 Показувати міні-віджет використання CF на головній адмінці
+        </label>
+        <div class="hint" style="font-size: 12px; margin-left: 26px; margin-top: 4px;">
+          Якщо увімкнено — у правому верхньому кутку <a href="/admin/">/admin/</a> з'явиться компактний індикатор: KV writes/reads/lists з кольоровим прогресом і часом до скидання.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TELEGRAM CHANNEL (заготовка) -->
+  <div class="card coming-soon">
+    <h2>📢 Telegram-канал для новин <span class="status-badge soon">Скоро</span></h2>
+    <div class="hint">
+      Авто-публікація нових товарів в Telegram-канал. Зараз бот шле тільки замовлення в адмін-чат.
+    </div>
+  </div>
+
+  <div class="save-bar">
+    <span class="left" id="status">Готово</span>
+    <button class="btn btn-secondary" onclick="loadAll()">Скасувати</button>
+    <button class="btn btn-primary" onclick="saveAll()">💾 Зберегти все</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+let settings = {};
+
+async function loadAll() {
+  setStatus('Завантаження…');
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    settings = (await r.json()).settings || {};
+    if (typeof syncLockReorder === 'function') syncLockReorder(settings);
+    render();
+    setStatus('Завантажено');
+  } catch (e) { setStatus('Помилка: ' + e.message, true); }
+}
+
+function render() {
+  // NP
+  document.getElementById('npEnabled').checked = !!settings.npEnabled;
+  document.getElementById('npApiKey').value = settings.npApiKey || '';
+  document.getElementById('npLabel').value = settings.npLabel || '';
+  document.getElementById('npCityLabel').value = settings.npCityLabel || '';
+  document.getElementById('npCityPlaceholder').value = settings.npCityPlaceholder || '';
+  document.getElementById('npWarehouseLabel').value = settings.npWarehouseLabel || '';
+  document.getElementById('npWarehouseEmptyPlaceholder').value = settings.npWarehouseEmptyPlaceholder || '';
+  document.getElementById('npLoadingText').value = settings.npLoadingText || '';
+  // NP status badge
+  const npStatus = document.getElementById('npStatus');
+  if (settings.npEnabled && settings.npApiKey) {
+    npStatus.textContent = 'Активна'; npStatus.className = 'status-badge active';
+  } else {
+    npStatus.textContent = 'Не активна'; npStatus.className = 'status-badge inactive';
+  }
+
+  // Online payment
+  document.getElementById('onlinePaymentEnabled').checked = !!settings.onlinePaymentEnabled;
+  document.getElementById('onlinePaymentProvider').value = settings.onlinePaymentProvider || '';
+  document.getElementById('onlinePaymentMerchantId').value = settings.onlinePaymentMerchantId || '';
+  document.getElementById('onlinePaymentApiKey').value = ''; // не возвращается из API
+
+  // SEO
+  document.getElementById('seoTitle').value = settings.seoTitle || '';
+  document.getElementById('seoDescription').value = settings.seoDescription || '';
+  document.getElementById('seoKeywords').value = settings.seoKeywords || '';
+  document.getElementById('seoOgImage').value = settings.seoOgImage || '';
+  document.getElementById('seoGoogleVerification').value = settings.seoGoogleVerification || '';
+  // Аналітика
+  document.getElementById('googleAnalyticsId').value = settings.googleAnalyticsId || '';
+  document.getElementById('googleTagManagerId').value = settings.googleTagManagerId || '';
+  document.getElementById('facebookPixelId').value = settings.facebookPixelId || '';
+
+  // Cloudflare API
+  document.getElementById('cfApiToken').value = settings.cfApiToken ? '••••••••••••••••••••' : '';
+  document.getElementById('cfAccountId').value = settings.cfAccountId || '';
+  document.getElementById('cfNamespaceId').value = settings.cfNamespaceId || '2b33bf309cd7409aa255274b8eb25380';
+  document.getElementById('cfZoneId').value = settings.cfZoneId || '';
+  document.getElementById('adminShowCfWidget').checked = settings.adminShowCfWidget !== false;
+  const seoStatus = document.getElementById('seoStatus');
+  if (settings.seoTitle && settings.seoDescription) {
+    seoStatus.textContent = 'Налаштовано'; seoStatus.className = 'status-badge active';
+  } else {
+    seoStatus.textContent = 'Не налаштовано'; seoStatus.className = 'status-badge inactive';
+  }
+}
+
+async function saveAll() {
+  // NP
+  settings.npEnabled = document.getElementById('npEnabled').checked;
+  settings.npApiKey = document.getElementById('npApiKey').value.trim();
+  settings.npLabel = document.getElementById('npLabel').value.trim() || '📦 Нова Пошта';
+  settings.npCityLabel = document.getElementById('npCityLabel').value;
+  settings.npCityPlaceholder = document.getElementById('npCityPlaceholder').value;
+  settings.npWarehouseLabel = document.getElementById('npWarehouseLabel').value;
+  settings.npWarehouseEmptyPlaceholder = document.getElementById('npWarehouseEmptyPlaceholder').value;
+  settings.npLoadingText = document.getElementById('npLoadingText').value;
+
+  // Online payment
+  settings.onlinePaymentEnabled = document.getElementById('onlinePaymentEnabled').checked;
+  settings.onlinePaymentProvider = document.getElementById('onlinePaymentProvider').value;
+  settings.onlinePaymentMerchantId = document.getElementById('onlinePaymentMerchantId').value.trim();
+  const newPayKey = document.getElementById('onlinePaymentApiKey').value.trim();
+  if (newPayKey) settings.onlinePaymentApiKey = newPayKey;
+
+  // SEO
+  settings.seoTitle = document.getElementById('seoTitle').value.trim();
+  settings.seoDescription = document.getElementById('seoDescription').value.trim();
+  settings.seoKeywords = document.getElementById('seoKeywords').value.trim();
+  settings.seoOgImage = document.getElementById('seoOgImage').value.trim();
+  settings.seoGoogleVerification = document.getElementById('seoGoogleVerification').value.trim();
+  // Аналітика
+  settings.googleAnalyticsId = document.getElementById('googleAnalyticsId').value.trim();
+  settings.googleTagManagerId = document.getElementById('googleTagManagerId').value.trim();
+  settings.facebookPixelId = document.getElementById('facebookPixelId').value.trim();
+
+  // Cloudflare API
+  const cfToken = document.getElementById('cfApiToken').value.trim();
+  if (cfToken && !cfToken.startsWith('••')) {
+    settings.cfApiToken = cfToken;
+  }
+  settings.cfAccountId = document.getElementById('cfAccountId').value.trim();
+  settings.cfNamespaceId = document.getElementById('cfNamespaceId').value.trim();
+  settings.cfZoneId = document.getElementById('cfZoneId').value.trim();
+  settings.adminShowCfWidget = document.getElementById('adminShowCfWidget').checked;
+
+  setStatus('Зберігаю…');
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✅ Збережено');
+    setStatus('Збережено ' + new Date().toLocaleTimeString('uk-UA'));
+    await loadAll();
+  } catch (e) { setStatus('Помилка: ' + e.message, true); toast('❌ ' + e.message, 'error'); }
+}
+
+async function testNP() {
+  const key = document.getElementById('npApiKey').value.trim();
+  const resEl = document.getElementById('npTestResult');
+  if (!key) { resEl.innerHTML = '<span style="color:#dc2626">Введіть API-ключ спочатку</span>'; return; }
+  resEl.textContent = 'Перевіряю…';
+  // Сначала сохраняем чтобы сервер использовал свежий ключ
+  settings.npApiKey = key;
+  settings.npEnabled = true;
+  try {
+    const sr = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!sr.ok) throw new Error('Не вдалось зберегти ключ');
+    // Делаем тестовый запит на города (POST, не GET!)
+    const tr = await fetch('/api/nova-poshta/cities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: 'Київ' }),
+    });
+    const data = await tr.json();
+    if (data.ok && Array.isArray(data.cities) && data.cities.length > 0) {
+      resEl.innerHTML = `<span style="color:#16a34a">✅ Ключ працює. Знайдено населених пунктів: ${data.cities.length}</span>`;
+    } else {
+      resEl.innerHTML = `<span style="color:#dc2626">❌ ${data.error || 'Ключ не приймається API'}</span>`;
+    }
+  } catch (e) {
+    resEl.innerHTML = `<span style="color:#dc2626">❌ ${e.message}</span>`;
+  }
+}
+
+function setStatus(text, isError) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.style.color = isError ? '#dc2626' : '';
+}
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => { t.className = 'toast'; }, 2200);
+}
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+// Тест зʼєднання з Cloudflare API
+async function testCfToken() {
+  const result = document.getElementById('cfTestResult');
+  result.textContent = '⏳ Перевіряю...';
+  result.style.color = '#6b7280';
+  try {
+    // Якщо в полі свіжий токен (не маска) — спочатку зберігаємо щоб бекенд знав
+    const cfToken = document.getElementById('cfApiToken').value.trim();
+    const cfAcc = document.getElementById('cfAccountId').value.trim();
+    if (!cfAcc) {
+      result.textContent = '⚠️ Спочатку введи Account ID';
+      result.style.color = '#ca8a04';
+      return;
+    }
+    if (cfToken && !cfToken.startsWith('••')) {
+      // Авто-збереження свіжого токена
+      result.textContent = '⏳ Зберігаю токен…';
+      settings.cfApiToken = cfToken;
+      settings.cfAccountId = cfAcc;
+      settings.cfNamespaceId = document.getElementById('cfNamespaceId').value.trim();
+      const sr = await fetch('/api/admin/settings', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings),
+      });
+      if (!sr.ok) {
+        result.textContent = '❌ Не вдалося зберегти';
+        result.style.color = '#dc2626';
+        return;
+      }
+      // Маскуємо
+      document.getElementById('cfApiToken').value = '••••••••••••••••••••';
+    }
+
+    result.textContent = '⏳ Тестую через CF API...';
+    const r = await fetch('/api/admin/cf-usage?test=1', { credentials: 'include' });
+    const d = await r.json();
+    if (d.ok) {
+      const purge = d.purgeStatus ? ` | Purge: ${d.purgeStatus}` : '';
+      result.textContent = '✅ З\'єднання працює! Account: ' + (d.accountId || '') + purge;
+      result.style.color = '#16a34a';
+    } else {
+      result.textContent = '❌ ' + (d.error || 'Помилка');
+      result.style.color = '#dc2626';
+    }
+  } catch (e) {
+    result.textContent = '❌ ' + e.message;
+    result.style.color = '#dc2626';
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>

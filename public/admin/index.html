@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Адмінка — Sotosprint Shop</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 24px; }
+    .wrap { max-width: 920px; margin: 0 auto; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 28px; }
+    .grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+    a.card {
+      display: flex; flex-direction: column; gap: 8px;
+      background: #fff; border-radius: 14px; padding: 20px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05);
+      text-decoration: none; color: inherit; transition: transform .15s, box-shadow .15s;
+      border: 2px solid transparent;
+    }
+    a.card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(20,30,60,.1); border-color: #0b8aff; }
+    a.card .icon { font-size: 32px; }
+    a.card .title { font-size: 18px; font-weight: 700; }
+    a.card .desc { font-size: 13px; color: #6b7280; line-height: 1.4; }
+    /* Верхні міні-плитки (Відвідувачі / CF) — однаковий розмір і стиль у дусі карток */
+    .mini-tile {
+      border-radius: 14px; padding: 8px 16px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05);
+      display: flex; flex-direction: column; justify-content: center; gap: 1px;
+    }
+    .quick {
+      background: #fff; border-radius: 14px; padding: 18px; margin-top: 16px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05);
+    }
+    .quick h3 { margin: 0 0 8px; font-size: 14px; color: #6b7280; font-weight: 600; }
+    .stats { display: flex; gap: 20px; flex-wrap: wrap; }
+    .stat { display: flex; flex-direction: column; }
+    .stat .v { font-size: 22px; font-weight: 700; }
+    .stat .l { font-size: 12px; color: #6b7280; }
+    .external { display: inline-block; margin-top: 16px; color: #0b8aff; }
+    .indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+    .indicator.on { background: #16a34a; }
+    .indicator.off { background: #dc2626; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="grid" style="margin-bottom: 8px;">
+    <div style="align-self: flex-start;">
+      <h1 data-i18n="dashboard.title" style="margin: 0;">⚙️ Адмінка магазину</h1>
+      <p class="sub" style="margin: 4px 0 0;"><span id="adminSubHeader" data-i18n="dashboard.sub" style="visibility:hidden"></span><span id="adminSubSep"> · </span><a href="#" onclick="logout(); return false;" style="color:#dc2626;text-decoration:none;" data-i18n="common.logout">🚪 Вийти</a></p>
+      <script>
+        // Підзаголовок порожній за замовчуванням і прихований — підставляємо збережений миттєво, БЕЗ мигання старою назвою.
+        (function () {
+          var el = document.getElementById('adminSubHeader');
+          try { var _ah = localStorage.getItem('adminHeaderText'); if (_ah) el.textContent = _ah; } catch (e) {}
+          if (el.textContent) el.style.visibility = 'visible';
+        })();
+      </script>
+    </div>
+    <!-- Міні-віджет відвідувачів — однакова плитка, у стилі карток -->
+    <div id="visitorsMiniWidget" class="mini-tile" style="display: none; background: #f0f9ff; border: 1px solid #bae6fd;"></div>
+    <!-- Міні-віджет використання CF — однакова плитка, у стилі карток -->
+    <div id="cfMiniWidget" class="mini-tile" style="display: none; background: #f9fafb; border: 1px solid #e5e7eb;"></div>
+  </div>
+
+  <!-- Баннер активних лімітів -->
+  <div id="limitBanner" style="display: none; background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 16px; color: #991b1b;"></div>
+
+  <div class="grid">
+    <a href="/admin/orders/" class="card">
+      <span class="icon">📋</span>
+      <span class="title"><span data-i18n="dashboard.orders">Замовлення</span> <span data-orders-unread style="display:none;background:#dc2626;color:#fff;border-radius:99px;padding:0 8px;font-size:13px;margin-left:6px;">0</span></span>
+      <span class="desc" data-i18n="dashboard.orders_desc">Усі замовлення з сайту, статуси, відмітки виконано/не виконано.</span>
+    </a>
+    <a href="/admin/products/" class="card">
+      <span class="icon">📦</span>
+      <span class="title" data-i18n="dashboard.products">Товари</span>
+      <span class="desc" data-i18n="dashboard.products_desc">Каталог: додавати, редагувати, ховати. Картинки, відео, характеристики.</span>
+    </a>
+    <a href="/admin/settings/" class="card">
+      <span class="icon">⚙️</span>
+      <span class="title">Налаштування магазину</span>
+      <span class="desc">Тексти, контакти, доставка, оплата, поля форми, лічильник.</span>
+    </a>
+    <a href="/admin/appearance/" class="card">
+      <span class="icon">🎨</span>
+      <span class="title">Оформлення сайту</span>
+      <span class="desc">Шапка, кольори, шрифти, положення лого, тема, банери.</span>
+    </a>
+    <a href="/admin/integrations/" class="card">
+      <span class="icon">🔌</span>
+      <span class="title">Інтеграції</span>
+      <span class="desc">Нова Пошта, онлайн-оплата (LiqPay, Monobank), email-сервіси.</span>
+    </a>
+    <a href="/admin/storage/" class="card">
+      <span class="icon">🗂</span>
+      <span class="title">Файлове сховище</span>
+      <span class="desc">Іконки, лого, фото, відео. Завантаж та копіюй URL для шарінгу.</span>
+    </a>
+    <a href="/admin/stats/" class="card">
+      <span class="icon">📈</span>
+      <span class="title">Статистика та ліміти</span>
+      <span class="desc">Скільки місця займає сайт, ліміти Cloudflare, що скільки записано.</span>
+    </a>
+    <a href="/admin/bot/" class="card">
+      <span class="icon">🔐</span>
+      <span class="title">Безпека</span>
+      <span class="desc">Бот Telegram, пароль адмінки, двофакторна авторизація (2FA).</span>
+    </a>
+    <a href="/admin/domain/" class="card">
+      <span class="icon">🌐</span>
+      <span class="title">Домен сайту</span>
+      <span class="desc">Поточний домен, додати новий, перенести на інший. CF Pages + Telegram webhook автомат.</span>
+    </a>
+    <a href="/admin/backup/" class="card">
+      <span class="icon">♻️</span>
+      <span class="title">Резервні копії</span>
+      <span class="desc">Створити бекап, відновити з минулого, завантажити архів. Захист від помилок.</span>
+    </a>
+    <a href="/admin/promo/" class="card">
+      <span class="icon">🎟</span>
+      <span class="title">Промокоди</span>
+      <span class="desc">Знижки за кодом: % від суми, фікс ₴, безкоштовна доставка. Терміни і ліміти.</span>
+    </a>
+    <a href="/" target="_blank" class="card">
+      <span class="icon">🌐</span>
+      <span class="title" data-i18n="dashboard.shop_link">Відкрити магазин</span>
+      <span class="desc" data-i18n="dashboard.shop_link_desc">Подивитись як виглядає сайт очима клієнта.</span>
+    </a>
+  </div>
+
+  <div class="quick">
+    <h3 data-i18n="dashboard.summary">📊 Швидка зведена</h3>
+    <div class="stats" id="stats">
+      <div class="stat"><span class="v" id="stShop">…</span><span class="l" data-i18n="dashboard.shop_state">Стан магазину</span></div>
+      <div class="stat"><span class="v" id="stProducts">…</span><span class="l" data-i18n="dashboard.products_count">Товарів у каталозі</span></div>
+      <div class="stat"><span class="v" id="stCounter">…</span><span class="l" data-i18n="dashboard.orders_count">Замовлень оформлено</span></div>
+      <div class="stat"><span class="v" id="stBot">…</span><span class="l" data-i18n="dashboard.bot_state">Бот</span></div>
+    </div>
+  </div>
+
+  <div class="quick" style="margin-top: 14px;">
+    <h3>💾 Резервна копія</h3>
+    <p style="font-size: 13px; color: #6b7280; margin: 0 0 10px;">Завантаж файл .json з усіма налаштуваннями і товарами. Працює з будь-якого компʼютера.</p>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <button onclick="downloadBackup()" style="padding: 9px 16px; border:none; border-radius:8px; font-weight:600; background: #0b8aff; color:#fff; cursor:pointer;">📥 Завантажити бекап</button>
+      <label style="padding: 9px 16px; border:1px solid #e5e7eb; border-radius:8px; font-weight:600; background: #f3f4f6; color:#374151; cursor:pointer; display: inline-block;">
+        📤 Відновити з файлу
+        <input type="file" accept="application/json,.json" style="display:none;" onchange="restoreBackup(this.files[0])" />
+      </label>
+    </div>
+    <div id="backupStatus" style="font-size: 12px; color: #6b7280; margin-top: 8px;"></div>
+  </div>
+</div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+async function checkLimitStatus() {
+  try {
+    const r = await fetch('/api/admin/limit-status', { credentials: 'include' });
+    if (!r.ok) return;
+    const d = await r.json();
+    const banner = document.getElementById('limitBanner');
+    if (!d.active || d.active.length === 0) {
+      banner.style.display = 'none';
+      return;
+    }
+    const formatTime = (ms) => {
+      const diff = ms - Date.now();
+      if (diff <= 0) return 'скоро';
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      if (h > 0) return `${h} год ${m} хв`;
+      return `${m} хв`;
+    };
+    const items = d.active.map(a => {
+      const hitTime = a.hitAt ? new Date(a.hitAt).toLocaleTimeString('uk-UA') : '';
+      const reset = a.resetsAt ? formatTime(a.resetsAt) : '?';
+      return `
+        <div style="margin: 6px 0; padding: 8px 10px; background: rgba(255,255,255,0.5); border-radius: 8px;">
+          <div style="font-weight: 700;">⚠️ ${a.label}</div>
+          ${hitTime ? `<div style="font-size: 12px; opacity: 0.85;">Спрацював о ${hitTime}</div>` : ''}
+          <div style="font-size: 12px; opacity: 0.85;">Скинеться через: <strong>${reset}</strong> (о 02:00 за Києвом)</div>
+        </div>
+      `;
+    }).join('');
+    banner.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 16px; margin-bottom: 8px;">
+        🚨 Активні ліміти Cloudflare
+      </div>
+      ${items}
+      <div style="font-size: 13px; margin-top: 8px;">
+        Сайт працює, але деякі функції можуть бути обмежені (заказы все одно йдуть в Telegram). Щоб зняти ліміти назавжди — підключи <a href="https://dash.cloudflare.com" target="_blank" style="color: #991b1b; font-weight: 700;">Workers Paid $5/міс</a>.
+      </div>
+    `;
+    banner.style.display = 'block';
+  } catch {}
+}
+
+// Міні-віджет відвідувачів (по центру) — показуємо якщо увімкнено в settings.adminShowVisitorsWidget
+async function loadVisitorsMiniWidget() {
+  const wrap = document.getElementById('visitorsMiniWidget');
+  if (!wrap) return;
+  let enabled = false;
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.ok) {
+      const data = await r.json();
+      const s = data.settings || data;
+      enabled = !!s.adminShowVisitorsWidget;
+    }
+  } catch {}
+  if (!enabled) { wrap.style.display = 'none'; return; }
+  try {
+    const r = await fetch('/api/admin/visitors-stats', { credentials: 'include' });
+    if (!r.ok) { wrap.style.display = 'none'; return; }
+    const d = await r.json();
+    if (!d.ok) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'flex';
+    wrap.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+        <strong style="font-size:12px; color:#075985;">👥 Відвідувачі</strong>
+        <a href="/admin/stats/" style="font-size:11px; color:#6b7280; text-decoration:none;">детально →</a>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span style="color:#6b7280;">Сьогодні:</span>
+        <strong style="font-variant-numeric:tabular-nums; color:#0c4a6e;">${(d.today || 0).toLocaleString('uk-UA')}</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span style="color:#6b7280;">Вчора:</span>
+        <strong style="font-variant-numeric:tabular-nums;">${(d.yesterday || 0).toLocaleString('uk-UA')}</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span style="color:#6b7280;">7 днів:</span>
+        <strong style="font-variant-numeric:tabular-nums;">${(d.last7Days || 0).toLocaleString('uk-UA')}</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:11px;">
+        <span style="color:#6b7280;">30 днів:</span>
+        <strong style="font-variant-numeric:tabular-nums;">${(d.last30Days || 0).toLocaleString('uk-UA')}</strong>
+      </div>
+    `;
+  } catch {
+    wrap.style.display = 'none';
+  }
+}
+
+async function loadCfMiniWidget() {
+  const wrap = document.getElementById('cfMiniWidget');
+  if (!wrap) return;
+  // Перевіряємо чи увімкнено в settings
+  let enabled = false;
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.ok) {
+      const data = await r.json();
+      const s = data.settings || data;
+      enabled = s.adminShowCfWidget !== false; // дефолт ON
+    }
+  } catch {}
+  if (!enabled) {
+    wrap.style.display = 'none';
+    return;
+  }
+  // Тягнемо CF usage
+  try {
+    const r = await fetch('/api/admin/cf-usage', { credentials: 'include' });
+    const d = await r.json();
+    if (!d.ok) {
+      wrap.style.display = 'flex';
+      wrap.innerHTML = `<div style="font-size:12px; color:#92400e;">⚠️ <a href="/admin/integrations/" style="color:inherit;">Налаштуй CF API Token</a> щоб бачити лімити</div>`;
+      return;
+    }
+    wrap.style.display = 'flex';
+    wrap.innerHTML = renderCfMini(d);
+  } catch (e) {
+    wrap.style.display = 'none';
+  }
+}
+
+function renderCfMini(d) {
+  const kv = d.kv || {};
+  const reads = kv.reads ?? 0;
+  const writes = kv.writes ?? 0;
+  const lists = kv.lists ?? 0;
+  const items = [
+    { label: 'Записи', val: writes, max: 1000 },
+    { label: 'Читання', val: reads, max: 100000 },
+    { label: 'Lists', val: lists, max: 1000 },
+  ];
+  // Знаходимо найгірший % — для індикатора кольором
+  let worst = 0;
+  for (const it of items) {
+    if (it.val == null || !it.max) continue;
+    const p = (it.val / it.max) * 100;
+    if (p > worst) worst = p;
+  }
+  const color = worst >= 80 ? '#dc2626' : (worst >= 60 ? '#f59e0b' : '#10b981');
+  const rows = items.map(it => {
+    const v = it.val;
+    if (v == null) return `<div style="display:flex; justify-content:space-between; font-size:11px;"><span>${it.label}:</span><span>—</span></div>`;
+    const p = it.max ? Math.min(100, Math.round(v / it.max * 100)) : 0;
+    return `<div style="display:flex; justify-content:space-between; font-size:11px; align-items:center;">
+      <span style="color:#6b7280;">${it.label}:</span>
+      <span style="font-variant-numeric:tabular-nums;"><strong>${v.toLocaleString('uk-UA')}</strong>/${it.max.toLocaleString('uk-UA')} <span style="color:${p>=80?'#dc2626':p>=60?'#f59e0b':'#10b981'};">(${p}%)</span></span>
+    </div>`;
+  }).join('');
+  // Час до скидання
+  let resetTxt = '';
+  if (d.period?.resetAt) {
+    const diff = new Date(d.period.resetAt) - new Date();
+    if (diff > 0) {
+      const hh = Math.floor(diff / 3600000);
+      const mm = Math.floor((diff % 3600000) / 60000);
+      resetTxt = `до скидання: ${hh}год ${mm}хв`;
+    }
+  }
+  return `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <strong style="font-size:12px; color:${color};">☁️ CF сьогодні</strong>
+      <a href="/admin/stats/" style="font-size:11px; color:#6b7280; text-decoration:none;">детально →</a>
+    </div>
+    ${rows}
+    ${resetTxt ? `<div style="font-size:10px; color:#9ca3af; margin-top:4px;">${resetTxt}</div>` : ''}
+  `;
+}
+
+async function logout() {  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+async function downloadBackup() {
+  const status = document.getElementById('backupStatus');
+  status.textContent = 'Готую файл…';
+  status.style.color = '#6b7280';
+  try {
+    const r = await fetch('/api/admin/backup', { credentials: 'include' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dt = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    a.href = url; a.download = `sotosprint-backup-${dt}.json`;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+    status.textContent = '✓ Завантажено: ' + a.download;
+    status.style.color = '#16a34a';
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.style.color = '#dc2626';
+  }
+}
+
+async function restoreBackup(file) {
+  if (!file) return;
+  const status = document.getElementById('backupStatus');
+  if (!confirm('УВАГА! Це перезапише ВСІ поточні дані з обраного бекапу.\nПродовжити?')) return;
+  if (!confirm('Хочеш повністю замінити дані (видалити всі ключі, які НЕ в бекапі)?\n\nOK = повне перезаписання\nCancel = тільки оновлення з бекапу')) {
+    // Тут не bail-im, просто не wipe
+  }
+  const wipe = window.confirm('Видалити всі поточні ключі перед відновленням? (Сейф варіант — Cancel)');
+  status.textContent = 'Читаю файл…';
+  status.style.color = '#6b7280';
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    if (!data || typeof data.keys !== 'object') throw new Error('Невалідний формат бекапу');
+    status.textContent = 'Відправляю на сервер…';
+    const r = await fetch('/api/admin/restore', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys: data.keys, options: { wipe } }),
+    });
+    const result = await r.json();
+    if (!result.ok) throw new Error(result.error || 'Помилка');
+    status.textContent = `✓ Відновлено: ${result.written} ключів${result.skipped ? ` (пропущено: ${result.skipped})` : ''}. Перезавантаж сторінку.`;
+    status.style.color = '#16a34a';
+    setTimeout(() => location.reload(), 2000);
+  } catch (e) {
+    status.textContent = '❌ ' + e.message;
+    status.style.color = '#dc2626';
+  }
+}
+
+(async () => {
+  const headers = { credentials: 'include' };
+  // Если не авторизован — редиректим на логин
+  try {
+    const test = await fetch('/api/admin/settings', headers);
+    if (test.status === 401) {
+      location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname);
+      return;
+    }
+  } catch {}
+  // Перевіряємо ліміти при завантаженні + кожні 5 хвилин
+  checkLimitStatus();
+  setInterval(checkLimitStatus, 5 * 60 * 1000);
+
+  // Міні-віджет CF usage у шапці (якщо ввімкнено)
+  loadCfMiniWidget();
+  setInterval(loadCfMiniWidget, 5 * 60 * 1000);
+  loadVisitorsMiniWidget();
+  setInterval(loadVisitorsMiniWidget, 5 * 60 * 1000);
+
+  try {
+    const [s, p, c, b] = await Promise.all([
+      fetch('/api/admin/settings', headers).then(r => r.json()),
+      fetch('/api/admin/products', headers).then(r => r.json()),
+      fetch('/api/admin/counter', headers).then(r => r.json()),
+      fetch('/api/admin/bot', headers).then(r => r.json()),
+    ]);
+    const subText = s.settings?.adminHeaderText;
+    if (subText) {
+      const subEl = document.getElementById('adminSubHeader');
+      subEl.textContent = subText;
+      subEl.style.visibility = 'visible';
+      try { localStorage.setItem('adminHeaderText', subText); } catch (e) {}
+    }
+    const enabled = s.settings?.shopEnabled !== false;
+    document.getElementById('stShop').innerHTML = enabled
+      ? '<span class="indicator on"></span>Відкритий'
+      : '<span class="indicator off"></span>Закритий';
+    document.getElementById('stProducts').textContent = (p.products || []).length;
+    document.getElementById('stCounter').textContent = c.current || 0;
+    document.getElementById('stBot').innerHTML = b.hasToken && b.hasChatId
+      ? '<span class="indicator on"></span>Налаштований'
+      : '<span class="indicator off"></span>Не налаштований';
+  } catch (e) {
+    document.getElementById('stats').innerHTML = '<div style="color:#dc2626">Помилка завантаження.</div>';
+  }
+})();
+</script>
+</body>
+</html>

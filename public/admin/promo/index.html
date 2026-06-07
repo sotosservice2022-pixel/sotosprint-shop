@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Промокоди — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 60px; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-icon { padding: 4px 10px; font-size: 13px; }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], input[type=number], input[type=date], select, textarea {
+      width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+    .checkbox-inline { display: flex; align-items: center; gap: 6px; }
+    .promo-row {
+      display: grid; grid-template-columns: 100px auto 70px 70px auto auto;
+      gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0;
+      font-size: 13px;
+    }
+    @media (max-width: 700px) {
+      .promo-row { grid-template-columns: 1fr; gap: 4px; padding: 12px; background: #f9fafb; border-radius: 8px; margin-bottom: 8px; }
+    }
+    .promo-row .code { font-family: 'SF Mono', Menlo, monospace; font-weight: 700; color: #0b8aff; }
+    .promo-row .desc { font-size: 12px; color: #6b7280; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge.on { background: #dcfce7; color: #166534; }
+    .badge.off { background: #f3f4f6; color: #6b7280; }
+    .badge.expired { background: #fee2e2; color: #991b1b; }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+    .empty { text-align: center; padding: 30px; color: #9ca3af; font-style: italic; }
+    .modal-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+      z-index: 100; align-items: center; justify-content: center; padding: 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal { background: #fff; border-radius: 12px; padding: 24px; max-width: 600px; width: 100%;
+      max-height: 90vh; overflow-y: auto; }
+    .modal h3 { margin: 0 0 16px; font-size: 18px; }
+    .row { margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">← Адмінка</a></div>
+  <h1>🎟 Промокоди</h1>
+  <p class="sub">Знижки за спеціальним кодом. Клієнт вводить код в формі замовлення — отримує знижку.</p>
+
+  <div class="card">
+    <h2>⚙️ Налаштування</h2>
+    <div class="checkbox-inline">
+      <input type="checkbox" id="promoEnabled" />
+      <label for="promoEnabled" style="margin: 0">Показувати поле «Промокод» у формі оформлення</label>
+    </div>
+    <div class="row" style="margin-top: 12px;">
+      <label>Текст поля</label>
+      <input type="text" id="promoFieldLabel" placeholder="🎟 Промокод (якщо є)" />
+    </div>
+    <button class="btn btn-secondary" onclick="saveSettings()">💾 Зберегти налаштування</button>
+  </div>
+
+  <div class="card">
+    <h2>📋 Список промокодів</h2>
+    <div style="margin-bottom: 14px;">
+      <button class="btn btn-primary" onclick="openModal()">➕ Додати новий промокод</button>
+    </div>
+    <div id="listContainer"><div class="empty">Завантаження...</div></div>
+  </div>
+</div>
+
+<!-- Модалка добавлення/редагування -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h3 id="modalTitle">Новий промокод</h3>
+    <div class="grid-2">
+      <div class="row">
+        <label>Код *</label>
+        <input type="text" id="m_code" placeholder="напр. SUMMER10" style="text-transform: uppercase;" />
+        <div class="hint" style="font-size: 11px; color: #6b7280;">Тільки A-Z, 0-9, дефіс. Регістр не важливий.</div>
+      </div>
+      <div class="row">
+        <label>Тип знижки</label>
+        <select id="m_type" onchange="updateValueLabel()">
+          <option value="percent">% від суми</option>
+          <option value="fixed">Фіксована знижка (₴)</option>
+          <option value="shipping">Безкоштовна доставка</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="row" id="m_valueRow">
+        <label id="m_valueLabel">Значення (%)</label>
+        <input type="number" id="m_value" min="0" max="100" step="1" value="10" />
+      </div>
+      <div class="row">
+        <label>Мін. сума замовлення (₴)</label>
+        <input type="number" id="m_minOrder" min="0" step="1" value="0" />
+        <div class="hint" style="font-size: 11px; color: #6b7280;">0 = без обмеження</div>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="row">
+        <label>Дійсний з</label>
+        <input type="date" id="m_validFrom" />
+      </div>
+      <div class="row">
+        <label>Дійсний до</label>
+        <input type="date" id="m_validUntil" />
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="row">
+        <label>Макс. використань</label>
+        <input type="number" id="m_maxUses" min="0" step="1" value="0" />
+        <div class="hint" style="font-size: 11px; color: #6b7280;">0 = безліміт</div>
+      </div>
+      <div class="row">
+        <label>&nbsp;</label>
+        <div class="checkbox-inline" style="padding: 9px 0;">
+          <input type="checkbox" id="m_enabled" checked />
+          <label for="m_enabled" style="margin: 0;">Активний</label>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <label>Опис (для адмінки)</label>
+      <input type="text" id="m_description" placeholder="напр. Знижка для нових клієнтів" />
+    </div>
+
+    <!-- Де діє промокод -->
+    <div class="row" style="border-top:1px solid #f0f0f0; padding-top:12px;">
+      <label>Де діє знижка</label>
+      <select id="m_scope" onchange="updateScopeUI()">
+        <option value="all">Усюди (весь кошик)</option>
+        <option value="categories">Тільки обрані категорії</option>
+        <option value="products">Тільки обрані товари</option>
+      </select>
+      <div class="hint" style="font-size:11px; color:#6b7280; margin-top:4px;">Якщо обрано категорії/товари — знижка рахується лише з підходящих позицій кошика.</div>
+    </div>
+    <div class="row" id="m_categoriesBox" style="display:none;">
+      <label>Категорії</label>
+      <div id="m_categoriesList" style="max-height:160px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; padding:8px; background:#fafbfc;"></div>
+    </div>
+    <div class="row" id="m_productsBox" style="display:none;">
+      <label>Товари</label>
+      <div id="m_productsList" style="max-height:200px; overflow:auto; border:1px solid #e5e7eb; border-radius:8px; padding:8px; background:#fafbfc;"></div>
+    </div>
+
+    <!-- Бейдж на вітрині -->
+    <div class="row" style="border-top:1px solid #f0f0f0; padding-top:12px;">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="m_showOnCard" />
+        <label for="m_showOnCard" style="margin:0;">Показувати бейдж промокоду на вітрині (на картці та в модалці товару)</label>
+      </div>
+      <div class="hint" style="font-size:11px; color:#6b7280; margin-top:4px;">Клік по бейджу копіює код. Показується на товарах, де діє промокод.</div>
+    </div>
+
+    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 8px;">
+      <button class="btn btn-secondary" onclick="closeModal()">Скасувати</button>
+      <button class="btn btn-primary" onclick="savePromo()">💾 Зберегти</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let settings = null;
+let editingId = null;
+let allCategories = []; // [{id, name, slug}]
+let allProducts = [];   // [{id, name, categoryId}]
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function genId() { return 'promo_' + Math.random().toString(36).slice(2, 9); }
+
+async function loadSettings() {
+  const [sRes, pRes] = await Promise.all([
+    fetch('/api/admin/settings', { credentials: 'include' }),
+    fetch('/api/admin/products', { credentials: 'include' }),
+  ]);
+  if (sRes.status === 401 || pRes.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+  const d = await sRes.json();
+  settings = d.settings || d;
+  if (!Array.isArray(settings.promoCodes)) settings.promoCodes = [];
+  allCategories = Array.isArray(settings.categories) ? settings.categories.filter(c => c.name && c.slug) : [];
+  try { allProducts = (await pRes.json()).products || []; } catch { allProducts = []; }
+  document.getElementById('promoEnabled').checked = settings.promoEnabled !== false;
+  document.getElementById('promoFieldLabel').value = settings.promoFieldLabel || '🎟 Промокод (якщо є)';
+  renderList();
+}
+
+async function saveAll() {
+  settings.promoEnabled = document.getElementById('promoEnabled').checked;
+  settings.promoFieldLabel = document.getElementById('promoFieldLabel').value || '🎟 Промокод (якщо є)';
+  const r = await fetch('/api/admin/settings', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(settings),
+  });
+  return r.ok;
+}
+
+async function saveSettings() {
+  const ok = await saveAll();
+  if (ok) toast('✅ Збережено');
+  else toast('❌ Помилка', 'error');
+}
+
+function isExpired(p) {
+  if (!p.validUntil) return false;
+  return new Date(p.validUntil) < new Date();
+}
+
+function renderList() {
+  const cont = document.getElementById('listContainer');
+  const list = settings.promoCodes || [];
+  if (!list.length) {
+    cont.innerHTML = '<div class="empty">Промокодів ще немає. Натисни "Додати" щоб створити перший.</div>';
+    return;
+  }
+  let html = '';
+  list.forEach((p, i) => {
+    const valueText = p.type === 'percent' ? `${p.value}%`
+                    : p.type === 'fixed' ? `${p.value}₴`
+                    : 'Безкошт.доставка';
+    const usesText = (p.maxUses && p.maxUses > 0) ? `${p.used || 0}/${p.maxUses}` : `${p.used || 0}/∞`;
+    const expired = isExpired(p);
+    const statusBadge = expired ? '<span class="badge expired">Прострочений</span>'
+                       : p.enabled ? '<span class="badge on">Активний</span>'
+                       : '<span class="badge off">Вимкнений</span>';
+    const scopeText = p.scope === 'categories' ? `🏷 категорій: ${(p.categoryIds || []).length}`
+                    : p.scope === 'products' ? `📦 товарів: ${(p.productIds || []).length}`
+                    : 'усюди';
+    const cardText = p.showOnCard ? ' · 👁 бейдж' : '';
+    html += `
+      <div class="promo-row">
+        <div><span class="code">${escapeHtml(p.code)}</span></div>
+        <div>
+          <strong>${valueText}</strong> · ${escapeHtml(p.description || '—')}<br>
+          <span class="desc">мін. ${p.minOrder || 0}₴ · ${(p.validFrom || '∞')} → ${(p.validUntil || '∞')} · ${scopeText}${cardText}</span>
+        </div>
+        <div>${usesText}</div>
+        <div>${statusBadge}</div>
+        <div><button class="btn btn-secondary btn-icon" onclick="editPromo('${p.id}')">✏️</button></div>
+        <div><button class="btn btn-danger btn-icon" onclick="deletePromo('${p.id}')">🗑</button></div>
+      </div>`;
+  });
+  cont.innerHTML = html;
+}
+
+function updateValueLabel() {
+  const t = document.getElementById('m_type').value;
+  const lbl = document.getElementById('m_valueLabel');
+  const inp = document.getElementById('m_value');
+  const row = document.getElementById('m_valueRow');
+  if (t === 'percent') { lbl.textContent = 'Значення (%)'; inp.max = 100; row.style.display = ''; }
+  else if (t === 'fixed') { lbl.textContent = 'Значення (₴)'; inp.max = 100000; row.style.display = ''; }
+  else { row.style.display = 'none'; } // shipping
+}
+
+// Показ/приховання блоків категорій/товарів залежно від scope + рендер чекбоксів
+function updateScopeUI(selCatIds, selProdIds) {
+  const scope = document.getElementById('m_scope').value;
+  const catBox = document.getElementById('m_categoriesBox');
+  const prodBox = document.getElementById('m_productsBox');
+  catBox.style.display = scope === 'categories' ? '' : 'none';
+  prodBox.style.display = scope === 'products' ? '' : 'none';
+
+  if (scope === 'categories') {
+    const sel = selCatIds || readChecked('m_categoriesList');
+    const list = document.getElementById('m_categoriesList');
+    if (!allCategories.length) {
+      list.innerHTML = '<div style="font-size:12px;color:#6b7280;">Категорій немає. Додай їх у Товари → Категорії.</div>';
+    } else {
+      list.innerHTML = allCategories.map(c =>
+        `<label class="checkbox-inline" style="margin-bottom:6px; font-weight:400;">
+          <input type="checkbox" value="${escapeHtml(c.id)}" ${sel.includes(c.id) ? 'checked' : ''} />
+          <span>${escapeHtml(c.name)}</span>
+        </label>`).join('');
+    }
+  }
+  if (scope === 'products') {
+    const sel = selProdIds || readChecked('m_productsList');
+    const list = document.getElementById('m_productsList');
+    if (!allProducts.length) {
+      list.innerHTML = '<div style="font-size:12px;color:#6b7280;">Товарів немає.</div>';
+    } else {
+      list.innerHTML = allProducts.map(p =>
+        `<label class="checkbox-inline" style="margin-bottom:6px; font-weight:400;">
+          <input type="checkbox" value="${escapeHtml(p.id)}" ${sel.includes(p.id) ? 'checked' : ''} />
+          <span>${escapeHtml(p.name || '(без імені)')}</span>
+        </label>`).join('');
+    }
+  }
+}
+function readChecked(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} input[type=checkbox]:checked`)).map(c => c.value);
+}
+
+function openModal(promo) {
+  editingId = promo?.id || null;
+  document.getElementById('modalTitle').textContent = promo ? 'Редагувати промокод' : 'Новий промокод';
+  document.getElementById('m_code').value = promo?.code || '';
+  document.getElementById('m_type').value = promo?.type || 'percent';
+  document.getElementById('m_value').value = promo?.value ?? 10;
+  document.getElementById('m_minOrder').value = promo?.minOrder ?? 0;
+  document.getElementById('m_validFrom').value = promo?.validFrom || '';
+  document.getElementById('m_validUntil').value = promo?.validUntil || '';
+  document.getElementById('m_maxUses').value = promo?.maxUses ?? 0;
+  document.getElementById('m_enabled').checked = promo?.enabled !== false;
+  document.getElementById('m_description').value = promo?.description || '';
+  document.getElementById('m_scope').value = promo?.scope || 'all';
+  document.getElementById('m_showOnCard').checked = !!promo?.showOnCard;
+  updateValueLabel();
+  updateScopeUI(promo?.categoryIds || [], promo?.productIds || []);
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal() { document.getElementById('modal').classList.remove('show'); }
+
+function editPromo(id) {
+  const p = settings.promoCodes.find(x => x.id === id);
+  if (p) openModal(p);
+}
+
+async function deletePromo(id) {
+  const p = settings.promoCodes.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`Видалити промокод ${p.code}?`)) return;
+  settings.promoCodes = settings.promoCodes.filter(x => x.id !== id);
+  const ok = await saveAll();
+  if (ok) { toast('✅ Видалено'); renderList(); }
+  else toast('❌ Помилка', 'error');
+}
+
+async function savePromo() {
+  const code = document.getElementById('m_code').value.trim().toUpperCase();
+  if (!code || !/^[A-Z0-9-]+$/.test(code)) { toast('❌ Невалидний код (тільки A-Z, 0-9, дефіс)', 'error'); return; }
+
+  // Перевірка на унікальність коду
+  const dup = settings.promoCodes.find(x => x.code === code && x.id !== editingId);
+  if (dup) { toast('❌ Такий код вже існує', 'error'); return; }
+
+  const data = {
+    id: editingId || genId(),
+    code,
+    type: document.getElementById('m_type').value,
+    value: parseFloat(document.getElementById('m_value').value) || 0,
+    minOrder: parseFloat(document.getElementById('m_minOrder').value) || 0,
+    validFrom: document.getElementById('m_validFrom').value || '',
+    validUntil: document.getElementById('m_validUntil').value || '',
+    maxUses: parseInt(document.getElementById('m_maxUses').value, 10) || 0,
+    enabled: document.getElementById('m_enabled').checked,
+    description: document.getElementById('m_description').value.trim(),
+    scope: document.getElementById('m_scope').value,
+    categoryIds: readChecked('m_categoriesList'),
+    productIds: readChecked('m_productsList'),
+    showOnCard: document.getElementById('m_showOnCard').checked,
+    used: 0,
+  };
+  // Чистимо зайве залежно від scope
+  if (data.scope !== 'categories') data.categoryIds = [];
+  if (data.scope !== 'products') data.productIds = [];
+
+  if (editingId) {
+    const idx = settings.promoCodes.findIndex(x => x.id === editingId);
+    if (idx >= 0) {
+      // Зберігаємо used
+      data.used = settings.promoCodes[idx].used || 0;
+      settings.promoCodes[idx] = data;
+    }
+  } else {
+    settings.promoCodes.push(data);
+  }
+
+  const ok = await saveAll();
+  if (ok) { toast('✅ Збережено'); closeModal(); renderList(); }
+  else toast('❌ Помилка', 'error');
+}
+
+loadSettings();
+</script>
+<script src="/admin/_admin.js"></script>
+</body>
+</html>

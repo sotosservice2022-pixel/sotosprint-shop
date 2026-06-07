@@ -1,0 +1,1395 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Оформлення сайту — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 100px; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    .card { background: #fff; border-radius: 14px; padding: 16px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], input[type=number], input[type=url], textarea, select {
+      width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #0b8aff; background: #fff; }
+    .grid { display: grid; gap: 10px; }
+    .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+    @media (max-width: 600px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-danger { background: #fee2e2; color: #991b1b; }
+    .btn-icon { padding: 6px 10px; font-size: 13px; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .checkbox-inline { display: flex; align-items: center; gap: 6px; }
+    .checkbox-inline input { width: auto; }
+
+    .save-bar { position: sticky; bottom: 16px; background: #fff; padding: 12px;
+      border-radius: 12px; box-shadow: 0 4px 20px rgba(20,30,60,.15);
+      display: flex; gap: 10px; align-items: center; }
+    .save-bar .left { flex: 1; font-size: 13px; color: #6b7280; }
+    .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">Адмінка</a> → Оформлення · <a href="#" onclick="logout(); return false;" style="color:#dc2626;">🚪 Вийти</a></div>
+  <h1>🎨 Оформлення сайту</h1>
+  <p class="sub">Шапка, кольори, шрифти, положення лого, тема, банери.</p>
+
+  <!-- ШАПКА -->
+  <div class="card">
+    <h2>🎨 Шапка сайту</h2>
+    <div class="grid">
+      <div class="grid grid-2">
+        <div>
+          <label>Колір фону шапки</label>
+          <input type="color" id="topbarBg" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">Колір тексту підбирається автоматично за контрастом, якщо не задано вручну нижче.</div>
+        </div>
+        <div>
+          <label>Колір тексту шапки (опціонально)</label>
+          <input type="color" id="topbarTextColorOverride" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">Залишити #000000 — буде підбиратися автоматично.</div>
+        </div>
+      </div>
+      <div>
+        <label>Картинка-фон шапки (опціонально)</label>
+        <input type="file" id="topbarBgImageFile" accept="image/*" />
+        <div class="hint">Якщо задано — перекриває колір. Стискається до 1200px.</div>
+        <div id="topbarBgPreview" style="margin-top: 8px; display: none;">
+          <img id="topbarBgPreviewImg" style="max-height: 80px; border-radius: 6px;" />
+          <button class="btn btn-danger btn-icon" type="button" onclick="clearTopbarBg()" style="margin-left: 8px;">Прибрати</button>
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div>
+          <label>Розмір шрифту назви магазину (px)</label>
+          <input type="number" id="topbarTitleSize" min="10" max="48" oninput="updateTopbarPreview()" />
+          <div class="hint" style="font-size:12px; color:#6b7280; margin-top:4px;">Діапазон 10-48. На вузьких екранах автоматично зменшується щоб не налазив на меню.</div>
+        </div>
+        <div>
+          <label>Мінімальний розмір (px) при адаптації</label>
+          <input type="number" id="topbarTitleMinSize" min="8" max="30" />
+          <div class="hint" style="font-size:12px; color:#6b7280; margin-top:4px;">Якщо назва не влазить — зменшується тільки до цього мінімуму, далі обрізається з «...». Постав більше якщо хочеш крупний шрифт навіть з обрізанням (за замовчуванням 14).</div>
+        </div>
+        <div>
+          <label>Розмір шрифту контактів (px)</label>
+          <input type="number" id="topbarContactsSize" min="9" max="24" oninput="updateTopbarPreview()" />
+          <div class="hint" style="font-size:12px; color:#6b7280; margin-top:4px;">Діапазон 9-24. Розмір телефонів/інстаграм у шапці.</div>
+        </div>
+        <div>
+          <label>Розмір шрифту меню (Доставка / Оплата / Про нас / Контакти) (px)</label>
+          <input type="number" id="headerMenuSize" min="10" max="22" oninput="updateTopbarPreview()" />
+          <div class="hint" style="font-size:12px; color:#6b7280; margin-top:4px;">Діапазон 10-22. Розмір пунктів меню в шапці.</div>
+        </div>
+      </div>
+
+      <!-- Назва — клік на головну -->
+      <div style="margin-top: 14px; padding: 12px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="titleLinksToHome" />
+          <label for="titleLinksToHome" style="margin:0; font-weight:600;">🏠 Клік по назві магазину веде на головну сторінку</label>
+        </div>
+        <div class="hint" style="font-size:12px; color:#166534; margin-top:6px;">
+          ℹ️ Якщо ввімкнено — назва магазину в шапці стає клікабельною. Корисно якщо лого приховане або користувач звик клікати по назві.
+        </div>
+      </div>
+
+      <!-- Зміщення назви по горизонталі -->
+      <div style="margin-top: 14px; padding: 12px; background: #fef3c7; border-radius: 8px; border: 1px solid #fbbf24;">
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <label style="font-weight: 600; font-size: 13px; margin: 0; min-width: 180px;">↔ Зміщення назви (десктоп):</label>
+          <input type="range" id="titleOffsetX" min="-300" max="300" step="5"
+                 oninput="document.getElementById('titleOffsetXVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 200px;" />
+          <strong id="titleOffsetXVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetTitleOffset()" style="font-size:12px;">↺</button>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px;">
+          <label style="font-weight: 600; font-size: 13px; margin: 0; min-width: 180px;">📱 Зміщення назви (мобільний):</label>
+          <input type="range" id="titleOffsetXMobile" min="-200" max="200" step="5"
+                 oninput="document.getElementById('titleOffsetXMobileVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 200px;" />
+          <strong id="titleOffsetXMobileVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetTitleOffsetMobile()" style="font-size:12px;">↺</button>
+        </div>
+        <div class="checkbox-inline" style="margin-top: 10px; padding: 8px; background: rgba(0,0,0,0.04); border-radius: 6px;">
+          <input type="checkbox" id="titleAbsoluteCenter" />
+          <label for="titleAbsoluteCenter" style="margin:0; font-weight:600;">📍 Назва строго по центру екрана (абсолютне позиціонування)</label>
+        </div>
+        <div class="hint" style="font-size:12px; color:#92400e; margin-top:6px;">
+          ℹ️ Звичайний режим: назва центрується між елементами зліва/справа (може бути зсунута якщо там різна кількість). Абсолютний режим: назва строго по центру екрана незалежно від інших елементів. <strong>⚠️ На вузьких екранах може налазити на меню/пошук</strong> — використовуй мобільне зміщення щоб підправити.
+        </div>
+      </div>
+
+      <!-- Зміщення пошуку, меню, кошика -->
+      <div style="margin-top: 14px; padding: 12px; background: #f3e8ff; border-radius: 8px; border: 1px solid #d8b4fe;">
+        <div style="font-weight: 600; font-size: 13px; color: #6b21a8; margin-bottom: 8px;">🎯 Зміщення інших елементів шапки</div>
+
+        <!-- Пошук -->
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <label style="font-size: 13px; margin: 0; min-width: 180px;">🔍 Пошук (десктоп):</label>
+          <input type="range" id="searchOffsetX" min="-300" max="300" step="5"
+                 oninput="document.getElementById('searchOffsetXVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 180px;" />
+          <strong id="searchOffsetXVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetOffset('searchOffsetX')" style="font-size:12px;">↺</button>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px;">
+          <label style="font-size: 13px; margin: 0; min-width: 180px;">📱 Пошук (мобільний):</label>
+          <input type="range" id="searchOffsetXMobile" min="-200" max="200" step="5"
+                 oninput="document.getElementById('searchOffsetXMobileVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 180px;" />
+          <strong id="searchOffsetXMobileVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetOffset('searchOffsetXMobile')" style="font-size:12px;">↺</button>
+        </div>
+
+        <!-- Меню -->
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+          <label style="font-size: 13px; margin: 0; min-width: 180px;">📋 Меню (десктоп):</label>
+          <input type="range" id="menuOffsetX" min="-300" max="300" step="5"
+                 oninput="document.getElementById('menuOffsetXVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 180px;" />
+          <strong id="menuOffsetXVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetOffset('menuOffsetX')" style="font-size:12px;">↺</button>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px;">
+          <label style="font-size: 13px; margin: 0; min-width: 180px;">📱 Меню (мобільний):</label>
+          <input type="range" id="menuOffsetXMobile" min="-200" max="200" step="5"
+                 oninput="document.getElementById('menuOffsetXMobileVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 180px;" />
+          <strong id="menuOffsetXMobileVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetOffset('menuOffsetXMobile')" style="font-size:12px;">↺</button>
+        </div>
+
+        <!-- Корзина -->
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 10px;">
+          <label style="font-size: 13px; margin: 0; min-width: 180px;">🛒 Кошик (десктоп):</label>
+          <input type="range" id="cartOffsetX" min="-300" max="300" step="5"
+                 oninput="document.getElementById('cartOffsetXVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 180px;" />
+          <strong id="cartOffsetXVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetOffset('cartOffsetX')" style="font-size:12px;">↺</button>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px;">
+          <label style="font-size: 13px; margin: 0; min-width: 180px;">📱 Кошик (мобільний):</label>
+          <input type="range" id="cartOffsetXMobile" min="-200" max="200" step="5"
+                 oninput="document.getElementById('cartOffsetXMobileVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 180px;" />
+          <strong id="cartOffsetXMobileVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetOffset('cartOffsetXMobile')" style="font-size:12px;">↺</button>
+        </div>
+        <div class="hint" style="font-size:12px; color:#6b21a8; margin-top:6px;">
+          ℹ️ Точне позиціонування пошуку, меню та кошика. Корисно щоб «прицілити» розташування під твій дизайн.
+        </div>
+      </div>
+
+      <!-- Глобальний масштаб шрифту каталогу -->
+      <div style="margin-top: 14px; padding: 12px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <label style="font-weight: 600; font-size: 13px; margin: 0;">🔠 Загальний розмір тексту каталогу:</label>
+          <input type="range" id="globalFontScale" min="0.8" max="1.5" step="0.05" oninput="document.getElementById('globalFontScaleVal').textContent=Math.round(this.value*100)+'%'" style="flex: 1; min-width: 200px;" />
+          <strong id="globalFontScaleVal">100%</strong>
+        </div>
+        <div class="hint" style="font-size:12px; color:#075985; margin-top:6px;">
+          ℹ️ Масштабує ВЕСЬ текст у каталозі (картки товарів, ціни, описи, кнопки). 80% — компактно, 100% — стандарт, 150% — велике для слабкого зору. Не впливає на шапку — для неї окремі регулятори вгорі.
+        </div>
+      </div>
+
+      <!-- Позиція підзаголовку -->
+      <div style="margin-top: 14px; padding: 12px; background: #fefce8; border-radius: 8px; border: 1px solid #fde047;">
+        <label style="font-weight: 600; font-size: 13px;">📝 Вирівнювання підзаголовку</label>
+        <div class="hint" style="font-size:12px; color:#854d0e; margin: 4px 0 8px 0;">
+          Це текст під шапкою (наприклад «Якісний друк ваших фотографій з доставкою по Україні»). Сам текст редагується в Налаштуваннях.
+        </div>
+        <select id="subtitleAlign" style="width: 200px;">
+          <option value="left">⬅️ Зліва</option>
+          <option value="center">⬛ По центру</option>
+          <option value="right">➡️ Справа</option>
+        </select>
+      </div>
+      <div style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-top: 8px;">
+        <strong style="font-size: 14px; color: #374151;">📐 Розташування елементів у шапці</strong>
+        <div class="hint" style="margin-bottom: 12px;">Для кожного елемента: <strong>зона</strong> (ліво/центр/право) і <strong>порядок</strong> (1 — найлівіше / найвище в зоні). Кошик завжди останній справа.</div>
+        <div class="grid grid-2">
+          <div>
+            <label>🖼 Логотип</label>
+            <div style="display: flex; gap: 6px;">
+              <select id="pos_logo" onchange="updateTopbarPreview()" style="flex: 1;">
+                <option value="left">Ліворуч</option>
+                <option value="center">По центру</option>
+                <option value="right">Праворуч</option>
+              </select>
+              <input type="number" id="ord_logo" min="1" max="9" oninput="updateTopbarPreview()" style="width: 70px;" title="Порядок" placeholder="№" />
+            </div>
+          </div>
+          <div>
+            <label>📛 Назва магазину</label>
+            <div style="display: flex; gap: 6px;">
+              <select id="pos_title" onchange="updateTopbarPreview()" style="flex: 1;">
+                <option value="left">Ліворуч</option>
+                <option value="center">По центру</option>
+                <option value="right">Праворуч</option>
+              </select>
+              <input type="number" id="ord_title" min="1" max="9" oninput="updateTopbarPreview()" style="width: 70px;" placeholder="№" />
+            </div>
+          </div>
+          <div>
+            <label>🧭 Меню</label>
+            <div style="display: flex; gap: 6px;">
+              <select id="pos_menu" onchange="updateTopbarPreview()" style="flex: 1;">
+                <option value="left">Ліворуч</option>
+                <option value="center">По центру</option>
+                <option value="right">Праворуч</option>
+              </select>
+              <input type="number" id="ord_menu" min="1" max="9" oninput="updateTopbarPreview()" style="width: 70px;" placeholder="№" />
+            </div>
+          </div>
+          <div>
+            <label>🔍 Пошук</label>
+            <div style="display: flex; gap: 6px;">
+              <select id="pos_search" onchange="updateTopbarPreview()" style="flex: 1;">
+                <option value="left">Ліворуч</option>
+                <option value="center">По центру</option>
+                <option value="right">Праворуч</option>
+              </select>
+              <input type="number" id="ord_search" min="1" max="9" oninput="updateTopbarPreview()" style="width: 70px;" placeholder="№" />
+            </div>
+          </div>
+          <div>
+            <label>📞 Контакти</label>
+            <div style="display: flex; gap: 6px;">
+              <select id="pos_contacts" onchange="updateTopbarPreview()" style="flex: 1;">
+                <option value="left">Ліворуч</option>
+                <option value="center">По центру</option>
+                <option value="right">Праворуч</option>
+              </select>
+              <input type="number" id="ord_contacts" min="1" max="9" oninput="updateTopbarPreview()" style="width: 70px;" placeholder="№" />
+            </div>
+          </div>
+        </div>
+        <div style="margin-top: 12px;">
+          <label style="font-size: 12px; color: #6b7280;">👁 Інтерактивне прев'ю шапки (показує як буде виглядати на сайті):</label>
+          <div id="topbarPreviewWrap" style="margin-top: 6px; padding: 6px; background: #f3f4f6; border-radius: 8px; border: 1px dashed #d1d5db;">
+            <div style="font-size: 11px; color: #6b7280; margin-bottom: 4px; text-align: center;">📺 Вид на 1366px (ноут)</div>
+            <div id="topbarPreview" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 10px 14px; background: #1c2129; color: #fff; border-radius: 8px; min-height: 56px;"></div>
+            <div style="font-size: 11px; color: #6b7280; margin: 8px 0 4px; text-align: center;">📱 Вид на мобільному (375px)</div>
+            <div id="topbarPreviewMobile" style="display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; padding: 8px 12px; background: #1c2129; color: #fff; border-radius: 8px; min-height: 48px; max-width: 343px; margin: 0 auto; box-sizing: border-box;"></div>
+            <div id="topbarPreviewWarn" style="font-size: 11px; margin-top: 6px; text-align: center;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- МЕНЮ В ШАПКЕ -->
+  <div class="card">
+    <h2>🧭 Меню в шапці (Доставка, Оплата, Про нас і т.д.)</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="headerMenuEnabled" />
+        <label for="headerMenuEnabled" style="margin:0">Показувати меню в шапці</label>
+      </div>
+      <div class="hint">Горизонтальні посилання поруч з назвою магазину. Клік відкриває модалку з описом. На мобільному (≤900px) автоматично ховається.</div>
+      <div id="headerMenuList"></div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px;">
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addHeaderMenuItem()">+ Додати пункт</button>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addDefaultHeaderMenu()">📋 Додати приклад (4 типових пункти)</button>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; margin-top: 14px; padding-top: 14px;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="headerSearchEnabled" />
+          <label for="headerSearchEnabled" style="margin:0">🔍 Показувати поле пошуку товарів у шапці</label>
+        </div>
+        <div class="hint">Дозволяє клієнту шукати товари за назвою / описом. На мобільному (≤700px) автоматично ховається.</div>
+        <div style="margin-top: 8px;">
+          <label>Текст-плейсхолдер у полі пошуку</label>
+          <input type="text" id="headerSearchPlaceholder" placeholder="🔍 Пошук товарів…" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ЛОГОТИП -->
+  <div class="card">
+    <h2>🖼 Логотип</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="logoEnabled" />
+        <label for="logoEnabled" style="margin:0">Показувати логотип у шапці</label>
+      </div>
+      <div class="checkbox-inline">
+        <input type="checkbox" id="logoLinksToHome" />
+        <label for="logoLinksToHome" style="margin:0">🏠 Клік по логотипу веде на головну сторінку</label>
+      </div>
+      <div>
+        <label>Зображення логотипа</label>
+        <input type="file" id="logoFile" accept="image/*" />
+        <div class="hint">Стискається до 256px. Прозорий фон (PNG) — добре.</div>
+        <div id="logoPreviewWrap" style="margin-top: 8px; display: none;">
+          <img id="logoPreview" style="max-height: 80px; max-width: 200px; border-radius: 6px; background: #f3f4f6; padding: 4px;" />
+          <button class="btn btn-danger btn-icon" type="button" onclick="clearLogo()" style="margin-left: 8px;">Прибрати</button>
+        </div>
+      </div>
+
+      <!-- Зміщення лого по горизонталі -->
+      <div style="margin-top: 12px; padding: 12px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+          <label style="font-weight: 600; font-size: 13px; margin: 0; min-width: 180px;">↔ Зміщення лого (десктоп):</label>
+          <input type="range" id="logoOffsetX" min="-300" max="300" step="5"
+                 oninput="document.getElementById('logoOffsetXVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 200px;" />
+          <strong id="logoOffsetXVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetLogoOffset()" style="font-size:12px;">↺</button>
+        </div>
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px;">
+          <label style="font-weight: 600; font-size: 13px; margin: 0; min-width: 180px;">📱 Зміщення лого (мобільний):</label>
+          <input type="range" id="logoOffsetXMobile" min="-200" max="200" step="5"
+                 oninput="document.getElementById('logoOffsetXMobileVal').textContent = this.value + 'px'"
+                 style="flex: 1; min-width: 200px;" />
+          <strong id="logoOffsetXMobileVal">0px</strong>
+          <button type="button" class="btn btn-icon" onclick="resetLogoOffsetMobile()" style="font-size:12px;">↺</button>
+        </div>
+        <div class="hint" style="font-size:12px; color:#075985; margin-top:6px;">
+          ℹ️ Точне підлаштовування позиції лого. Окремі значення для десктопу та мобільного (≤700px). Від'ємні — вліво, додатні — вправо.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- КАТАЛОГ -->
+  <div class="card">
+    <h2>📱 Каталог на мобільному</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="mobileTwoColumns" />
+        <label for="mobileTwoColumns" style="margin:0">Показувати товари у 2 колонки на мобільному</label>
+      </div>
+      <div class="hint">За замовчуванням мобільні екрани (≤599px) показують товари в 1 колонку. З цим прапором — у 2 колонки (товари дрібніші, але видно більше за раз).</div>
+    </div>
+  </div>
+
+  <!-- ИКОНКА ВКЛАДКИ -->
+  <div class="card">
+    <h2>📌 Іконка вкладки браузера (favicon)</h2>
+    <div class="grid">
+      <div>
+        <label>Завантажити власну іконку</label>
+        <input type="file" id="faviconFile" accept="image/*" />
+        <div class="hint">PNG/SVG/ICO. Стискається до 64×64. Якщо порожньо — використовується emoji 📸.</div>
+        <div id="faviconPreviewWrap" style="margin-top: 8px; display: none; align-items: center; gap: 12px;">
+          <img id="faviconPreview" style="width: 32px; height: 32px; border-radius: 4px; background: #f3f4f6; padding: 2px;" />
+          <span style="font-size: 13px; color: #6b7280;">Поточна іконка</span>
+          <button class="btn btn-danger btn-icon" type="button" onclick="clearFavicon()">Прибрати</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ТЕМА -->
+  <div class="card">
+    <h2>🌗 Тема сайту</h2>
+    <div class="grid">
+      <div>
+        <label>Світла / темна</label>
+        <select id="theme">
+          <option value="light">☀️ Світла</option>
+          <option value="dark">🌙 Темна</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- КНОПКИ -->
+  <div class="card">
+    <h2>🔘 Кнопки на сайті</h2>
+    <div class="grid">
+      <div class="grid grid-3">
+        <div>
+          <label>Колір кнопок</label>
+          <input type="color" id="buttonColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">Основний колір кнопок «У кошик», «Оформити замовлення», іконка кошика тощо.</div>
+        </div>
+        <div>
+          <label>Колір при наведенні (опціонально)</label>
+          <input type="color" id="buttonHoverColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">Якщо чорний — авто-затемнення основного.</div>
+        </div>
+        <div>
+          <label>Колір тексту на кнопках</label>
+          <input type="color" id="buttonTextColor" style="width: 100%; height: 44px; padding: 4px; cursor: pointer;" />
+          <div class="hint">За замовчуванням білий.</div>
+        </div>
+      </div>
+      <div>
+        <label>Колір успіху (галки, сповіщення)</label>
+        <input type="color" id="successColor" style="width: 200px; height: 44px; padding: 4px; cursor: pointer;" />
+        <div class="hint">Зелений колір за замовчуванням. Використовується для toast-сповіщень про успішні дії.</div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center; padding: 12px; background: var(--bg, #f9fafb); border-radius: 8px;">
+        <span style="font-size: 13px; color: #6b7280;">Прев'ю:</span>
+        <button class="btn btn-primary" id="previewBtn" style="cursor: default;">У кошик</button>
+        <button class="btn btn-primary" id="previewBtn2" style="cursor: default;">Оформити замовлення</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- БАННЕРЫ -->
+  <div class="card">
+    <h2>📢 Бічні рекламні банери</h2>
+    <div style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8; font-size:13px; margin-bottom: 14px;">
+      ℹ️ Банери показуються тільки на широких екранах (≥1500px), щоб не налазити на каталог. До 3 банерів зліва і 3 справа — стек один під одним.
+    </div>
+    <div style="margin-bottom: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <label style="font-weight: 600; font-size: 13px;">📐 Ширина банера:</label>
+      <input type="range" id="bannerWidth" min="140" max="280" step="10" oninput="document.getElementById('bannerWidthVal').textContent=this.value+'px'" style="flex: 1; min-width: 200px;" />
+      <strong id="bannerWidthVal">180px</strong>
+      <span class="hint" style="font-size: 12px;">Спільна ширина для всіх банерів. Налаштовуйте щоб вміщалось і не налазило на каталог.</span>
+    </div>
+    <!-- Авто-ротація бічних банерів -->
+    <div style="margin-bottom: 14px; padding: 12px; background: #ecfeff; border-radius: 8px; border: 1px solid #67e8f9;">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="sideBannersRotateEnabled" />
+        <label for="sideBannersRotateEnabled" style="margin: 0; font-weight: 600;">▶ Автоматична зміна банерів (карусель)</label>
+      </div>
+      <div style="margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <label style="font-size: 13px; margin: 0;">Інтервал (сек):</label>
+        <input type="number" id="sideBannersRotateInterval" min="1" max="60" step="1" style="width: 80px;" />
+        <label style="font-size: 13px; margin: 0;">Ефект:</label>
+        <select id="sideBannersTransitionEffect" style="font-size: 13px;">
+          <option value="fade">🌫 Плавне зникнення</option>
+          <option value="slide-left">⬅ Слайд вліво</option>
+          <option value="slide-right">➡ Слайд вправо</option>
+          <option value="instant">⚡ Миттєво</option>
+        </select>
+      </div>
+      <div class="hint" style="font-size: 12px; color: #0e7490; margin-top: 6px;">
+        ℹ️ Якщо ввімкнено — на кожній стороні (ліво / право) показується тільки 1 увімкнений банер, які чергуються. Якщо вимкнено — всі видимі банери складаються один під одним.
+      </div>
+    </div>
+    <div class="grid">
+      <div>
+        <h3 style="font-size: 14px; margin: 0 0 8px; color: #374151;">⬅️ Лівий стовпець</h3>
+        <div id="leftBannersContainer"></div>
+      </div>
+      <div>
+        <h3 style="font-size: 14px; margin: 0 0 8px; color: #374151;">➡️ Правий стовпець</h3>
+        <div id="rightBannersContainer"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HERO BANNER -->
+  <div class="card">
+    <h2>🎯 Hero-банер під шапкою</h2>
+    <div style="background:#fef3c7; padding:10px; border-radius:8px; color:#92400e; font-size:13px; margin-bottom: 14px;">
+      ℹ️ Великий банер на всю ширину, відразу під шапкою, перед каталогом. Висота динамічно адаптується під контент. Зручно для акцій / новинок.
+    </div>
+    <div class="checkbox-inline" style="margin-bottom: 12px;">
+      <input type="checkbox" id="heroEnabled" />
+      <label for="heroEnabled" style="margin: 0">Увімкнути Hero-банер</label>
+    </div>
+    <div class="grid grid-2" id="heroSettings">
+      <div>
+        <label>🖼 Фонове зображення</label>
+        <input type="file" id="heroImageFile" accept="image/*" />
+        <div id="heroImagePreview" style="margin-top: 6px; display: none;">
+          <img id="heroImagePreviewImg" style="max-width: 200px; max-height: 120px; border-radius: 6px;" />
+          <button class="btn btn-danger btn-icon" type="button" onclick="clearHeroImage()" style="margin-left: 8px;">Прибрати</button>
+        </div>
+        <div class="hint" style="font-size: 12px;">Великий розмір (мін. 1200px ширина). Буде розтягнуте на всю ширину.</div>
+
+        <!-- Слайдшоу: додаткові зображення -->
+        <div style="margin-top: 14px; padding: 10px; background: #ecfeff; border-radius: 8px; border: 1px solid #67e8f9;">
+          <div style="font-weight: 600; font-size: 13px; color: #0e7490; margin-bottom: 6px;">🎞 Додаткові зображення для слайдшоу</div>
+          <input type="file" id="heroExtraImageFile" accept="image/*" />
+          <div class="hint" style="font-size: 12px; color: #0e7490; margin-bottom: 6px;">Завантажуй по одному. Чергуються разом з основним.</div>
+          <div id="heroExtraImagesList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;"></div>
+
+          <div class="checkbox-inline" style="margin-top: 10px;">
+            <input type="checkbox" id="heroRotateEnabled" />
+            <label for="heroRotateEnabled" style="margin: 0; font-weight: 600;">▶ Автоматична зміна зображень</label>
+          </div>
+          <div style="margin-top: 6px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <label style="font-size: 13px; margin: 0;">Інтервал (сек):</label>
+            <input type="number" id="heroRotateInterval" min="1" max="60" step="1" style="width: 80px;" />
+            <label style="font-size: 13px; margin: 0;">Ефект:</label>
+            <select id="heroTransitionEffect" style="font-size: 13px;">
+              <option value="fade">🌫 Плавне зникнення</option>
+              <option value="slide-left">⬅ Слайд вліво</option>
+              <option value="slide-right">➡ Слайд вправо</option>
+              <option value="instant">⚡ Миттєво</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div>
+        <label>📝 Текст банера (опціонально, можна кілька рядків)</label>
+        <textarea id="heroText" rows="3" oninput="updateHeroPreview()" style="width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: inherit; background: #fafbfc; resize: vertical;" placeholder="Наприклад: 🎉 Знижка -20% на всі чашки до 1 червня!"></textarea>
+      </div>
+      <div>
+        <label>🎨 Колір тексту</label>
+        <input type="color" id="heroTextColor" oninput="updateHeroPreview()" style="height: 40px; width: 100%; cursor: pointer;" />
+      </div>
+      <div>
+        <label>⬛ Прозорість темної підкладки під текстом</label>
+        <input type="range" id="heroTextBgOpacity" min="0" max="0.8" step="0.05" oninput="document.getElementById('heroOpacityVal').textContent=Math.round(this.value*100)+'%'; updateHeroPreview()" style="width: 100%;" />
+        <div style="font-size: 12px;">Поточне: <strong id="heroOpacityVal">40%</strong></div>
+        <div class="hint" style="font-size: 11px;">0% — без підкладки. Більше — текст легше читати на яскравих фото.</div>
+      </div>
+      <div>
+        <label>↕️ Позиція тексту по вертикалі</label>
+        <select id="heroTextPosition" onchange="updateHeroPreview()">
+          <option value="top">Зверху</option>
+          <option value="center" selected>По центру</option>
+          <option value="bottom">Знизу</option>
+        </select>
+      </div>
+      <div>
+        <label>↔️ Вирівнювання тексту</label>
+        <select id="heroTextAlign" onchange="updateHeroPreview()">
+          <option value="left">Зліва</option>
+          <option value="center" selected>По центру</option>
+          <option value="right">Справа</option>
+        </select>
+      </div>
+      <div>
+        <label>📏 Мінімальна висота банера (px)</label>
+        <input type="number" id="heroMinHeight" min="60" max="600" oninput="updateHeroPreview()" />
+        <div class="hint" style="font-size: 12px;">60-600px. Реальна висота може бути більшою якщо тексту багато.</div>
+      </div>
+      <div>
+        <label>🔗 Посилання при кліку (URL або ID товару)</label>
+        <input type="text" id="heroLink" placeholder="https://example.com або порожньо" />
+        <select id="heroProductId" style="margin-top: 6px;">
+          <option value="">— Не пов'язувати з товаром —</option>
+        </select>
+        <div class="hint" style="font-size: 12px;">Якщо вибрати товар → клік відкриває картку товару.</div>
+      </div>
+    </div>
+
+    <!-- Live превʼю -->
+    <div style="margin-top: 16px; padding: 14px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px;">
+      <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">👁 Превʼю того, як буде виглядати на сайті:</div>
+      <div id="heroPreview" style="width: 100%; min-height: 250px; background-size: cover; background-position: center; background-color: #6b7280; border-radius: 8px; position: relative; display: flex; overflow: hidden;">
+        <div id="heroPreviewOverlay" style="position: absolute; inset: 0; pointer-events: none;"></div>
+        <div id="heroPreviewInner" style="position: relative; z-index: 1; display: flex; flex-direction: column; width: 100%; padding: 30px 16px; box-sizing: border-box;">
+          <div id="heroPreviewText" style="max-width: 100%; padding: 16px 20px; font-size: 22px; font-weight: 600; line-height: 1.4; white-space: pre-wrap; word-break: break-word; text-shadow: 0 2px 8px rgba(0,0,0,0.4);"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="save-bar">
+    <span class="left" id="status">Готово</span>
+    <button class="btn btn-secondary" onclick="loadAll()">Скасувати</button>
+    <button class="btn btn-primary" onclick="saveAll()">💾 Зберегти все</button>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_r2-upload.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+let settings = {};
+
+async function loadAll() {
+  setStatus('Завантаження…');
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    if (!r.ok) throw new Error('Помилка ' + r.status);
+    settings = (await r.json()).settings || {};
+    if (typeof syncLockReorder === 'function') syncLockReorder(settings);
+    render();
+    setStatus('Завантажено');
+  } catch (e) { setStatus('Помилка: ' + e.message, true); }
+}
+
+function render() {
+  // Шапка
+  document.getElementById('topbarBg').value = settings.topbarBg || '#ffffff';
+  document.getElementById('topbarTextColorOverride').value = settings.topbarTextColorOverride || '#000000';
+  document.getElementById('topbarTitleSize').value = settings.topbarTitleSize || 17;
+  document.getElementById('topbarTitleMinSize').value = settings.topbarTitleMinSize || 14;
+  document.getElementById('topbarContactsSize').value = settings.topbarContactsSize || 12;
+  document.getElementById('headerMenuSize').value = settings.headerMenuSize || 14;
+  // Глобальний масштаб шрифту
+  const fs = parseFloat(settings.globalFontScale);
+  const scale = (fs >= 0.8 && fs <= 1.5) ? fs : 1.0;
+  document.getElementById('globalFontScale').value = scale;
+  document.getElementById('globalFontScaleVal').textContent = Math.round(scale * 100) + '%';
+  // Вирівнювання підзаголовку
+  document.getElementById('subtitleAlign').value = settings.subtitleAlign || 'left';
+  // Legacy fields (елементи вже не існують, але збережені значення залишаємо)
+  // settings.topbarLayout / topbarTitleAlign більше не редагуються через UI
+  // Нові positions
+  const defPositions = { logo: 'left', title: 'left', menu: 'center', search: 'center', contacts: 'right' };
+  const positions = settings.topbarPositions || defPositions;
+  const defOrder = { logo: 1, search: 2, title: 3, menu: 4, contacts: 5 };
+  const orders = settings.topbarElementOrder || defOrder;
+  ['logo','title','menu','search','contacts'].forEach(k => {
+    const el = document.getElementById('pos_' + k);
+    if (el) el.value = positions[k] || defPositions[k];
+    const ord = document.getElementById('ord_' + k);
+    if (ord) ord.value = orders[k] || defOrder[k];
+  });
+  updateTopbarPreview();
+  if (settings.topbarBgImage) {
+    document.getElementById('topbarBgPreviewImg').src = settings.topbarBgImage;
+    document.getElementById('topbarBgPreview').style.display = '';
+  } else {
+    document.getElementById('topbarBgPreview').style.display = 'none';
+  }
+  // Лого
+  document.getElementById('logoEnabled').checked = !!settings.logoEnabled;
+  document.getElementById('logoLinksToHome').checked = settings.logoLinksToHome !== false;
+  // Назва — клік на головну
+  document.getElementById('titleLinksToHome').checked = !!settings.titleLinksToHome;
+  // Зміщення лого
+  const offX = parseInt(settings.logoOffsetX, 10) || 0;
+  document.getElementById('logoOffsetX').value = offX;
+  document.getElementById('logoOffsetXVal').textContent = offX + 'px';
+  const offXm = parseInt(settings.logoOffsetXMobile, 10) || 0;
+  document.getElementById('logoOffsetXMobile').value = offXm;
+  document.getElementById('logoOffsetXMobileVal').textContent = offXm + 'px';
+  // Зміщення назви
+  const titleOffX = parseInt(settings.titleOffsetX, 10) || 0;
+  document.getElementById('titleOffsetX').value = titleOffX;
+  document.getElementById('titleOffsetXVal').textContent = titleOffX + 'px';
+  const titleOffXm = parseInt(settings.titleOffsetXMobile, 10) || 0;
+  document.getElementById('titleOffsetXMobile').value = titleOffXm;
+  document.getElementById('titleOffsetXMobileVal').textContent = titleOffXm + 'px';
+  document.getElementById('titleAbsoluteCenter').checked = !!settings.titleAbsoluteCenter;
+  // Зміщення пошуку, меню, кошика
+  ['searchOffsetX', 'searchOffsetXMobile', 'menuOffsetX', 'menuOffsetXMobile', 'cartOffsetX', 'cartOffsetXMobile'].forEach(key => {
+    const v = parseInt(settings[key], 10) || 0;
+    const el = document.getElementById(key);
+    const valEl = document.getElementById(key + 'Val');
+    if (el) el.value = v;
+    if (valEl) valEl.textContent = v + 'px';
+  });
+  document.getElementById('mobileTwoColumns').checked = !!settings.mobileTwoColumns;
+  if (settings.logoImage) {
+    document.getElementById('logoPreview').src = settings.logoImage;
+    document.getElementById('logoPreviewWrap').style.display = '';
+  } else {
+    document.getElementById('logoPreviewWrap').style.display = 'none';
+  }
+  // Тема
+  document.getElementById('theme').value = settings.theme || 'light';
+  // Кнопки
+  document.getElementById('buttonColor').value = settings.buttonColor || '#0b8aff';
+  document.getElementById('buttonHoverColor').value = settings.buttonHoverColor || '#000000';
+  document.getElementById('buttonTextColor').value = settings.buttonTextColor || '#ffffff';
+  document.getElementById('successColor').value = settings.successColor || '#16a34a';
+  updateButtonPreview();
+  // Favicon
+  const fwrap = document.getElementById('faviconPreviewWrap');
+  if (settings.faviconImage) {
+    document.getElementById('faviconPreview').src = settings.faviconImage;
+    if (fwrap) fwrap.style.display = 'flex';
+  } else if (fwrap) { fwrap.style.display = 'none'; }
+  // Баннеры (новий формат — 3 слоти ліво/право + hero)
+  const bw = (parseInt(settings.bannerWidth, 10) >= 140 && parseInt(settings.bannerWidth, 10) <= 280) ? parseInt(settings.bannerWidth, 10) : 180;
+  document.getElementById('bannerWidth').value = bw;
+  document.getElementById('bannerWidthVal').textContent = bw + 'px';
+  // Гарантія структури sideBanners
+  if (!settings.sideBanners) settings.sideBanners = { left: [], right: [] };
+  if (!Array.isArray(settings.sideBanners.left)) settings.sideBanners.left = [];
+  if (!Array.isArray(settings.sideBanners.right)) settings.sideBanners.right = [];
+  while (settings.sideBanners.left.length < 3) settings.sideBanners.left.push(emptyBanner());
+  while (settings.sideBanners.right.length < 3) settings.sideBanners.right.push(emptyBanner());
+  // Авто-ротація бічних банерів
+  document.getElementById('sideBannersRotateEnabled').checked = !!settings.sideBanners.rotateEnabled;
+  document.getElementById('sideBannersRotateInterval').value = parseInt(settings.sideBanners.rotateInterval, 10) || 5;
+  document.getElementById('sideBannersTransitionEffect').value = settings.sideBanners.transitionEffect || 'fade';
+  renderBannerSlots('left');
+  renderBannerSlots('right');
+  // Hero
+  if (!settings.heroBanner) settings.heroBanner = {};
+  loadHeroBanner();
+  // Завантажуємо список товарів для випадайки productId (Hero та боковому)
+  loadProductsForBannerLink();
+  // Меню в шапці
+  document.getElementById('headerMenuEnabled').checked = settings.headerMenuEnabled !== false;
+  if (!Array.isArray(settings.headerMenu)) settings.headerMenu = [];
+  renderHeaderMenu();
+  // Пошук у шапці
+  document.getElementById('headerSearchEnabled').checked = !!settings.headerSearchEnabled;
+  document.getElementById('headerSearchPlaceholder').value = settings.headerSearchPlaceholder || '';
+}
+
+function renderHeaderMenu() {
+  const wrap = document.getElementById('headerMenuList');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  if (!Array.isArray(settings.headerMenu) || settings.headerMenu.length === 0) {
+    wrap.innerHTML = '<div class="hint" style="margin: 8px 0;">Жодного пункту. Натисни «+ Додати пункт» або «📋 Додати приклад».</div>';
+    return;
+  }
+  settings.headerMenu.forEach((item, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; margin-bottom: 8px; background: #fafbfc;';
+    row.innerHTML = `
+      <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+        <div class="row-arrows">
+          <button type="button" onclick="moveHeaderMenu(${i}, -1)" ${i===0?'disabled':''} title="Вгору">▲</button>
+          <button type="button" onclick="moveHeaderMenu(${i}, 1)" ${i===settings.headerMenu.length-1?'disabled':''} title="Вниз">▼</button>
+        </div>
+        <input type="text" data-k="title" value="${escapeAttr(item.title || '')}" placeholder="Назва (наприклад: Доставка)" style="flex: 1; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px;" />
+        <label class="checkbox-inline" style="white-space:nowrap;">
+          <input type="checkbox" data-k="enabled" ${item.enabled !== false ? 'checked' : ''} />
+          <span style="font-size: 13px;">Показувати</span>
+        </label>
+        <button class="btn btn-danger btn-icon" type="button" onclick="removeHeaderMenu(${i})">×</button>
+      </div>
+      <textarea data-k="content" rows="4" placeholder="Опис пункту (можна HTML — &lt;p&gt;, &lt;a&gt;, &lt;strong&gt; і т.д.)" style="width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff;">${escapeHtml(item.content || '')}</textarea>
+    `;
+    wrap.appendChild(row);
+    row.querySelectorAll('[data-k]').forEach(el => {
+      const upd = () => {
+        const k = el.dataset.k;
+        item[k] = el.type === 'checkbox' ? el.checked : el.value;
+      };
+      el.addEventListener('input', upd);
+      el.addEventListener('change', upd);
+    });
+  });
+}
+
+function addHeaderMenuItem() {
+  if (!Array.isArray(settings.headerMenu)) settings.headerMenu = [];
+  settings.headerMenu.push({
+    id: 'menu_' + Math.random().toString(36).slice(2, 9),
+    title: 'Новий пункт',
+    content: '',
+    enabled: true,
+  });
+  renderHeaderMenu();
+}
+
+function addDefaultHeaderMenu() {
+  if (!Array.isArray(settings.headerMenu)) settings.headerMenu = [];
+  const defaults = [
+    { id: 'menu_delivery', title: 'Доставка', content: '<p>Способи доставки:</p><ul><li>Нова Пошта — по всій Україні</li><li>Самовивіз з міста</li><li>Курʼєр (для Києва)</li></ul><p>Доставка зазвичай 1-3 робочі дні після оформлення.</p>', enabled: true },
+    { id: 'menu_payment',  title: 'Оплата',   content: '<p>Способи оплати:</p><ul><li>Готівкою при отриманні</li><li>На картку ПриватБанк / Monobank</li><li>Передплата 100% перед відправкою</li></ul>', enabled: true },
+    { id: 'menu_about',    title: 'Про нас',  content: '<p>Sotosprint — друк фотографій з 2020 року.</p><p>Якісні матеріали, швидка доставка по всій Україні.</p>', enabled: true },
+    { id: 'menu_contacts', title: 'Контакти', content: '<p><strong>Телефон:</strong> +380 (xx) xxx-xx-xx</p><p><strong>Email:</strong> info@sotosprint.store</p><p><strong>Telegram:</strong> @sotosprint</p>', enabled: true },
+  ];
+  // Не дублюємо якщо вже додано
+  const existing = new Set(settings.headerMenu.map(m => m.id));
+  defaults.forEach(d => { if (!existing.has(d.id)) settings.headerMenu.push(d); });
+  renderHeaderMenu();
+}
+
+function removeHeaderMenu(i) {
+  if (!confirm('Видалити пункт меню?')) return;
+  settings.headerMenu.splice(i, 1);
+  renderHeaderMenu();
+}
+
+function moveHeaderMenu(i, dir) {
+  const t = i + dir;
+  if (t < 0 || t >= settings.headerMenu.length) return;
+  [settings.headerMenu[i], settings.headerMenu[t]] = [settings.headerMenu[t], settings.headerMenu[i]];
+  renderHeaderMenu();
+}
+
+function escapeAttr(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeHtml(s) { return escapeAttr(s); }
+
+async function saveAll() {
+  // Шапка
+  settings.topbarBg = document.getElementById('topbarBg').value || '#ffffff';
+  const tco = document.getElementById('topbarTextColorOverride').value;
+  settings.topbarTextColorOverride = (tco && tco !== '#000000') ? tco : '';
+  settings.topbarTitleSize = parseInt(document.getElementById('topbarTitleSize').value, 10) || 17;
+  settings.topbarTitleMinSize = parseInt(document.getElementById('topbarTitleMinSize').value, 10) || 14;
+  settings.topbarContactsSize = parseInt(document.getElementById('topbarContactsSize').value, 10) || 12;
+  settings.headerMenuSize = parseInt(document.getElementById('headerMenuSize').value, 10) || 14;
+  settings.globalFontScale = parseFloat(document.getElementById('globalFontScale').value) || 1.0;
+  settings.subtitleAlign = document.getElementById('subtitleAlign').value || 'left';
+  // Нові positions
+  settings.topbarPositions = {
+    logo: document.getElementById('pos_logo').value,
+    title: document.getElementById('pos_title').value,
+    menu: document.getElementById('pos_menu').value,
+    search: document.getElementById('pos_search').value,
+    contacts: document.getElementById('pos_contacts').value,
+  };
+  settings.topbarElementOrder = {
+    logo: parseInt(document.getElementById('ord_logo').value, 10) || 1,
+    title: parseInt(document.getElementById('ord_title').value, 10) || 3,
+    menu: parseInt(document.getElementById('ord_menu').value, 10) || 4,
+    search: parseInt(document.getElementById('ord_search').value, 10) || 2,
+    contacts: parseInt(document.getElementById('ord_contacts').value, 10) || 5,
+  };
+  // Лого
+  settings.logoEnabled = document.getElementById('logoEnabled').checked;
+  settings.logoLinksToHome = document.getElementById('logoLinksToHome').checked;
+  settings.logoOffsetX = parseInt(document.getElementById('logoOffsetX').value, 10) || 0;
+  settings.logoOffsetXMobile = parseInt(document.getElementById('logoOffsetXMobile').value, 10) || 0;
+  // Назва
+  settings.titleLinksToHome = document.getElementById('titleLinksToHome').checked;
+  settings.titleOffsetX = parseInt(document.getElementById('titleOffsetX').value, 10) || 0;
+  settings.titleOffsetXMobile = parseInt(document.getElementById('titleOffsetXMobile').value, 10) || 0;
+  settings.titleAbsoluteCenter = document.getElementById('titleAbsoluteCenter').checked;
+  // Зміщення інших елементів шапки
+  ['searchOffsetX', 'searchOffsetXMobile', 'menuOffsetX', 'menuOffsetXMobile', 'cartOffsetX', 'cartOffsetXMobile'].forEach(key => {
+    const el = document.getElementById(key);
+    if (el) settings[key] = parseInt(el.value, 10) || 0;
+  });
+  settings.mobileTwoColumns = document.getElementById('mobileTwoColumns').checked;
+  // Тема
+  settings.theme = document.getElementById('theme').value;
+  // Кнопки
+  settings.buttonColor = document.getElementById('buttonColor').value || '#0b8aff';
+  const hov = document.getElementById('buttonHoverColor').value;
+  settings.buttonHoverColor = (hov && hov !== '#000000') ? hov : '';
+  settings.buttonTextColor = document.getElementById('buttonTextColor').value || '#ffffff';
+  settings.successColor = document.getElementById('successColor').value || '#16a34a';
+  // Баннеры (новий формат — sideBanners + heroBanner вже у settings.sideBanners завдяки collectBannerSlots)
+  settings.bannerWidth = parseInt(document.getElementById('bannerWidth').value, 10) || 180;
+  collectBannerSlots('left');
+  collectBannerSlots('right');
+  // Авто-ротація бічних банерів
+  if (!settings.sideBanners) settings.sideBanners = { left: [], right: [] };
+  settings.sideBanners.rotateEnabled = document.getElementById('sideBannersRotateEnabled').checked;
+  settings.sideBanners.rotateInterval = parseInt(document.getElementById('sideBannersRotateInterval').value, 10) || 5;
+  settings.sideBanners.transitionEffect = document.getElementById('sideBannersTransitionEffect').value || 'fade';
+  collectHeroBanner();
+  // Ховаємо легасі-поля (бекап-сумісність — ставимо false щоб не плутали)
+  settings.bannerLeftEnabled = false;
+  settings.bannerRightEnabled = false;
+  // Меню в шапці (масив headerMenu вже синхронізується через події в renderHeaderMenu)
+  settings.headerMenuEnabled = document.getElementById('headerMenuEnabled').checked;
+  // Пошук у шапці
+  settings.headerSearchEnabled = document.getElementById('headerSearchEnabled').checked;
+  settings.headerSearchPlaceholder = document.getElementById('headerSearchPlaceholder').value.trim() || '🔍 Пошук товарів…';
+
+  setStatus('Зберігаю…');
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✅ Збережено');
+    setStatus('Збережено ' + new Date().toLocaleTimeString('uk-UA'));
+    await loadAll();
+  } catch (e) { setStatus('Помилка: ' + e.message, true); toast('❌ ' + e.message, 'error'); }
+}
+
+// === Картинки ===
+async function compressImageToDataUrl(file, maxSide, quality) {
+  let src;
+  try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+  catch {
+    src = await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = URL.createObjectURL(file); });
+  }
+  const w = src.width, h = src.height;
+  const ratio = Math.min(1, maxSide / Math.max(w, h));
+  const nw = Math.round(w * ratio), nh = Math.round(h * ratio);
+  const canvas = document.createElement('canvas');
+  canvas.width = nw; canvas.height = nh;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, nw, nh);
+  try { src.close?.(); } catch {}
+  return canvas.toDataURL(file.type === 'image/png' ? 'image/png' : 'image/jpeg', quality);
+}
+
+async function onLogoFile(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Це не картинка', 'error'); return; }
+  try {
+    settings.logoImage = await uploadToR2(file, { compress: true, maxSide: 256, quality: 0.9, prefix: 'logo' });
+    document.getElementById('logoPreview').src = settings.logoImage;
+    document.getElementById('logoPreviewWrap').style.display = '';
+    toast('✅ Логотип завантажено (натисни «Зберегти все»)');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+function clearLogo() {
+  if (!confirm('Прибрати логотип? (файл також видалиться зі сховища)')) return;
+  deleteFromR2(settings.logoImage);
+  settings.logoImage = '';
+  document.getElementById('logoPreview').src = '';
+  document.getElementById('logoPreviewWrap').style.display = 'none';
+  document.getElementById('logoFile').value = '';
+}
+
+function resetLogoOffset() {
+  document.getElementById('logoOffsetX').value = 0;
+  document.getElementById('logoOffsetXVal').textContent = '0px';
+}
+
+function resetLogoOffsetMobile() {
+  document.getElementById('logoOffsetXMobile').value = 0;
+  document.getElementById('logoOffsetXMobileVal').textContent = '0px';
+}
+
+function resetTitleOffset() {
+  document.getElementById('titleOffsetX').value = 0;
+  document.getElementById('titleOffsetXVal').textContent = '0px';
+}
+
+function resetTitleOffsetMobile() {
+  document.getElementById('titleOffsetXMobile').value = 0;
+  document.getElementById('titleOffsetXMobileVal').textContent = '0px';
+}
+
+// Універсальний reset для будь-якого офсета (search/menu/cart)
+function resetOffset(id) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(id + 'Val');
+  if (el) el.value = 0;
+  if (valEl) valEl.textContent = '0px';
+}
+
+async function onTopbarBgFile(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  try {
+    settings.topbarBgImage = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'topbar-bg' });
+    document.getElementById('topbarBgPreviewImg').src = settings.topbarBgImage;
+    document.getElementById('topbarBgPreview').style.display = '';
+    toast('✅ Фон завантажено (натисни «Зберегти все»)');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+function clearTopbarBg() {
+  if (!confirm('Прибрати картинку-фон шапки?')) return;
+  settings.topbarBgImage = '';
+  document.getElementById('topbarBgPreviewImg').src = '';
+  document.getElementById('topbarBgPreview').style.display = 'none';
+  document.getElementById('topbarBgImageFile').value = '';
+}
+
+// === НОВА СИСТЕМА: бічні банери як масиви + Hero банер ===
+function emptyBanner() {
+  return { enabled: false, image: '', video: '', text: '', link: '', productId: '' };
+}
+
+function renderBannerSlots(side) {
+  const container = document.getElementById(side + 'BannersContainer');
+  if (!container) return;
+  const arr = settings.sideBanners[side];
+  container.innerHTML = arr.map((b, i) => bannerSlotHtml(side, i, b)).join('');
+}
+
+function bannerSlotHtml(side, idx, b) {
+  return `
+    <div style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fafbfc;">
+      <div class="checkbox-inline" style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+        <label style="margin: 0; cursor: pointer;">
+          <input type="checkbox" id="b_${side}_${idx}_enabled" ${b.enabled ? 'checked' : ''} style="margin-right: 6px;" />
+          <strong>Слот ${idx + 1}</strong>
+        </label>
+      </div>
+      <input type="file" id="b_${side}_${idx}_imageFile" accept="image/*" style="margin-bottom: 6px;" data-side="${side}" data-idx="${idx}" />
+      <div id="b_${side}_${idx}_imagePreview" style="margin-bottom: 6px; ${b.image ? '' : 'display: none;'}">
+        <img id="b_${side}_${idx}_imagePreviewImg" src="${escapeAttr(b.image)}" style="max-width: 140px; border-radius: 6px;" />
+        <button class="btn btn-danger btn-icon" type="button" onclick="clearSlotImage('${side}', ${idx})" style="margin-left: 8px;">×</button>
+      </div>
+      <input type="url" id="b_${side}_${idx}_video" value="${escapeAttr(b.video)}" placeholder="Відео URL (опц.)" style="margin-bottom: 6px;" />
+      <textarea id="b_${side}_${idx}_text" rows="2" placeholder="Текст реклами" style="width: 100%; padding: 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-family: inherit; resize: vertical; margin-bottom: 6px; font-size: 13px;">${escapeHtml(b.text)}</textarea>
+      <input type="url" id="b_${side}_${idx}_link" value="${escapeAttr(b.link)}" placeholder="Посилання (URL)" style="margin-bottom: 6px;" />
+      <select id="b_${side}_${idx}_productId" class="banner-product-select" data-cur="${escapeAttr(b.productId)}" style="width: 100%;">
+        <option value="">— Або вибрати товар (відкриє картку) —</option>
+      </select>
+    </div>`;
+}
+
+// Збирає поточні значення з UI у settings.sideBanners[side]
+function collectBannerSlots(side) {
+  const arr = [];
+  for (let i = 0; i < 3; i++) {
+    const enabled = document.getElementById(`b_${side}_${i}_enabled`)?.checked || false;
+    const video = document.getElementById(`b_${side}_${i}_video`)?.value.trim() || '';
+    const text = document.getElementById(`b_${side}_${i}_text`)?.value || '';
+    const link = document.getElementById(`b_${side}_${i}_link`)?.value.trim() || '';
+    const productId = document.getElementById(`b_${side}_${i}_productId`)?.value || '';
+    // Зображення зберігається в settings.sideBanners[side][i].image (через onSlotFile)
+    const image = settings.sideBanners[side][i]?.image || '';
+    arr.push({ enabled, image, video, text, link, productId });
+  }
+  settings.sideBanners[side] = arr;
+}
+
+// Завантаження файлу для слота
+async function onSlotFile(side, idx, fileInput) {
+  const file = fileInput.files?.[0]; if (!file) return;
+  try {
+    const url = await uploadToR2(file, { compress: true, maxSide: 800, quality: 0.85, prefix: `banner-${side}-${idx}` });
+    settings.sideBanners[side][idx].image = url;
+    const img = document.getElementById(`b_${side}_${idx}_imagePreviewImg`);
+    if (img) img.src = url;
+    const wrap = document.getElementById(`b_${side}_${idx}_imagePreview`);
+    if (wrap) wrap.style.display = '';
+    toast('✅ Картинку завантажено (натисни «Зберегти все»)');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+
+function clearSlotImage(side, idx) {
+  if (!confirm('Прибрати картинку?')) return;
+  settings.sideBanners[side][idx].image = '';
+  const img = document.getElementById(`b_${side}_${idx}_imagePreviewImg`);
+  if (img) img.src = '';
+  const wrap = document.getElementById(`b_${side}_${idx}_imagePreview`);
+  if (wrap) wrap.style.display = 'none';
+  const fi = document.getElementById(`b_${side}_${idx}_imageFile`);
+  if (fi) fi.value = '';
+}
+
+// Делегований слухач для всіх file-input у слотах
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.matches?.('input[type="file"][id^="b_"][id$="_imageFile"]')) {
+    const side = t.dataset.side;
+    const idx = parseInt(t.dataset.idx, 10);
+    if (side && !isNaN(idx)) onSlotFile(side, idx, t);
+  }
+});
+
+// === Hero-банер ===
+async function loadHeroBanner() {
+  const h = settings.heroBanner || {};
+  document.getElementById('heroEnabled').checked = !!h.enabled;
+  document.getElementById('heroText').value = h.text || '';
+  document.getElementById('heroTextColor').value = h.textColor || '#ffffff';
+  const op = (typeof h.textBgOpacity === 'number') ? h.textBgOpacity : 0.4;
+  document.getElementById('heroTextBgOpacity').value = op;
+  document.getElementById('heroOpacityVal').textContent = Math.round(op * 100) + '%';
+  document.getElementById('heroTextPosition').value = h.textPosition || 'center';
+  document.getElementById('heroTextAlign').value = h.textAlign || 'center';
+  document.getElementById('heroMinHeight').value = h.minHeight || 250;
+  document.getElementById('heroLink').value = h.link || '';
+  if (h.image) {
+    document.getElementById('heroImagePreviewImg').src = h.image;
+    document.getElementById('heroImagePreview').style.display = '';
+  } else {
+    document.getElementById('heroImagePreview').style.display = 'none';
+  }
+  // Слайдшоу: додаткові зображення
+  if (!Array.isArray(h.images)) h.images = [];
+  document.getElementById('heroRotateEnabled').checked = !!h.rotateEnabled;
+  document.getElementById('heroRotateInterval').value = parseInt(h.rotateInterval, 10) || 5;
+  document.getElementById('heroTransitionEffect').value = h.transitionEffect || 'fade';
+  renderHeroExtraImages();
+  // productId буде проставлено після завантаження товарів
+  updateHeroPreview();
+}
+
+function collectHeroBanner() {
+  if (!settings.heroBanner) settings.heroBanner = {};
+  const h = settings.heroBanner;
+  h.enabled = document.getElementById('heroEnabled').checked;
+  h.text = document.getElementById('heroText').value;
+  h.textColor = document.getElementById('heroTextColor').value;
+  h.textBgOpacity = parseFloat(document.getElementById('heroTextBgOpacity').value) || 0;
+  h.textPosition = document.getElementById('heroTextPosition').value;
+  h.textAlign = document.getElementById('heroTextAlign').value;
+  h.minHeight = parseInt(document.getElementById('heroMinHeight').value, 10) || 250;
+  h.link = document.getElementById('heroLink').value.trim();
+  h.productId = document.getElementById('heroProductId').value || '';
+  h.rotateEnabled = document.getElementById('heroRotateEnabled').checked;
+  h.rotateInterval = parseInt(document.getElementById('heroRotateInterval').value, 10) || 5;
+  h.transitionEffect = document.getElementById('heroTransitionEffect').value || 'fade';
+  // h.image і h.images зберіглись при завантаженні файлів
+}
+
+async function onHeroImage(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  try {
+    const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero' });
+    settings.heroBanner.image = url;
+    document.getElementById('heroImagePreviewImg').src = url;
+    document.getElementById('heroImagePreview').style.display = '';
+    updateHeroPreview();
+    toast('✅ Завантажено');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+
+function clearHeroImage() {
+  if (!confirm('Прибрати фон Hero-банера?')) return;
+  settings.heroBanner.image = '';
+  document.getElementById('heroImagePreviewImg').src = '';
+  document.getElementById('heroImagePreview').style.display = 'none';
+  document.getElementById('heroImageFile').value = '';
+  updateHeroPreview();
+}
+
+// === Слайдшоу: додаткові зображення ===
+function renderHeroExtraImages() {
+  const container = document.getElementById('heroExtraImagesList');
+  if (!container) return;
+  // Нормалізуємо до об'єктів {url, link, productId}
+  if (!settings.heroBanner) settings.heroBanner = {};
+  if (!Array.isArray(settings.heroBanner.images)) settings.heroBanner.images = [];
+  settings.heroBanner.images = settings.heroBanner.images.map(it => {
+    if (typeof it === 'string') return { url: it, link: '', productId: '' };
+    return { url: it.url || '', link: it.link || '', productId: it.productId || '' };
+  });
+  const imgs = settings.heroBanner.images;
+  if (!imgs.length) {
+    container.innerHTML = '<div style="font-size:12px; color:#6b7280;">Поки немає додаткових зображень.</div>';
+    return;
+  }
+  container.innerHTML = imgs.map((item, idx) => `
+    <div style="display: flex; gap: 8px; align-items: flex-start; padding: 8px; background: #fff; border-radius: 6px; border: 1px solid #d1d5db; margin-bottom: 8px;">
+      <div style="position: relative; flex-shrink: 0;">
+        <img src="${item.url}" style="width: 100px; height: 70px; object-fit: cover; border-radius: 4px;" />
+        <div style="font-size: 11px; color: #6b7280; text-align: center; margin-top: 2px;">#${idx + 2}</div>
+      </div>
+      <div style="flex: 1; min-width: 0;">
+        <input type="text" placeholder="🔗 Посилання при кліку (опціонально)"
+               value="${(item.link || '').replace(/"/g, '&quot;')}"
+               oninput="settings.heroBanner.images[${idx}].link = this.value"
+               style="width: 100%; padding: 6px 10px; font-size: 12px; margin-bottom: 4px;" />
+        <div style="font-size: 11px; color: #6b7280;">Кожне зображення може мати свою адресу переходу. Залиш порожнім якщо не треба.</div>
+      </div>
+      <button type="button" onclick="removeHeroExtraImage(${idx})" title="Прибрати"
+              style="width: 28px; height: 28px; border-radius: 50%; border: none; background: rgba(239,68,68,.9); color: white; cursor: pointer; font-size: 16px; line-height: 1; flex-shrink: 0;">×</button>
+    </div>
+  `).join('');
+}
+
+async function onHeroExtraImage(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  try {
+    const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero-extra' });
+    if (!settings.heroBanner) settings.heroBanner = {};
+    if (!Array.isArray(settings.heroBanner.images)) settings.heroBanner.images = [];
+    settings.heroBanner.images.push({ url, link: '', productId: '' });
+    renderHeroExtraImages();
+    document.getElementById('heroExtraImageFile').value = '';
+    toast('✅ Додано в слайдшоу');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+
+function removeHeroExtraImage(idx) {
+  if (!confirm('Прибрати це зображення зі слайдшоу?')) return;
+  const imgs = settings.heroBanner?.images || [];
+  const removed = imgs.splice(idx, 1)[0];
+  if (removed) {
+    const url = typeof removed === 'string' ? removed : removed.url;
+    if (url && typeof deleteFromR2 === 'function') deleteFromR2(url);
+  }
+  renderHeroExtraImages();
+}
+
+function updateHeroPreview() {
+  const text = document.getElementById('heroText').value;
+  const color = document.getElementById('heroTextColor').value;
+  const op = parseFloat(document.getElementById('heroTextBgOpacity').value) || 0;
+  const pos = document.getElementById('heroTextPosition').value;
+  const align = document.getElementById('heroTextAlign').value;
+  const minH = parseInt(document.getElementById('heroMinHeight').value, 10) || 250;
+  const image = settings.heroBanner?.image || '';
+
+  const prev = document.getElementById('heroPreview');
+  const inner = document.getElementById('heroPreviewInner');
+  const overlay = document.getElementById('heroPreviewOverlay');
+  const tEl = document.getElementById('heroPreviewText');
+
+  prev.style.minHeight = minH + 'px';
+  prev.style.backgroundImage = image ? `url('${image.replace(/'/g, "\\'")}')` : '';
+  prev.style.backgroundColor = image ? '' : '#9ca3af';
+
+  overlay.style.background = (image && op > 0) ? `rgba(0,0,0,${op})` : 'transparent';
+
+  inner.style.justifyContent = pos === 'top' ? 'flex-start' : (pos === 'bottom' ? 'flex-end' : 'center');
+
+  tEl.style.color = color;
+  tEl.style.textAlign = align;
+  tEl.textContent = text || '(порожньо — введи текст)';
+  tEl.style.opacity = text ? '1' : '0.5';
+}
+
+document.getElementById('heroImageFile')?.addEventListener('change', onHeroImage);
+document.getElementById('heroExtraImageFile')?.addEventListener('change', onHeroExtraImage);
+
+// === Заповнення випадайки товарів для banner.productId ===
+async function loadProductsForBannerLink() {
+  try {
+    const r = await fetch('/api/admin/products', { credentials: 'include' });
+    if (!r.ok) return;
+    const products = await r.json();
+    const list = Array.isArray(products) ? products : (products.products || []);
+    const opts = list.map(p => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.title || p.name || p.id)}</option>`).join('');
+    // Бічні
+    document.querySelectorAll('.banner-product-select').forEach(sel => {
+      const cur = sel.dataset.cur || '';
+      sel.innerHTML = `<option value="">— Або вибрати товар —</option>` + opts;
+      sel.value = cur;
+    });
+    // Hero
+    const hSel = document.getElementById('heroProductId');
+    if (hSel) {
+      hSel.innerHTML = `<option value="">— Не пов'язувати з товаром —</option>` + opts;
+      hSel.value = settings.heroBanner?.productId || '';
+    }
+  } catch {}
+}
+
+document.getElementById('logoFile').addEventListener('change', onLogoFile);
+document.getElementById('topbarBgImageFile').addEventListener('change', onTopbarBgFile);
+
+// === Favicon ===
+async function onFaviconFile(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Це не картинка', 'error'); return; }
+  try {
+    settings.faviconImage = await uploadToR2(file, { compress: true, maxSide: 64, quality: 0.9, prefix: 'favicon' });
+    document.getElementById('faviconPreview').src = settings.faviconImage;
+    document.getElementById('faviconPreviewWrap').style.display = 'flex';
+    toast('✅ Іконку завантажено (натисни «Зберегти все»)');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+function clearFavicon() {
+  if (!confirm('Прибрати іконку?')) return;
+  settings.faviconImage = '';
+  const w = document.getElementById('faviconPreviewWrap'); if (w) w.style.display = 'none';
+  const f = document.getElementById('faviconFile'); if (f) f.value = '';
+}
+document.getElementById('faviconFile')?.addEventListener('change', onFaviconFile);
+
+// Превью кнопок (live)
+function updateTopbarPreview() {
+  const desk = document.getElementById('topbarPreview');
+  const mob = document.getElementById('topbarPreviewMobile');
+  const warn = document.getElementById('topbarPreviewWarn');
+  if (!desk) return;
+  const get = id => document.getElementById(id)?.value || '';
+  const getN = (id, def) => parseInt(get(id), 10) || def;
+  const positions = {
+    logo: get('pos_logo'),
+    title: get('pos_title'),
+    menu: get('pos_menu'),
+    search: get('pos_search'),
+    contacts: get('pos_contacts'),
+  };
+  const orders = {
+    logo: getN('ord_logo', 1),
+    title: getN('ord_title', 3),
+    menu: getN('ord_menu', 4),
+    search: getN('ord_search', 2),
+    contacts: getN('ord_contacts', 5),
+  };
+  const titleText = (settings.title || 'Sotosprint').slice(0, 40);
+  const mobileTitleText = (settings.mobileTitle || titleText).slice(0, 25);
+
+  // Адаптуємо grid template під позицію title (як на справжньому сайті)
+  const titlePos = positions.title;
+  const gridCols = titlePos === 'left' ? 'auto auto 1fr'
+    : titlePos === 'right' ? '1fr auto auto'
+    : '1fr auto 1fr';
+  desk.style.gridTemplateColumns = gridCols;
+  mob.style.gridTemplateColumns = gridCols;
+
+  desk.innerHTML = renderPreviewZones(positions, orders, { isMobile: false, titleText });
+  mob.innerHTML = renderPreviewZones(positions, orders, { isMobile: true, titleText: mobileTitleText });
+
+  const counts = { left: 0, center: 0, right: 1 };
+  Object.values(positions).forEach(z => { if (counts[z] !== undefined) counts[z]++; });
+  let msg = '', color = '#6b7280';
+  const max = Math.max(counts.left, counts.center, counts.right);
+  if (max >= 4) { msg = '⚠️ Забагато елементів в одній зоні — назва може стати дуже маленькою'; color = '#dc2626'; }
+  else if (max >= 3) { msg = '⚠️ В одній зоні 3 елементи — буде тісно. Назва зменшиться автоматично'; color = '#ca8a04'; }
+  else { msg = '✅ Розташування збалансоване'; color = '#16a34a'; }
+  if (warn) { warn.textContent = msg; warn.style.color = color; }
+}
+
+function renderPreviewZones(positions, orders, opts) {
+  const { isMobile, titleText } = opts;
+  // Чіп-стиль: невеликий бейдж з іконкою+текстом, не дозволяє переповнення
+  const chip = (txt, bg = 'rgba(255,255,255,0.18)') =>
+    `<span style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:6px; background:${bg}; font-size:11px; white-space:nowrap; max-width:100%; overflow:hidden; text-overflow:ellipsis; line-height:1.4;">${txt}</span>`;
+
+  function zoneItems(z) {
+    const arr = [];
+    Object.entries(positions).forEach(([k, v]) => {
+      if (v !== z) return;
+      const ord = orders[k] || 99;
+      let label = '';
+      if (k === 'logo') label = '🖼 Лого';
+      else if (k === 'title') label = '📛 ' + (titleText || 'Назва').slice(0, 18);
+      else if (k === 'menu') label = '🧭 Меню';
+      else if (k === 'search') label = '🔍 Пошук';
+      else if (k === 'contacts') label = isMobile ? '' : '📞 Контакти';
+      if (!label) return;
+      arr.push({ ord, html: chip(label) });
+    });
+    if (z === 'right') arr.push({ ord: 99, html: chip('🛒', '#3b82f6') });
+    return arr.sort((a, b) => a.ord - b.ord).map(x => x.html).join(' ');
+  }
+
+  const just = z => z === 'left' ? 'flex-start' : (z === 'right' ? 'flex-end' : 'center');
+  return ['left', 'center', 'right'].map(z =>
+    `<div style="display:flex; flex-wrap:wrap; gap:4px; align-items:center; min-width:0; justify-content:${just(z)}; overflow:hidden;">${zoneItems(z)}</div>`
+  ).join('');
+}
+
+function updateButtonPreview() {
+  const bg = document.getElementById('buttonColor').value;
+  const hov = document.getElementById('buttonHoverColor').value;
+  const txt = document.getElementById('buttonTextColor').value;
+  const useHov = (hov && hov !== '#000000') ? hov : bg;
+  ['previewBtn', 'previewBtn2'].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) {
+      b.style.background = bg;
+      b.style.color = txt;
+      b.onmouseover = () => b.style.background = useHov;
+      b.onmouseout = () => b.style.background = bg;
+    }
+  });
+}
+['buttonColor', 'buttonHoverColor', 'buttonTextColor'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', updateButtonPreview);
+});
+
+function setStatus(text, isError) {
+  const el = document.getElementById('status');
+  el.textContent = text;
+  el.style.color = isError ? '#dc2626' : '';
+}
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => { t.className = 'toast'; }, 2200);
+}
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+loadAll();
+</script>
+</body>
+</html>

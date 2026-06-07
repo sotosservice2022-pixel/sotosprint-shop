@@ -1,0 +1,12 @@
+{
+  "name": "sotosprint-shop",
+  "version": "1.0.0",
+  "description": "Sotosprint - photo printing shop on Cloudflare Pages",
+  "scripts": {
+    "deploy": "wrangler pages deploy public --project-name=agprnt-shop --branch=main --commit-dirty=true",
+    "kv:create": "wrangler kv namespace create SHOP_KV"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.0"
+  }
+}

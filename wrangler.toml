@@ -1,0 +1,16 @@
+﻿name = "agprnt-shop"
+compatibility_date = "2025-05-01"
+pages_build_output_dir = "public"
+
+[[kv_namespaces]]
+binding = "SHOP_KV"
+id = "2b33bf309cd7409aa255274b8eb25380"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "sotosprint-storage"
+
+[vars]
+MAX_PHOTOS_PER_ITEM = "10"
+MAX_PHOTO_SIZE_MB = "15"
+MAX_TOTAL_PHOTOS = "10"

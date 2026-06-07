@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Безпека — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 60px; }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    .crumbs a:hover { color: #0b8aff; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], input[type=password], select {
+      width: 100%; padding: 11px 13px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc;
+    }
+    input[type=password], input[type=text].mono { font-family: 'SF Mono', Menlo, monospace; }
+    input:focus, select:focus { outline: none; border-color: #0b8aff; background: #fff; }
+    .row { margin-bottom: 14px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 6px; line-height: 1.5; }
+    .hint code { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+    .source { font-size: 12px; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+    .source.kv { background: #ecfdf5; color: #166534; }
+    .source.env { background: #fef3c7; color: #92400e; }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .checkbox-inline { display: flex; align-items: center; gap: 6px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">Адмінка</a> → Безпека · <a href="#" onclick="logout(); return false;" style="color:#dc2626;">🚪 Вийти</a></div>
+  <h1>🔐 Безпека</h1>
+  <p class="sub">Бот Telegram для замовлень, пароль адмінки, двофакторна авторизація.</p>
+
+  <!-- БОТ -->
+  <div class="card">
+    <h2>🤖 Бот Telegram</h2>
+    <div id="state" style="margin-bottom:12px;">Завантаження…</div>
+    <div class="row">
+      <label>Токен бота</label>
+      <input type="password" id="botToken" placeholder="123456789:ABC-DEF..." autocomplete="off" class="mono" />
+      <div class="hint">
+        Отримайте у <a href="https://t.me/BotFather" target="_blank">@BotFather</a>:
+        <code>/newbot</code> → задати ім'я → скопіювати токен.
+      </div>
+    </div>
+    <div class="row">
+      <label>chat_id</label>
+      <input type="text" id="chatId" placeholder="123456789 або -1001234567890" class="mono" />
+      <div class="hint">
+        ID особистого чату або групи. Щоб дізнатись: напишіть боту <code>/start</code>, потім відкрийте
+        <code>https://api.telegram.org/bot&lt;ТОКЕН&gt;/getUpdates</code> — там буде <code>"chat":{"id":...}</code>.
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveBot()">💾 Зберегти</button>
+      <button class="btn btn-secondary" onclick="testBot()">🧪 Тест відправки</button>
+      <button class="btn btn-secondary" onclick="resetBot()">↻ Скинути (поверне до env-секретів)</button>
+    </div>
+
+    <div style="margin-top: 16px; padding: 12px; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="allowOrdersWithoutBot" onchange="saveAllowOrdersWithoutBot()" />
+        <label for="allowOrdersWithoutBot" style="margin:0; font-weight:600;">📋 Дозволити замовлення коли бот не налаштований</label>
+      </div>
+      <div class="hint" style="margin-top: 6px; color: #166534;">
+        Якщо ввімкнено — клієнт зможе оформити замовлення навіть якщо токен/chat_id бота не задані. Замовлення збережеться в <a href="/admin/orders/" style="color:inherit;text-decoration:underline;">/admin/orders/</a>, але повідомлення в Telegram не надішлеться.<br>
+        ⚠️ Email клієнту все одно буде надіслано якщо налаштовано.
+      </div>
+    </div>
+  </div>
+
+  <!-- ВІДНОВЛЕННЯ ДОСТУПУ ЧЕРЕЗ TELEGRAM -->
+  <div class="card">
+    <h2>🆘 Відновлення доступу через Telegram</h2>
+    <div style="background: #fef3c7; padding: 12px; border-radius: 8px; color: #92400e; font-size: 13px; margin-bottom: 14px;">
+      ⚠️ <strong>Якщо хтось украв сайт</strong> і змінив пароль — ти можеш скинути пароль через Telegram-бот, БЕЗ доступу до адмінки. Просто напиши боту команду <code>/reset_admin_password</code>.
+    </div>
+
+    <div class="row">
+      <label style="font-weight: 600;">Крок 1: Налаштуй webhook у BotFather</label>
+      <div class="hint">Це треба зробити <strong>один раз</strong>. Після цього бот реагуватиме на твої команди.</div>
+      <ol style="padding-left: 20px; line-height: 1.8; font-size: 13px; margin: 8px 0;">
+        <li>Відкрий <a href="https://t.me/BotFather" target="_blank">@BotFather</a> → <code>/mybots</code> → твій бот → <strong>Bot Settings</strong> → <strong>Choose menu</strong> → <strong>Setup commands</strong>:
+          <pre style="background:#f3f4f6; padding:8px; border-radius:4px; margin:6px 0; font-size:12px; overflow-x:auto;">help - Показати команди
+reset_admin_password - Скинути пароль адмінки</pre>
+        </li>
+        <li>Введи в браузері (заміни <code>ТВІЙ_ТОКЕН</code>):
+          <input type="text" id="webhookUrl" readonly style="width:100%; font-family:monospace; font-size:11px; padding:6px; margin-top:4px;" value="" />
+          <button class="btn btn-secondary btn-icon" type="button" onclick="copyWebhookUrl()" style="margin-top:4px;">📋 Скопіювати команду</button>
+        </li>
+        <li>Має повернути <code>{"ok":true,"result":true,"description":"Webhook was set"}</code></li>
+      </ol>
+    </div>
+
+    <div class="row">
+      <label style="font-weight: 600;">Крок 2: Перевір що працює</label>
+      <div class="hint">У Telegram-чаті з ботом напиши <code>/help</code>. Має прийти список команд.</div>
+    </div>
+
+    <div class="row">
+      <label style="font-weight: 600;">Крок 3 (коли треба): Скидання пароля</label>
+      <div class="hint">У боті напиши <code>/reset_admin_password</code> → бот пришле новий пароль. Зайди з ним на /admin/login/.</div>
+    </div>
+
+    <details style="margin-top: 12px; font-size: 13px;">
+      <summary style="cursor: pointer; color: #1d4ed8; font-weight: 500;">⚙️ Як відключити webhook</summary>
+      <div style="padding: 8px 0; line-height: 1.6;">
+        Введи в браузері: <code>https://api.telegram.org/botТВІЙ_ТОКЕН/deleteWebhook</code>
+      </div>
+    </details>
+  </div>
+
+  <!-- ПАРОЛЬ -->
+  <div class="card">
+    <h2>🔑 Пароль адмінки</h2>
+    <div class="row">
+      <label>Поточний пароль</label>
+      <input type="password" id="oldPwd" autocomplete="current-password" />
+    </div>
+    <div class="row">
+      <label>Новий пароль (мінімум 8 символів)</label>
+      <input type="password" id="newPwd" autocomplete="new-password" />
+    </div>
+    <div class="row">
+      <label>Повторіть новий пароль</label>
+      <input type="password" id="newPwd2" autocomplete="new-password" />
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="changePassword()">💾 Змінити пароль</button>
+      <button class="btn btn-secondary" onclick="resetPassword()">↻ Скинути до env-секрету</button>
+    </div>
+
+    <hr style="margin: 20px 0; border: none; border-top: 1px solid #fecaca;" />
+
+    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 10px; padding: 14px;">
+      <h3 style="margin: 0 0 8px; color: #075985; font-size: 14px;">💡 Якщо забув пароль або хтось украв доступ</h3>
+      <p style="margin: 0 0 10px; font-size: 13px; color: #0c4a6e; line-height: 1.5;">
+        Напиши Telegram-боту <code>/reset_admin_password</code> — він згенерує новий пароль і надішле в чат.
+      </p>
+      <p style="margin: 0 0 10px; font-size: 12px; color: #075985;">
+        ⚠️ <strong>Cloudflare KV має propagation до 60 секунд</strong> — старий пароль може ще працювати в інших регіонах ~1 хв. Через 60 сек точно не працює.
+      </p>
+      <p style="margin: 0; font-size: 12px; color: #075985;">
+        Для миттєвої зміни (з цієї ж локації, без затримки) — використовуй кнопку нижче ⬇️
+      </p>
+    </div>
+
+    <div style="background: #fef2f2; border: 2px solid #fca5a5; border-radius: 10px; padding: 14px; margin-top: 12px;">
+      <h3 style="margin: 0 0 8px; color: #991b1b; font-size: 14px;">🚨 Миттєва зміна пароля (з браузера)</h3>
+      <p style="margin: 0 0 10px; font-size: 12px; color: #7f1d1d; line-height: 1.5;">
+        Згенерує випадковий пароль 14 символів і одразу його застосує. Старі сесії у твоєму регіоні CF — невалідні миттєво. Пароль надсилається в Telegram + показується тут.
+      </p>
+      <button class="btn" onclick="panicChangePassword()" style="background: #dc2626; color: white; font-weight: 600; padding: 10px 18px; font-size: 14px; border: none; border-radius: 8px; cursor: pointer;">
+        🚨 Згенерувати новий пароль і застосувати
+      </button>
+    </div>
+    <div class="hint" style="margin-top: 8px;">
+      Після зміни — тебе викине на сторінку логіна, треба зайти з новим паролем.
+      «Скинути» видаляє перевизначення в KV → знову працює пароль з Cloudflare Secrets.
+    </div>
+  </div>
+
+  <!-- 2FA -->
+  <div class="card">
+    <h2>🔐 Двофакторна авторизація (2FA)</h2>
+    <div class="row">
+      <label>Канал доставки коду</label>
+      <select id="twoFactorChannel" onchange="updateChannelFieldsVisibility()">
+        <option value="off">Вимкнено</option>
+        <option value="telegram">Telegram (через бота магазину)</option>
+        <option value="email">Email (через Resend.com)</option>
+      </select>
+      <div class="hint">Після правильного пароля надійде 6-значний код вибраним каналом. Без коду — увійти не можна.</div>
+    </div>
+
+    <div id="twoFactorTelegramFields" class="row">
+      <label>chat_id для кодів (опціонально)</label>
+      <input type="text" id="twoFactorChatId" placeholder="залиште порожнім — буде використано чат для замовлень" class="mono" />
+      <div class="hint">Якщо хочеш окремий чат для кодів — введи його ID. Інакше — той самий, що для замовлень.</div>
+    </div>
+
+    <div id="twoFactorEmailFields">
+      <div class="hint" style="background:#eff6ff; padding:10px; border-radius:8px; color:#1d4ed8; margin-bottom: 10px;">
+        📧 Для email-2FA треба зареєструватись на <a href="https://resend.com" target="_blank">resend.com</a> (безкоштовно — 3000 листів/міс).
+        Створіть API ключ → впишіть сюди. Можна слати з <code>onboarding@resend.dev</code> на свій email без верифікації домена.
+      </div>
+      <div class="grid-2">
+        <div class="row">
+          <label>Resend API ключ</label>
+          <input type="password" id="emailApiKey" placeholder="re_..." autocomplete="off" />
+        </div>
+        <div class="row">
+          <label>Відправник (from)</label>
+          <input type="text" id="emailFrom" placeholder="onboarding@resend.dev" />
+        </div>
+      </div>
+      <div class="row">
+        <label>Email одержувача (куди слати коди)</label>
+        <input type="text" id="emailTo" placeholder="ваш@email.com" autocomplete="email" />
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" onclick="save2FA()">💾 Зберегти 2FA</button>
+      <button class="btn btn-secondary" onclick="test2FA()">🧪 Надіслати тестовий код</button>
+    </div>
+    <div id="twoFactorTestResult" class="hint" style="margin-top:6px;"></div>
+    <div class="hint" style="background: #fef3c7; padding: 10px; border-radius: 8px; color: #92400e; margin-top: 10px;">
+      ⚠️ Перш ніж вмикати 2FA — тестовий код має дійти. Інакше залишишся без доступу.
+    </div>
+  </div>
+
+  <!-- БЕЗОПАСНОСТЬ -->
+  <!-- СПОВІЩЕННЯ ПРО ЛІМІТИ -->
+  <div class="card">
+    <h2>🚨 Сповіщення про ліміти Cloudflare</h2>
+    <div class="row">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="limitNotifyEnabled" />
+        <label for="limitNotifyEnabled" style="margin:0">Надсилати сповіщення в Telegram-бот при досягненні лімітів</label>
+      </div>
+      <div class="hint">Якщо вичерпано ліміт KV writes/lists/reads або R2 — приходить сповіщення з поясненням що зламалось і як полагодити.</div>
+    </div>
+    <div class="row">
+      <label>Мінімальний інтервал між сповіщеннями одного типу (хвилин)</label>
+      <input type="number" id="limitNotifyIntervalMin" min="5" max="1440" placeholder="60" style="max-width: 160px;" />
+      <div class="hint">Захист від спаму — щоб не приходило 1000 сповіщень підряд при тривалому виченні ліміту. За замовчуванням: 60 хвилин.</div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveLimitNotify()">💾 Зберегти</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🔓 Сповіщення про вхід в адмінку</h2>
+    <div class="row">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="loginNotifyEnabled" />
+        <label for="loginNotifyEnabled" style="margin:0">Надсилати в Telegram повідомлення при кожній успішній авторизації</label>
+      </div>
+      <div class="hint">У повідомленні буде час, IP та браузер. Якщо хтось зайде з чужого IP — побачите одразу і зможете швидко змінити пароль.</div>
+    </div>
+    <div class="row">
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <input type="checkbox" id="requirePasswordEachSession" />
+        <label for="requirePasswordEachSession" style="margin:0">Запитувати пароль при кожному відкритті браузера</label>
+      </div>
+      <div class="hint">
+        <strong>Увімкнено:</strong> сесія живе тільки до закриття браузера. Безпечніше якщо комп'ютером користуються інші.<br>
+        <strong>Вимкнено</strong> (за замовчуванням): сесія живе 30 днів. Зручніше — не треба вводити пароль кожен раз.
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-primary" onclick="saveLoginNotify()">💾 Зберегти</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>⚠️ Поради з безпеки</h2>
+    <div class="hint">
+      Токен бота дає повний контроль над ним. Якщо він витече — хтось зможе від імені бота надсилати повідомлення,
+      отримувати апдейти, змінювати команди. <strong>Не діліться адмін-паролем ні з ким</strong> та не показуйте цей екран стороннім.
+      <br><br>
+      Якщо щось сталося — йдіть до BotFather → <code>/revoke</code> → створіть новий токен і впишіть сюди.
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/admin/_admin-ui.js"></script>
+<script src="/admin/_admin.js"></script>
+<script>
+let settings = {};
+
+async function loadAll() {
+  try {
+    const [botRes, settingsRes] = await Promise.all([
+      fetch('/api/admin/bot', { credentials: 'include' }),
+      fetch('/api/admin/settings', { credentials: 'include' }),
+    ]);
+    if (botRes.status === 401 || settingsRes.status === 401) {
+      location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname);
+      return;
+    }
+    if (!botRes.ok) throw new Error('Бот: HTTP ' + botRes.status);
+    if (!settingsRes.ok) throw new Error('Налаштування: HTTP ' + settingsRes.status);
+
+    const botData = await botRes.json();
+    const stateEl = document.getElementById('state');
+    stateEl.innerHTML = `
+      <div style="margin-bottom:6px"><strong>Токен:</strong> ${botData.hasToken ? `<code>${botData.tokenMasked}</code> ✅` : '<span style="color:#dc2626">не задано ❌</span>'}</div>
+      <div style="margin-bottom:6px"><strong>chat_id:</strong> ${botData.chatId ? `<code>${botData.chatId}</code> ✅` : '<span style="color:#dc2626">не задано ❌</span>'}</div>
+      <div><strong>Джерело:</strong> <span class="source ${botData.source}">${botData.source === 'kv' ? '🔓 KV (через адмінку)' : '🔒 ENV (Cloudflare Secrets)'}</span></div>
+    `;
+    document.getElementById('chatId').value = botData.chatId || '';
+
+    settings = (await settingsRes.json()).settings || {};
+    document.getElementById('twoFactorChannel').value = settings.twoFactorChannel || 'off';
+    document.getElementById('twoFactorChatId').value = settings.twoFactorChatId || '';
+    document.getElementById('emailApiKey').value = ''; // не отдается из API из-за SECRET_FIELDS, оставим пустым
+    document.getElementById('emailFrom').value = settings.emailFrom || '';
+    document.getElementById('emailTo').value = settings.emailTo || '';
+    document.getElementById('limitNotifyEnabled').checked = settings.limitNotifyEnabled !== false;
+    document.getElementById('limitNotifyIntervalMin').value = settings.limitNotifyIntervalMin || 60;
+    document.getElementById('loginNotifyEnabled').checked = settings.loginNotifyEnabled !== false;
+    document.getElementById('allowOrdersWithoutBot').checked = !!settings.allowOrdersWithoutBot;
+    document.getElementById('requirePasswordEachSession').checked = !!settings.requirePasswordEachSession;
+    updateChannelFieldsVisibility();
+    // Заповнюємо webhook URL для копіювання
+    setupWebhookCommand();
+  } catch (e) {
+    document.getElementById('state').innerHTML = '<span style="color:#dc2626">Помилка: ' + e.message + '</span>';
+  }
+}
+
+function updateChannelFieldsVisibility() {
+  const ch = document.getElementById('twoFactorChannel').value;
+  document.getElementById('twoFactorTelegramFields').style.display = ch === 'telegram' ? '' : 'none';
+  document.getElementById('twoFactorEmailFields').style.display = ch === 'email' ? '' : 'none';
+}
+
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+// === Бот ===
+async function saveAllowOrdersWithoutBot() {
+  settings.allowOrdersWithoutBot = document.getElementById('allowOrdersWithoutBot').checked;
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify(settings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✅ Збережено');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+async function saveBot() {
+  const botToken = document.getElementById('botToken').value.trim();
+  const chatId = document.getElementById('chatId').value.trim();
+  if (!chatId) { toast('Введіть chat_id', 'error'); return; }
+  if (!confirm(`Зберегти налаштування бота? ${botToken ? 'Новий токен буде застосовано.' : 'Токен залишаємо попереднім (поле порожнє).'}`)) return;
+  try {
+    const r = await fetch('/api/admin/bot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ botToken: botToken || undefined, chatId }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    toast('✅ Збережено');
+    document.getElementById('botToken').value = '';
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+async function testBot() {
+  try {
+    const r = await fetch('/api/admin/bot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ action: 'test' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    toast('✅ Тест відправлено — перевір Telegram');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+async function resetBot() {
+  if (!confirm('Скинути налаштування в KV? Будуть використовуватись env-секрети (значення з моменту деплою).')) return;
+  try {
+    const r = await fetch('/api/admin/bot', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ botToken: '', chatId: '' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    toast('✅ Скинуто');
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// === Пароль ===
+async function changePassword() {
+  const oldPwd = document.getElementById('oldPwd').value;
+  const newPwd = document.getElementById('newPwd').value;
+  const newPwd2 = document.getElementById('newPwd2').value;
+
+  if (!oldPwd) { toast('Введіть поточний пароль', 'error'); return; }
+  if (newPwd.length < 8) { toast('Новий пароль ≥ 8 символів', 'error'); return; }
+  if (newPwd !== newPwd2) { toast('Паролі не співпадають', 'error'); return; }
+  if (!confirm('Змінити пароль? Після зміни тебе автоматично викине на сторінку логіна.')) return;
+  try {
+    const r = await fetch('/api/admin/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ oldPassword: oldPwd, newPassword: newPwd }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    toast('✅ Пароль змінено. Перенаправлення…');
+    setTimeout(() => location.href = '/admin/login/', 1500);
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+async function resetPassword() {
+  const oldPwd = prompt('Введіть ПОТОЧНИЙ пароль щоб скинути перевизначення:');
+  if (!oldPwd) return;
+  try {
+    const r = await fetch('/api/admin/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ action: 'reset', oldPassword: oldPwd }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    toast('✅ Скинуто. Перенаправлення…');
+    setTimeout(() => location.href = '/admin/login/', 1500);
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// === ЕКСТРЕНА ЗМІНА ПАРОЛЯ ===
+async function panicChangePassword() {
+  if (!confirm('🚨 ЕКСТРЕНА ЗМІНА ПАРОЛЯ\n\nБуде згенеровано новий випадковий пароль (14 символів) і надіслано в Telegram.\n\nВсі сесії розлогіняться, включаючи цю.\n\nПродовжити?')) return;
+  if (!confirm('⚠️ Останнє підтвердження.\n\nПереконайся що Telegram-бот працює і ти маєш до нього доступ. Інакше можеш втратити доступ до адмінки.\n\nГотовий?')) return;
+  try {
+    const r = await fetch('/api/admin/password', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ action: 'panic' }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    // Показуємо новий пароль одразу на екрані як страховка (раптом Telegram не дійшов)
+    const msg = data.notified
+      ? `✅ НОВИЙ ПАРОЛЬ:\n\n${data.newPassword}\n\nВідправлено в Telegram.\nЗапиши пароль ОДРАЗУ — повернутись до нього не зможеш!`
+      : `✅ НОВИЙ ПАРОЛЬ:\n\n${data.newPassword}\n\n⚠️ Telegram не доставив (${data.notifyError || 'причина невідома'}).\nЗАПИШИ ЦЕЙ ПАРОЛЬ ЗАРАЗ — інакше втратиш доступ!`;
+    alert(msg);
+    setTimeout(() => location.href = '/admin/login/', 1000);
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// Готує URL команди для встановлення webhook у Telegram
+function setupWebhookCommand() {
+  const inp = document.getElementById('webhookUrl');
+  if (!inp) return;
+  const origin = location.origin;
+  const cmd = `https://api.telegram.org/botТВІЙ_ТОКЕН/setWebhook?url=${origin}/api/telegram-webhook`;
+  inp.value = cmd;
+}
+
+function copyWebhookUrl() {
+  const inp = document.getElementById('webhookUrl');
+  if (!inp) return;
+  inp.select();
+  document.execCommand('copy');
+  toast('✅ Скопійовано! Заміни ТВІЙ_ТОКЕН на токен бота і вставь у браузер.');
+}
+
+// === 2FA ===
+async function saveLimitNotify() {
+  settings.limitNotifyEnabled = document.getElementById('limitNotifyEnabled').checked;
+  const v = parseInt(document.getElementById('limitNotifyIntervalMin').value, 10);
+  settings.limitNotifyIntervalMin = (v >= 5 && v <= 1440) ? v : 60;
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✅ Збережено');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function saveLoginNotify() {
+  settings.loginNotifyEnabled = document.getElementById('loginNotifyEnabled').checked;
+  settings.requirePasswordEachSession = document.getElementById('requirePasswordEachSession').checked;
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✅ Збережено. ' + (settings.requirePasswordEachSession ? 'Пароль буде запитуватись при кожному відкритті браузера.' : 'Сесія живе 30 днів.'));
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function save2FA() {
+  settings.twoFactorChannel = document.getElementById('twoFactorChannel').value;
+  settings.twoFactorEnabled = settings.twoFactorChannel !== 'off';
+  settings.twoFactorChatId = document.getElementById('twoFactorChatId').value.trim();
+  const newKey = document.getElementById('emailApiKey').value.trim();
+  if (newKey) settings.emailApiKey = newKey;
+  // (если поле пустое — не трогаем сохранённый ключ)
+  settings.emailFrom = document.getElementById('emailFrom').value.trim();
+  settings.emailTo = document.getElementById('emailTo').value.trim();
+  try {
+    const r = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    toast('✅ 2FA збережено');
+    document.getElementById('emailApiKey').value = '';
+    await loadAll();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function test2FA() {
+  const ch = document.getElementById('twoFactorChannel').value;
+  if (ch === 'off') { toast('Спочатку виберіть канал', 'error'); return; }
+  // Сохраняем перед тестом, чтобы сервер использовал свежие настройки
+  await save2FA();
+  const resEl = document.getElementById('twoFactorTestResult');
+  resEl.textContent = 'Надсилаю…';
+  try {
+    const r = await fetch('/api/admin/2fa-test', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' }, body: '{}',
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error || 'Помилка');
+    resEl.innerHTML = '<span style="color:#16a34a">✅ Тестовий код надіслано через ' + ch + '</span>';
+    toast('✅ Тест надіслано');
+  } catch (e) {
+    resEl.innerHTML = '<span style="color:#dc2626">❌ ' + e.message + '</span>';
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'success');
+  setTimeout(() => t.className = 'toast ' + (kind || 'success'), 2500);
+}
+
+loadAll();
+</script>
+</body>
+</html>

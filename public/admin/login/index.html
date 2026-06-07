@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Вхід — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #0b8aff 0%, #6b46ff 100%);
+      color: #1c2129; display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: #fff; border-radius: 14px; padding: 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.25);
+      max-width: 400px; width: 100%;
+    }
+    h1 { font-size: 22px; margin: 0 0 8px; text-align: center; }
+    .sub { color: #6b7280; font-size: 13px; text-align: center; margin-bottom: 24px; }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px; color: #374151; }
+    input[type=password], input[type=text] {
+      width: 100%; padding: 12px 14px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 16px; font-family: inherit; background: #fafbfc;
+    }
+    input.code-input {
+      font-size: 22px; font-family: 'SF Mono', Menlo, monospace;
+      text-align: center; letter-spacing: 8px;
+    }
+    input:focus { outline: none; border-color: #0b8aff; background: #fff; }
+    .btn {
+      width: 100%; margin-top: 16px; padding: 12px; border: none; border-radius: 8px;
+      cursor: pointer; font-size: 15px; font-weight: 600;
+      background: #0b8aff; color: #fff;
+    }
+    .btn:hover:not(:disabled) { background: #0670d9; }
+    .btn:disabled { background: #9ca3af; cursor: not-allowed; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; margin-top: 8px; }
+    .btn-secondary:hover { background: #e5e7eb; }
+    .error {
+      margin-top: 12px; padding: 10px 12px; border-radius: 8px;
+      background: #fef2f2; color: #991b1b; font-size: 13px; display: none;
+    }
+    .error.show { display: block; }
+    .info {
+      padding: 10px 12px; border-radius: 8px;
+      background: #eff6ff; color: #1d4ed8; font-size: 13px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <!-- Шаг 1: пароль -->
+    <div id="step1">
+      <h1>🔐 Вхід в адмінку</h1>
+      <p class="sub">Введи пароль, щоб продовжити</p>
+      <form id="loginForm" autocomplete="on">
+        <label for="password">Пароль</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required autofocus />
+        <button type="submit" class="btn" id="submit1">Увійти</button>
+        <div class="error" id="error1"></div>
+      </form>
+    </div>
+
+    <!-- Шаг 2: 2FA код -->
+    <div id="step2" style="display:none;">
+      <h1>📱 Двофакторна авторизація</h1>
+      <p class="sub" id="step2sub">Введи 6-значний код</p>
+      <div class="info" id="step2info">📨 Код відправлено. Якщо не прийшов — перевір налаштування каналу.</div>
+      <form id="twoFactorForm">
+        <label for="code">Код</label>
+        <input type="text" id="code" class="code-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required autofocus />
+        <button type="submit" class="btn" id="submit2">Підтвердити</button>
+        <button type="button" class="btn btn-secondary" onclick="backToStep1()">← Назад</button>
+        <div class="error" id="error2"></div>
+      </form>
+    </div>
+  </div>
+
+<script>
+let pendingSessionId = null;
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const passEl = document.getElementById('password');
+  const submitBtn = document.getElementById('submit1');
+  const errorEl = document.getElementById('error1');
+  errorEl.classList.remove('show');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Вхід…';
+  try {
+    const r = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ password: passEl.value }),
+    });
+    const data = await r.json();
+    if (data.requires2fa) {
+      pendingSessionId = data.sessionId;
+      const channel = data.channel || 'telegram';
+      const sub = document.getElementById('step2sub');
+      const info = document.getElementById('step2info');
+      if (channel === 'email') {
+        sub.textContent = 'Введи 6-значний код з Email';
+        info.innerHTML = '📧 Код відправлено на Email. Якщо не прийшов — перевір папку «Спам» та налаштування Resend.';
+      } else {
+        sub.textContent = 'Введи 6-значний код з Telegram';
+        info.innerHTML = '📨 Код відправлено в Telegram. Якщо не прийшов — перевір налаштування бота.';
+      }
+      document.getElementById('step1').style.display = 'none';
+      document.getElementById('step2').style.display = 'block';
+      document.getElementById('code').focus();
+    } else if (data.ok) {
+      const ret = new URL(location).searchParams.get('return') || '/admin/';
+      const safeRet = ret.startsWith('/') && !ret.startsWith('//') ? ret : '/admin/';
+      location.href = safeRet;
+    } else {
+      errorEl.textContent = data.error || 'Не вдалось увійти';
+      errorEl.classList.add('show');
+      passEl.select();
+    }
+  } catch (err) {
+    errorEl.textContent = 'Помилка мережі: ' + err.message;
+    errorEl.classList.add('show');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Увійти';
+  }
+});
+
+document.getElementById('twoFactorForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const codeEl = document.getElementById('code');
+  const submitBtn = document.getElementById('submit2');
+  const errorEl = document.getElementById('error2');
+  errorEl.classList.remove('show');
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'Перевірка…';
+  try {
+    const r = await fetch('/api/admin/2fa-verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ sessionId: pendingSessionId, code: codeEl.value.trim() }),
+    });
+    const data = await r.json();
+    if (data.ok) {
+      const ret = new URL(location).searchParams.get('return') || '/admin/';
+      const safeRet = ret.startsWith('/') && !ret.startsWith('//') ? ret : '/admin/';
+      location.href = safeRet;
+    } else {
+      errorEl.textContent = data.error || 'Код невірний';
+      errorEl.classList.add('show');
+      codeEl.select();
+    }
+  } catch (err) {
+    errorEl.textContent = 'Помилка мережі: ' + err.message;
+    errorEl.classList.add('show');
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Підтвердити';
+  }
+});
+
+function backToStep1() {
+  pendingSessionId = null;
+  document.getElementById('step2').style.display = 'none';
+  document.getElementById('step1').style.display = 'block';
+  document.getElementById('password').value = '';
+  document.getElementById('code').value = '';
+  document.getElementById('password').focus();
+}
+
+// Авто-сабмит когда введено 6 цифр
+document.getElementById('code').addEventListener('input', (e) => {
+  const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+  e.target.value = v;
+  if (v.length === 6) {
+    document.getElementById('twoFactorForm').requestSubmit();
+  }
+});
+</script>
+</body>
+</html>

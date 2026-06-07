@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Статистика — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 60px; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    h2 { font-size: 16px; margin: 0 0 14px; color: #374151; display: flex; align-items: center; gap: 8px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+    .stat-box {
+      background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px;
+    }
+    .stat-box .v { font-size: 26px; font-weight: 700; color: #1c2129; }
+    .stat-box .l { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .stat-box .extra { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+    .progress-bar { background: #e5e7eb; border-radius: 999px; height: 8px; overflow: hidden; margin-top: 8px; }
+    .progress-bar > div { height: 100%; background: #0b8aff; transition: width .3s; }
+    .progress-bar > div.warning { background: #f59e0b; }
+    .progress-bar > div.danger { background: #dc2626; }
+    .breakdown { display: flex; flex-direction: column; gap: 6px; }
+    .breakdown-row {
+      display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+      background: #fafbfc; border-radius: 8px; font-size: 13px;
+    }
+    .breakdown-row .label { flex: 1; color: #374151; }
+    .breakdown-row .value { font-weight: 600; color: #1c2129; }
+    .breakdown-row .bar { width: 80px; height: 6px; background: #e5e7eb; border-radius: 3px; overflow: hidden; }
+    .breakdown-row .bar > div { height: 100%; background: #0b8aff; }
+    .btn { padding: 9px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .meta { font-size: 12px; color: #6b7280; }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 10px 18px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+    .info-banner {
+      background: #eff6ff; padding: 10px 12px; border-radius: 8px; color: #1d4ed8;
+      font-size: 12px; margin-bottom: 12px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f3f4f6; }
+    th { color: #6b7280; font-weight: 600; font-size: 12px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">Адмінка</a> → Статистика · <a href="#" onclick="logout(); return false;" style="color:#dc2626;">🚪 Вийти</a></div>
+  <h1>📈 Статистика та ліміти</h1>
+  <p class="sub">Скільки місця займає сайт, ліміти Cloudflare, розподіл по сховищах.</p>
+
+  <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: center;">
+    <button class="btn btn-secondary" onclick="loadStats(true)">↻ Оновити</button>
+    <span class="meta" id="generatedAt"></span>
+  </div>
+
+  <!-- Загальні лічильники -->
+  <div class="card">
+    <h2>📊 Загальні дані сайту</h2>
+    <div class="grid" id="counters"></div>
+  </div>
+
+  <!-- ВІДВІДУВАЧІ -->
+  <div class="card">
+    <h2 style="display: flex; justify-content: space-between; align-items: center;">
+      <span>👥 Відвідувачі сайту</span>
+      <button class="btn btn-secondary btn-icon" onclick="resetVisitors()" style="background:#fee2e2; color:#991b1b;">🗑 Скинути всю статистику</button>
+    </h2>
+    <div class="grid" id="visitorsCounters"></div>
+    <div style="margin-top: 14px;">
+      <h3 style="font-size: 14px; color: #374151; margin: 0 0 8px;">Останні 30 днів:</h3>
+      <div id="visitorsChart" style="display: flex; gap: 4px; align-items: flex-end; min-height: 80px; padding: 12px; background: #fafbfc; border-radius: 8px; overflow-x: auto;"></div>
+    </div>
+    <div class="info-banner" style="margin-top: 10px; font-size: 12px;">
+      ℹ️ Лічильник унікальний: один пристрій (cookie) рахується раз на 24 години. Різні пристрої того самого користувача = різні відвідування.
+    </div>
+    <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500;">
+        <input type="checkbox" id="adminShowVisitorsWidget" onchange="saveVisitorsWidgetSetting()" />
+        📊 Показувати міні-віджет з кількістю відвідувачів на головній адмінці
+      </label>
+      <div class="hint" style="font-size: 12px; margin-left: 26px; margin-top: 4px;">
+        Якщо увімкнено — на <a href="/admin/">/admin/</a> поряд з заголовком зʼявиться блок «Сьогодні / Вчора / 7 днів / 30 днів».
+      </div>
+    </div>
+  </div>
+
+  <!-- ☁️ CLOUDFLARE USAGE СЬОГОДНІ -->
+  <div class="card" id="cfUsageCard">
+    <h2 style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <span>☁️ Використання Cloudflare сьогодні</span>
+      <span style="font-size: 12px; font-weight: 400; color: #6b7280;" id="cfUsagePeriod">завантаження…</span>
+    </h2>
+    <div id="cfUsageContent" style="margin-top: 8px;">
+      <div style="padding: 16px; text-align: center; color: #6b7280;">
+        ⏳ Завантажую дані…
+      </div>
+    </div>
+  </div>
+
+  <!-- KV сховище -->
+  <div class="card">
+    <h2>💾 KV сховище <span class="meta" style="font-weight: 400;">(налаштування, товари, замовлення, лічильники)</span></h2>
+    <div class="grid" id="kvSummary"></div>
+    <div style="margin-top: 14px;">
+      <h3 style="font-size: 14px; color: #374151; margin: 0 0 8px;">Розподіл по типу даних:</h3>
+      <div class="breakdown" id="kvBreakdown"></div>
+    </div>
+  </div>
+
+  <!-- R2 сховище -->
+  <div class="card">
+    <h2>🗂 R2 файлове сховище <span class="meta" style="font-weight: 400;">(іконки, лого, фото, відео)</span></h2>
+    <div class="grid" id="r2Summary"></div>
+    <div style="margin-top: 14px;">
+      <h3 style="font-size: 14px; color: #374151; margin: 0 0 8px;">Розподіл по типу файлів:</h3>
+      <div class="breakdown" id="r2Breakdown"></div>
+    </div>
+  </div>
+
+  <!-- Ліміти CF -->
+  <div class="card">
+    <h2>⚙️ Ліміти Cloudflare (Free Tier)</h2>
+    <div class="info-banner">
+      ℹ️ Це безкоштовні ліміти. Реальне споживання ліміту не повертається через API — дивися на <a href="https://dash.cloudflare.com" target="_blank" style="color:#1d4ed8;">dash.cloudflare.com</a> у розділах Workers/Pages/KV/R2 → Analytics.
+    </div>
+    <h3 style="font-size: 14px; color: #374151; margin: 12px 0 8px;">📦 KV (Workers KV)</h3>
+    <table>
+      <tr><th>Параметр</th><th>Ліміт Free</th><th>Що це</th></tr>
+      <tr><td>Storage</td><td>1 GB</td><td>Загальний обсяг даних</td></tr>
+      <tr><td>Reads</td><td>100 000 / день</td><td>Скільки разів читали ключі</td></tr>
+      <tr><td>Writes</td><td>1 000 / день</td><td>Збереження даних, кожне замовлення ~5 writes</td></tr>
+      <tr><td>Lists</td><td>1 000 / день</td><td>Перелік ключів (admin orders)</td></tr>
+      <tr><td>Deletes</td><td>1 000 / день</td><td>Видалення ключів</td></tr>
+      <tr><td>Розмір значення</td><td>25 MB</td><td>Один ключ не може бути більше</td></tr>
+    </table>
+    <h3 style="font-size: 14px; color: #374151; margin: 16px 0 8px;">🗂 R2 (об'єктне сховище)</h3>
+    <table>
+      <tr><th>Параметр</th><th>Ліміт Free</th><th>Що це</th></tr>
+      <tr><td>Storage</td><td>10 GB</td><td>Загальний обсяг файлів</td></tr>
+      <tr><td>Class A operations (uploads, deletes, lists)</td><td>1 млн / місяць</td><td>Запис</td></tr>
+      <tr><td>Class B operations (reads)</td><td>10 млн / місяць</td><td>Читання, віддача файлів</td></tr>
+      <tr><td>Egress (трафік назовні)</td><td>безлімітно</td><td>Без обмежень!</td></tr>
+    </table>
+    <h3 style="font-size: 14px; color: #374151; margin: 16px 0 8px;">🌐 Pages (хостинг сайту)</h3>
+    <table>
+      <tr><th>Параметр</th><th>Ліміт Free</th><th>Що це</th></tr>
+      <tr><td>Builds</td><td>500 / місяць</td><td>Скільки разів можеш робити деплой</td></tr>
+      <tr><td>Functions invocations</td><td>100 000 / день</td><td>Кожен API-виклик = 1 invocation</td></tr>
+      <tr><td>Bandwidth</td><td>безлімітно</td><td>Скільки гігабайт відвідувачі можуть скачати</td></tr>
+      <tr><td>Files per deployment</td><td>20 000</td><td>Скільки файлів в одному деплої</td></tr>
+      <tr><td>Custom domains</td><td>безлімітно</td><td>Скільки доменів привʼязати</td></tr>
+    </table>
+  </div>
+
+  <!-- Стартовий план -->
+  <div class="card">
+    <h2>💰 Якщо лімітів стане замало</h2>
+    <div class="info-banner" style="background: #fef3c7; color: #92400e;">
+      <strong>Workers Paid:</strong> $5/міс знімає всі ліміти KV / Workers / Pages Functions. Підключається в <a href="https://dash.cloudflare.com" target="_blank" style="color: #92400e; text-decoration: underline;">Cloudflare Dashboard</a> → Plans.
+    </div>
+    <p class="meta">Орієнтовні цифри:</p>
+    <ul class="meta" style="line-height: 1.6;">
+      <li>~200 замовлень/день — впираешься в KV writes (1000/день). Решение: Workers Paid $5/міс.</li>
+      <li>~10 GB у R2 — займеш Free tier. Сверх — $0.015/GB-місяць.</li>
+      <li>~30 000 відвідувачів/день — впираешься в Pages Functions (100k/день). Решение: Workers Paid.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/admin/_admin.js"></script>
+<script src="/admin/_admin-ui.js"></script>
+<script>
+async function logout() {
+  if (!confirm('Вийти з адмінки?')) return;
+  await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+  location.href = '/admin/login/';
+}
+
+function fmtBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+  if (b < 1024 * 1024 * 1024) return (b / 1024 / 1024).toFixed(2) + ' MB';
+  return (b / 1024 / 1024 / 1024).toFixed(2) + ' GB';
+}
+
+async function loadStats(force) {
+  try {
+    const url = '/api/admin/stats' + (force ? '?force=1' : '');
+    const r = await fetch(url, { credentials: 'include' });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    render(d);
+    loadVisitors();
+    loadCfUsage();
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+async function loadVisitors() {
+  try {
+    const r = await fetch('/api/admin/visitors-stats', { credentials: 'include' });
+    const d = await r.json();
+    if (!d.ok) return;
+    document.getElementById('visitorsCounters').innerHTML = `
+      <div class="stat-box">
+        <div class="v" style="color:#0b8aff;">${d.today}</div>
+        <div class="l">Сьогодні</div>
+        <div class="extra">${d.yesterday > 0 ? (d.today >= d.yesterday ? '↗' : '↘') + ' ' + d.yesterday + ' вчора' : 'вчора 0'}</div>
+      </div>
+      <div class="stat-box">
+        <div class="v">${d.last7Days}</div>
+        <div class="l">За 7 днів</div>
+        <div class="extra">~${Math.round(d.last7Days / 7)} в день</div>
+      </div>
+      <div class="stat-box">
+        <div class="v">${d.last30Days}</div>
+        <div class="l">За 30 днів</div>
+        <div class="extra">~${Math.round(d.last30Days / 30)} в день</div>
+      </div>
+    `;
+    // Графік стовпцями за 30 днів (праворуч — найновіше)
+    const reversed = d.daily.slice(0, 30).reverse();
+    const max = Math.max(1, ...reversed.map(x => x.count));
+    document.getElementById('visitorsChart').innerHTML = reversed.map(x => {
+      const h = Math.max(2, Math.round((x.count / max) * 70));
+      const isToday = x.date === d.daily[0].date;
+      return `<div title="${x.date}: ${x.count} відвідувачів" style="flex: 1; min-width: 12px; height: ${h}px; background: ${isToday ? '#0b8aff' : '#93c5fd'}; border-radius: 2px; cursor: help;"></div>`;
+    }).join('');
+  } catch {}
+}
+
+async function resetVisitors() {
+  if (!confirm('Скинути всю статистику відвідувачів?\nВсі цифри стануть 0. Це незворотньо.')) return;
+  const word = prompt('Введіть слово СКИНУТИ для підтвердження:');
+  if (word !== 'СКИНУТИ') { toast('Скасовано', 'error'); return; }
+  try {
+    const r = await fetch('/api/admin/visitors-stats', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset' }),
+    });
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error);
+    toast(`✅ Видалено ${d.deleted} записів`);
+    await loadVisitors();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+function render(d) {
+  document.getElementById('generatedAt').textContent =
+    'Оновлено: ' + new Date(d.generatedAt).toLocaleString('uk-UA') + ' (кеш на 5 хв)';
+
+  // Лічильники
+  const c = d.counters;
+  document.getElementById('counters').innerHTML = `
+    <div class="stat-box">
+      <div class="v">${c.products}</div>
+      <div class="l">Товарів у каталозі</div>
+      <div class="extra">${c.productsEnabled} активних</div>
+    </div>
+    <div class="stat-box">
+      <div class="v">${c.orders}</div>
+      <div class="l">Усього замовлень</div>
+      <div class="extra">${c.ordersUnread} непрочитаних</div>
+    </div>
+  `;
+
+  // KV summary
+  const kvUsedGB = (d.kv.total / (1024 * 1024 * 1024));
+  const kvLimitGB = d.limits.kv.storageMaxGB;
+  document.getElementById('kvSummary').innerHTML = `
+    <div class="stat-box">
+      <div class="v">${d.kv.count}</div>
+      <div class="l">Усього ключів</div>
+    </div>
+    <div class="stat-box">
+      <div class="v">${fmtBytes(d.kv.total)}</div>
+      <div class="l">Розмір (settings + products)</div>
+      <div class="extra">з лімітом ${kvLimitGB} GB — використано ${(kvUsedGB / kvLimitGB * 100).toFixed(4)}%</div>
+    </div>
+    <div class="stat-box">
+      <div class="v">${fmtBytes(d.kv.estSizes.settings)}</div>
+      <div class="l">Розмір settings</div>
+    </div>
+    <div class="stat-box">
+      <div class="v">${fmtBytes(d.kv.estSizes.products)}</div>
+      <div class="l">Розмір products</div>
+    </div>
+  `;
+
+  // KV breakdown
+  const labels = {
+    settings: '⚙️ Налаштування',
+    products: '📦 Каталог товарів',
+    orderCounter: '🔢 Лічильник',
+    order: '📋 Замовлення',
+    order_meta: '📊 Мета замовлень',
+    login_fails: '🚫 Невдалі логіни',
+    '2fa': '🔐 Сесії 2FA',
+    admin_password: '🔑 Пароль адмінки',
+    other: '❓ Інше',
+  };
+  const maxCount = Math.max(...Object.values(d.kv.breakdown));
+  document.getElementById('kvBreakdown').innerHTML = Object.entries(d.kv.breakdown)
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `
+      <div class="breakdown-row">
+        <span class="label">${labels[k] || k}</span>
+        <div class="bar"><div style="width: ${(v / maxCount * 100).toFixed(0)}%"></div></div>
+        <span class="value">${v} ${v === 1 ? 'ключ' : 'ключів'}</span>
+      </div>
+    `).join('') || '<div class="meta">Немає даних</div>';
+
+  // R2 summary
+  const r2UsedGB = (d.r2.total / (1024 * 1024 * 1024));
+  const r2LimitGB = d.limits.r2.storageMaxGB;
+  const r2Pct = r2LimitGB > 0 ? (d.r2.total / (r2LimitGB * 1024 * 1024 * 1024) * 100) : 0;
+  const r2BarClass = r2Pct >= 90 ? 'danger' : r2Pct >= 75 ? 'warning' : '';
+  document.getElementById('r2Summary').innerHTML = `
+    <div class="stat-box">
+      <div class="v">${d.r2.count}</div>
+      <div class="l">Усього файлів</div>
+    </div>
+    <div class="stat-box">
+      <div class="v">${fmtBytes(d.r2.total)}</div>
+      <div class="l">Зайнято з ${r2LimitGB} GB Free</div>
+      <div class="progress-bar"><div class="${r2BarClass}" style="width: ${Math.min(100, r2Pct).toFixed(1)}%"></div></div>
+      <div class="extra">${r2Pct.toFixed(2)}% ліміту</div>
+    </div>
+  `;
+
+  // R2 breakdown
+  const r2Total = d.r2.total || 1;
+  const r2Labels = { image: '🖼 Картинки', video: '🎬 Відео', other: '📄 Інше' };
+  document.getElementById('r2Breakdown').innerHTML = Object.entries(d.r2.byType || {})
+    .filter(([, v]) => v > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, count]) => {
+      const sz = d.r2.sizesByType[k] || 0;
+      return `
+        <div class="breakdown-row">
+          <span class="label">${r2Labels[k]}</span>
+          <div class="bar"><div style="width: ${(sz / r2Total * 100).toFixed(0)}%"></div></div>
+          <span class="value">${count} файлів · ${fmtBytes(sz)}</span>
+        </div>
+      `;
+    }).join('') || '<div class="meta">Сховище порожнє</div>';
+}
+
+function toast(msg, kind) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + (kind || 'success');
+  setTimeout(() => t.className = 'toast ' + (kind || 'success'), 2500);
+}
+
+// === Cloudflare Usage Today ===
+async function loadCfUsage() {
+  const card = document.getElementById('cfUsageCard');
+  const content = document.getElementById('cfUsageContent');
+  const period = document.getElementById('cfUsagePeriod');
+  if (!card) return;
+  try {
+    const r = await fetch('/api/admin/cf-usage', { credentials: 'include' });
+    const d = await r.json();
+    if (!d.ok) {
+      content.innerHTML = `
+        <div style="padding: 14px; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; color: #92400e;">
+          ⚠️ ${d.error || 'Не вдалося отримати дані'}
+          <div style="margin-top: 8px; font-size: 13px;">
+            Налаштуй <a href="/admin/integrations/" style="text-decoration: underline; color: inherit;">Cloudflare API Token</a> щоб бачити реальне використання.
+          </div>
+        </div>`;
+      period.textContent = '';
+      return;
+    }
+    // Період — час до скидання
+    if (d.period) {
+      const reset = new Date(d.period.resetAt);
+      const diff = reset - new Date();
+      const hh = Math.floor(diff / 3600000);
+      const mm = Math.floor((diff % 3600000) / 60000);
+      period.textContent = `до скидання: ${hh}год ${mm}хв (00:00 UTC)`;
+    }
+    content.innerHTML = renderCfUsage(d);
+  } catch (e) {
+    content.innerHTML = `<div style="padding:12px; color:#dc2626;">❌ ${e.message}</div>`;
+  }
+}
+
+function renderCfUsage(d) {
+  const sections = [];
+  // KV
+  const kv = d.kv || {};
+  sections.push(renderUsageSection('💾 KV-операції (база даних)', [
+    { label: 'Читання', value: kv.reads, max: 100000, unit: '' },
+    { label: 'Записи', value: kv.writes, max: 1000, unit: '' },
+    { label: 'Lists', value: kv.lists, max: 1000, unit: '' },
+    { label: 'Видалення', value: kv.deletes, max: 1000, unit: '' },
+  ], kv.error));
+
+  // Workers
+  const w = d.workers || {};
+  sections.push(renderUsageSection('⚡ Pages Functions (API запити)', [
+    { label: 'Запити сьогодні', value: w.requests, max: 100000, unit: '' },
+    { label: 'Помилки', value: w.errors, max: null, unit: '', errorBar: true },
+  ], w.error));
+
+  // R2
+  const r2 = d.r2 || {};
+  const storageGB = r2.storageBytes != null ? (r2.storageBytes / 1073741824).toFixed(2) : null;
+  sections.push(renderUsageSection('📦 R2 файлове сховище', [
+    { label: 'Місце зайнято', value: storageGB, max: 10, unit: 'GB', isStorage: true },
+    { label: 'Class A ops (writes)', value: r2.classAOps, max: null, unit: '/міс', subnote: 'ліміт 1М/міс' },
+    { label: 'Class B ops (reads)', value: r2.classBOps, max: null, unit: '/міс', subnote: 'ліміт 10М/міс' },
+  ], r2.error));
+
+  return sections.join('');
+}
+
+function renderUsageSection(title, items, error) {
+  if (error) {
+    return `<div style="margin-bottom: 14px;">
+      <h3 style="font-size: 13px; margin: 0 0 6px; color:#374151;">${title}</h3>
+      <div style="padding: 10px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; color: #991b1b; font-size: 12px;">
+        ❌ ${error}
+      </div>
+    </div>`;
+  }
+  const rows = items.map(it => {
+    const v = it.value;
+    if (v == null) return `
+      <tr>
+        <td style="padding: 4px 8px; font-size: 13px;">${it.label}</td>
+        <td colspan="2" style="padding: 4px 8px; font-size: 13px; color: #9ca3af;">—</td>
+      </tr>`;
+    const num = parseFloat(v);
+    const max = it.max;
+    let pct = 0, color = '#10b981';
+    if (max) {
+      pct = Math.min(100, Math.round((num / max) * 100));
+      if (pct >= 80) color = '#dc2626';
+      else if (pct >= 60) color = '#f59e0b';
+    }
+    const valStr = it.isStorage ? num.toFixed(2) : Math.round(num).toLocaleString('uk-UA');
+    const maxStr = max ? (it.isStorage ? max.toFixed(0) : max.toLocaleString('uk-UA')) : '∞';
+    return `
+      <tr>
+        <td style="padding: 6px 8px; font-size: 13px; width: 200px;">${it.label}${it.subnote ? ` <span style="font-size:11px; color:#9ca3af;">${it.subnote}</span>` : ''}</td>
+        <td style="padding: 6px 8px; font-size: 13px; font-variant-numeric: tabular-nums;">
+          <strong>${valStr}</strong>${it.unit} ${max ? '/ ' + maxStr + it.unit : ''}
+          ${max ? `<span style="margin-left: 6px; color:${color}; font-size: 12px;">(${pct}%)</span>` : ''}
+        </td>
+        <td style="padding: 6px 8px; width: 200px;">
+          ${max ? `<div style="height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden;">
+            <div style="height: 100%; width: ${pct}%; background: ${color}; transition: width .3s;"></div>
+          </div>` : ''}
+        </td>
+      </tr>`;
+  }).join('');
+  return `<div style="margin-bottom: 14px;">
+    <h3 style="font-size: 13px; margin: 0 0 6px; color:#374151;">${title}</h3>
+    <table style="width: 100%; border-collapse: collapse;">${rows}</table>
+  </div>`;
+}
+
+// Завантажити стан чекбоксу + зберігати при зміні
+async function loadVisitorsWidgetSetting() {
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (r.ok) {
+      const data = await r.json();
+      const s = data.settings || data;
+      document.getElementById('adminShowVisitorsWidget').checked = !!s.adminShowVisitorsWidget;
+    }
+  } catch {}
+}
+
+async function saveVisitorsWidgetSetting() {
+  const checked = document.getElementById('adminShowVisitorsWidget').checked;
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const settings = data.settings || data;
+    settings.adminShowVisitorsWidget = checked;
+    const sr = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings),
+    });
+    if (!sr.ok) throw new Error('HTTP ' + sr.status);
+    const sj = await sr.json();
+    if (!sj.ok) throw new Error(sj.error || 'Помилка');
+    toast(checked ? '✅ Віджет увімкнено' : '✅ Віджет вимкнено');
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+loadStats();
+loadVisitorsWidgetSetting();
+</script>
+</body>
+</html>
