@@ -561,6 +561,17 @@
   </div>
 
   <div class="card">
+    <h2>🖊 Редактор товару</h2>
+    <div class="grid">
+      <div class="checkbox-inline">
+        <input type="checkbox" id="editorDualSaveBar" />
+        <label for="editorDualSaveBar" style="margin:0">Показувати панель збереження і зверху, і знизу (інакше — тільки зверху)</label>
+      </div>
+      <div class="hint">Коли увімкнено — у редакторі товару дві панелі «Зберегти»: вгорі та внизу. Знімі галочку, щоб лишити тільки верхню.</div>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>🛡 Безпека / небезпечні операції</h2>
     <div class="grid">
       <div class="checkbox-inline">
@@ -803,6 +814,7 @@ function render() {
   document.getElementById('watermarkSize').value = settings.watermarkSize || '';
   document.getElementById('watermarkOpacity').value = (settings.watermarkOpacity != null ? settings.watermarkOpacity : '');
   document.getElementById('showBulkOperations').checked = settings.showBulkOperations !== false;
+  document.getElementById('editorDualSaveBar').checked = settings.editorDualSaveBar !== false; // дефолт: дві панелі
   // Sync lockReorder з settings → localStorage
   if (typeof syncLockReorder === 'function') syncLockReorder(settings);
   document.getElementById('lockReorder').checked = !!settings.adminLockReorder;
@@ -988,6 +1000,7 @@ async function saveAll() {
   { const _s = parseInt(document.getElementById('watermarkSize').value, 10); settings.watermarkSize = (_s >= 10 && _s <= 60) ? _s : 22; }
   { const _o = parseFloat(document.getElementById('watermarkOpacity').value); settings.watermarkOpacity = (_o >= 0 && _o <= 1) ? _o : 0.22; }
   settings.showBulkOperations = document.getElementById('showBulkOperations').checked;
+  settings.editorDualSaveBar = document.getElementById('editorDualSaveBar').checked;
   // Швидкість
   const clamp = (v, mn, mx, def) => { v = parseInt(v, 10); return (v >= mn && v <= mx) ? v : def; };
   settings.publicPollIntervalSec = clamp(document.getElementById('publicPollIntervalSec').value, 1, 60, 5);
