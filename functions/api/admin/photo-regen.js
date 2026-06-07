@@ -69,7 +69,8 @@ async function runCloudflare(env, src, prompt, width, height) {
     form.append('prompt', prompt);
     form.append('width', String(width));
     form.append('height', String(height));
-    form.append('steps', '25');
+    // менше кроків = швидше, менший ризик тайм-ауту Workers AI (часта причина 3043)
+    form.append('steps', String(env.FLUX_STEPS ? parseInt(env.FLUX_STEPS, 10) : 8));
     // FLUX.2 на Workers AI приймає вхідні зображення лише через multipart-обгортку.
     const res = await env.AI.run('@cf/black-forest-labs/flux-2-dev', {
       multipart: { body: form, contentType: 'multipart/form-data' },
