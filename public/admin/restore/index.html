@@ -180,6 +180,26 @@
           <button id="saveGptModel" type="button">💾 Зберегти</button>
         </div>
         <div class="hint" id="gptModelMsg" style="margin-top:6px;"></div>
+
+        <div class="row" style="gap:14px; align-items:flex-end; margin-top:12px; flex-wrap:wrap;">
+          <div>
+            <div class="field-label">Якість</div>
+            <select id="gptQuality" style="min-width:150px;">
+              <option value="low">low — найдешевше/найшвидше</option>
+              <option value="medium" selected>medium — баланс</option>
+              <option value="high">high — найкраще/дорожче</option>
+            </select>
+          </div>
+          <div>
+            <div class="field-label">Розмір</div>
+            <select id="gptSize" style="min-width:170px;">
+              <option value="1024x1024" selected>1024×1024 (квадрат)</option>
+              <option value="1024x1536">1024×1536 (вертикальне)</option>
+              <option value="1536x1024">1536×1024 (горизонтальне)</option>
+            </select>
+          </div>
+        </div>
+        <div class="hint" style="margin-top:6px;">Дешевше і швидше = <b>low</b> + <b>1024×1024</b>. Налаштування зберігаються автоматично.</div>
       </div>
     </details>
   </div>
@@ -335,10 +355,12 @@ async function processOne(item) {
           : item.srcUrl;
       }
       const gptModel = engine === 'gpt' ? getGptModel() : '';
+      const gptQuality = engine === 'gpt' ? getGptQuality() : '';
+      const gptSize = engine === 'gpt' ? getGptSize() : '';
       const r = await fetch('/api/admin/photo-regen', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined }),
+        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined }),
       });
       if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
       const d = await r.json();
@@ -558,9 +580,13 @@ document.querySelectorAll('.clearKeyBtn').forEach(btn => btn.onclick = () => {
 function getGptModel() {
   try { return (localStorage.getItem('restoreGptModel') || '').trim(); } catch { return ''; }
 }
+function getGptQuality() { try { return localStorage.getItem('restoreGptQuality') || 'medium'; } catch { return 'medium'; } }
+function getGptSize() { try { return localStorage.getItem('restoreGptSize') || '1024x1024'; } catch { return '1024x1024'; } }
 (function initGptModel() {
   const inp = document.getElementById('gptModel');
   if (inp) inp.value = getGptModel();
+  const q = document.getElementById('gptQuality'); if (q) q.value = getGptQuality();
+  const s = document.getElementById('gptSize'); if (s) s.value = getGptSize();
 })();
 document.getElementById('saveGptModel').onclick = () => {
   const v = document.getElementById('gptModel').value.trim();
@@ -569,6 +595,14 @@ document.getElementById('saveGptModel').onclick = () => {
   msg.textContent = v ? ('Модель збережено: ' + v) : 'Модель скинуто (буде gpt-image-1)';
   msg.style.color = '#16a34a';
   toast('Модель GPT збережено', 'success');
+};
+document.getElementById('gptQuality').onchange = (e) => {
+  try { localStorage.setItem('restoreGptQuality', e.target.value); } catch {}
+  toast('Якість: ' + e.target.value, 'success');
+};
+document.getElementById('gptSize').onchange = (e) => {
+  try { localStorage.setItem('restoreGptSize', e.target.value); } catch {}
+  toast('Розмір: ' + e.target.value, 'success');
 };
 
 // ---------- лайтбокс (перегляд фото без скачування) ----------

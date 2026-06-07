@@ -145,7 +145,7 @@ async function runPremium(env, { buf, contentType }, prompt) {
 }
 
 // --- Платний рушій: OpenAI GPT Image (gpt-image-1, edits) ---
-async function runGPT(env, { buf, contentType }, prompt, modelOverride) {
+async function runGPT(env, { buf, contentType }, prompt, modelOverride, quality, size) {
   // Ключ: спочатку секрет OPENAI_API_KEY, інакше — збережений в адмінці (KV openai_image_key)
   let apiKey = env.OPENAI_API_KEY;
   if (!apiKey && env.SHOP_KV) {
@@ -157,12 +157,20 @@ async function runGPT(env, { buf, contentType }, prompt, modelOverride) {
   let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
   if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
 
+  // якість і розмір можна задати з фронту (дешевше/швидше = low + менший розмір)
+  const ALLOWED_QUALITY = ['low', 'medium', 'high', 'auto'];
+  const ALLOWED_SIZE = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
+  let q = (quality || env.GPT_IMAGE_QUALITY || 'medium').toLowerCase();
+  if (!ALLOWED_QUALITY.includes(q)) q = 'medium';
+  let s = (size || env.GPT_IMAGE_SIZE || '1024x1024').toLowerCase();
+  if (!ALLOWED_SIZE.includes(s)) s = '1024x1024';
+
   const form = new FormData();
   form.append('model', model);
   form.append('image', new Blob([buf], { type: contentType || 'image/png' }), 'src.png');
   form.append('prompt', prompt);
-  form.append('size', env.GPT_IMAGE_SIZE || '1024x1024');
-  form.append('quality', env.GPT_IMAGE_QUALITY || 'medium');
+  form.append('size', s);
+  form.append('quality', q);
   form.append('n', '1');
 
   const r = await fetch('https://api.openai.com/v1/images/edits', {
@@ -198,8 +206,10 @@ export async function onRequestPost({ request, env }) {
   try {
     const src = await loadSource(env, sourceUrl);
     const modelOverride = (body.model && String(body.model).trim()) || '';
+    const gptQuality = (body.quality && String(body.quality).trim()) || '';
+    const gptSize = (body.size && String(body.size).trim()) || '';
     let out;
-    if (engine === 'gpt') out = await runGPT(env, src, prompt, modelOverride);
+    if (engine === 'gpt') out = await runGPT(env, src, prompt, modelOverride, gptQuality, gptSize);
     else if (engine === 'premium') out = await runPremium(env, src, prompt);
     else out = await runCloudflare(env, src, prompt, width, height);
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
