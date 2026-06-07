@@ -17,9 +17,11 @@ export async function onRequestPost({ request, env }) {
       let cursor;
       do {
         const list = await env.STORAGE.list({ cursor, limit: 1000 });
-        for (const obj of list.objects) {
-          await env.STORAGE.delete(obj.key);
-          deleted++;
+        const batch = list.objects.map(o => o.key);
+        if (batch.length) {
+          // R2 підтримує видалення масиву ключів одним викликом (до 1000)
+          await env.STORAGE.delete(batch);
+          deleted += batch.length;
         }
         cursor = list.truncated ? list.cursor : undefined;
       } while (cursor);
@@ -29,17 +31,18 @@ export async function onRequestPost({ request, env }) {
     }
   }
 
-  // Звичайне видалення (один або кілька ключів)
-  const keys = Array.isArray(body.keys) ? body.keys : (body.key ? [body.key] : []);
+  // Звичайне видалення (один або кілька ключів) — справжнє batch-видалення масивом
+  const rawKeys = Array.isArray(body.keys) ? body.keys : (body.key ? [body.key] : []);
+  const keys = rawKeys.filter(k => typeof k === 'string' && k.length > 0);
   if (keys.length === 0) return jsonResp({ ok: false, error: 'Не вказано key' }, 400);
 
   try {
     let deleted = 0;
-    for (const k of keys) {
-      if (typeof k === 'string' && k.length > 0) {
-        await env.STORAGE.delete(k);
-        deleted++;
-      }
+    // R2 .delete() приймає масив до 1000 ключів за виклик — ділимо на частини
+    for (let i = 0; i < keys.length; i += 1000) {
+      const chunk = keys.slice(i, i + 1000);
+      await env.STORAGE.delete(chunk);
+      deleted += chunk.length;
     }
     return jsonResp({ ok: true, deleted });
   } catch (e) {
