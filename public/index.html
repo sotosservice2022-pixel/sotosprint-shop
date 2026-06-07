@@ -1888,7 +1888,7 @@ function productCardHtml(p) {
         ${hasVideo ? '<span class="video-mark">▶ Видео</span>' : ''}
       </div>
       <div class="body">
-        <div class="name">${escapeHtml(p.name)}</div>
+        <div class="name">${nameHtml(p.name)}</div>
         <div class="price">${p.price} ${escapeHtml(p.currency || '₴')}</div>
         ${soldHtml}
         ${stockHtml}
@@ -2009,7 +2009,7 @@ window.quickAdd = (productId) => {
     if (existing.selected === false) existing.selected = true;
   } else {
     cart.push({
-      productId: p.id, productName: p.name,
+      productId: p.id, productName: nameOneLine(p.name),
       optionId: '', optionName: '',
       quantity: 1,
       unitPrice: p.price || 0,
@@ -2112,7 +2112,7 @@ function openModal(p) {
         ` : ''}
       </div>
       <div class="info">
-        <h2>${escapeHtml(p.name)}</h2>
+        <h2>${nameHtml(p.name)}</h2>
         <div class="price-line" id="priceLine">${p.price} ${escapeHtml(p.currency || '₴')}</div>
         ${(() => { const si = stockInfo(p); return si.tracked ? `<div class="stock-line" style="margin:6px 0; font-size:14px; font-weight:600; color:${si.out ? '#dc2626' : '#16a34a'};">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>` : ''; })()}
         ${getProductPromoBadges(p, 'modal').length ? `<div class="product-badges" style="position:static; margin:6px 0; flex-direction:row; flex-wrap:wrap;">${promoBadgesHtml(p, 'modal')}</div>` : ''}
@@ -2357,7 +2357,7 @@ function addCurrentToCart() {
     if (existing.selected === false) existing.selected = true; // повторное добавление включает галку
   } else {
     cart.push({
-      productId: p.id, productName: p.name,
+      productId: p.id, productName: nameOneLine(p.name),
       optionId, optionName, optionIds, optionItems,
       quantity: qty,
       unitPrice: (p.price || 0) + sumDelta,
@@ -2748,6 +2748,10 @@ function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function escapeAttr(s) { return escapeHtml(s); }
+// Назва товара з ручними переносами рядка: екрануємо, а \n робимо <br> (для картки/модалки).
+function nameHtml(s) { return escapeHtml(s).replace(/\r?\n/g, '<br>'); }
+// Назва в один рядок (кошик, замовлення, заголовки, telegram) — переноси замінюємо на пробіл.
+function nameOneLine(s) { return String(s ?? '').replace(/\s*[\r\n]+\s*/g, ' ').trim(); }
 function stripEmoji(s) { return String(s ?? '').replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim(); }
 
 // Знаходить URL у тексті і робить їх клікабельними. Текст екранується для безпеки.

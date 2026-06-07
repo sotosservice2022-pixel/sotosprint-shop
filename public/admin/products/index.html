@@ -719,7 +719,7 @@ function editProduct(idx) {
     <div class="section">
       <h4>Основне</h4>
       <div class="grid">
-        <div><label>Назва</label><input type="text" data-prop="name" value="${escapeAttr(p.name || '')}" /></div>
+        <div><label>Назва</label><textarea data-prop="name" rows="2" style="resize:vertical; white-space:pre-wrap;" placeholder="Назва товару. Натисни Enter, щоб перенести на новий рядок (видно на картці й у вікні товару).">${escapeHtml(p.name || '')}</textarea><div style="font-size:11px; color:#6b7280; margin-top:3px;">↵ Enter — перенос рядка (щоб назва з 2 слів не розбивалась як попало). У кошику/замовленні буде в один рядок.</div></div>
         <div><label>Короткий опис (для модального вікна)</label><textarea rows="3" data-prop="description">${escapeHtml(p.description || '')}</textarea></div>
         <div class="grid grid-3">
           <div><label>Ціна</label><input type="number" data-prop="price" value="${p.price || 0}" min="0" step="1" /></div>
