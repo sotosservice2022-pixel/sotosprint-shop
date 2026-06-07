@@ -582,7 +582,7 @@ function renderList() {
         <div class="name">${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
         <div class="meta">${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}</div>
       </div>
-      <div style="font-weight:800; font-size:15px; color:var(--accent); white-space:nowrap; margin:0 6px; flex-shrink:0;">${p.price || 0} ${escapeHtml(p.currency || '₴')}</div>
+      <div style="font-weight:500; font-size:15px; color:var(--accent); white-space:nowrap; margin:0 6px; flex-shrink:0;">${p.price || 0} ${escapeHtml(p.currency || '₴')}</div>
       <label class="toggle-switch" onclick="event.stopPropagation()" title="${p.enabled !== false ? 'Прихований' : 'Видимий'}">
         <input type="checkbox" ${p.enabled !== false ? 'checked' : ''} onchange="quickToggleEnabled(${idx}, this.checked)" />
         <span class="toggle-slider"></span>
