@@ -825,6 +825,13 @@
 const CART_KEY = 'sotosprint_cart_v1';
 let shop = null;
 let currentProduct = null;
+
+// #2: наявність товару. showStock=true → показуємо залишок; stock<=0 → немає в наявності.
+function stockInfo(p) {
+  const tracked = !!(p && p.showStock);
+  const qty = Number.isFinite(p && p.stock) ? p.stock : 0;
+  return { tracked, qty, out: tracked && qty <= 0 };
+}
 let currentImgIdx = 0;
 
 (async () => {
@@ -1685,6 +1692,13 @@ function productCardHtml(p) {
   const badgesHtml = (badges.length || getProductPromoBadges(p).length)
     ? `<div class="product-badges">${badges.map(b => `<span class="product-badge" style="background:${b.color || '#dc2626'};color:${b.textColor || '#fff'}">${escapeHtml(b.text)}</span>`).join('')}${promoBadgesHtml(p)}</div>`
     : '';
+  const si = stockInfo(p);
+  const stockHtml = si.tracked
+    ? `<div class="sold" style="color:${si.out ? '#dc2626' : '#16a34a'}; font-weight:600;">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>`
+    : '';
+  const cardBtn = si.out
+    ? `<button class="add" disabled style="opacity:.55; cursor:not-allowed;" onclick="event.stopPropagation();">${escapeHtml(shop.outOfStockText || 'Немає в наявності')}</button>`
+    : `<button class="add ${isInCart(p.id) ? 'in-cart' : ''}" data-product-id="${escapeAttr(p.id)}" onclick="event.stopPropagation(); handleAddBtnClick('${escapeAttr(p.id)}')">${escapeHtml(isInCart(p.id) ? (shop.inCartText || '✓ У кошику') : (shop.addToCartText || 'В корзину'))}</button>`;
   return `
     <div class="product" onclick="openModalById('${escapeAttr(p.id)}')">
       <div class="img-wrap">
@@ -1696,7 +1710,8 @@ function productCardHtml(p) {
         <div class="name">${escapeHtml(p.name)}</div>
         <div class="price">${p.price} ${escapeHtml(p.currency || '₴')}</div>
         ${soldHtml}
-        <button class="add ${isInCart(p.id) ? 'in-cart' : ''}" data-product-id="${escapeAttr(p.id)}" onclick="event.stopPropagation(); handleAddBtnClick('${escapeAttr(p.id)}')">${escapeHtml(isInCart(p.id) ? (shop.inCartText || '✓ У кошику') : (shop.addToCartText || 'В корзину'))}</button>
+        ${stockHtml}
+        ${cardBtn}
       </div>
     </div>
   `;
@@ -1796,6 +1811,7 @@ window.updateAddButtons = function() {
 window.quickAdd = (productId) => {
   const p = (shop.products || []).find(x => x.id === productId);
   if (!p) return;
+  if (stockInfo(p).out) { showToast(shop.outOfStockText || 'Немає в наявності'); return; }
   // Товар вже в кошику — обробляємо за налаштуваннями (remove / open cart / add another)
   if (isInCart(productId) && handleInCartClick(productId)) return;
   const hasMultipleOptions = Array.isArray(p.options) && p.options.length > 0;
@@ -1910,6 +1926,7 @@ function openModal(p) {
       <div class="info">
         <h2>${escapeHtml(p.name)}</h2>
         <div class="price-line" id="priceLine">${p.price} ${escapeHtml(p.currency || '₴')}</div>
+        ${(() => { const si = stockInfo(p); return si.tracked ? `<div class="stock-line" style="margin:6px 0; font-size:14px; font-weight:600; color:${si.out ? '#dc2626' : '#16a34a'};">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>` : ''; })()}
         ${getProductPromoBadges(p).length ? `<div class="product-badges" style="position:static; margin:6px 0; flex-direction:row; flex-wrap:wrap;">${promoBadgesHtml(p)}</div>` : ''}
         ${p.description ? `<div class="desc">${linkifyText(p.description)}</div>` : ''}
         ${attrsHtml}
@@ -1922,9 +1939,9 @@ function openModal(p) {
             <button onclick="modalQty(1)">+</button>
           </div>
         </div>
-        <button class="add-big" id="modalAddBtn" onclick="addCurrentToCart()">
-          ${escapeHtml(shop.addToCartText || 'В корзину')}
-        </button>
+        ${(() => { const si = stockInfo(p); return si.out
+          ? `<button class="add-big" id="modalAddBtn" disabled style="opacity:.55; cursor:not-allowed;">${escapeHtml(shop.outOfStockText || 'Немає в наявності')}</button>`
+          : `<button class="add-big" id="modalAddBtn" onclick="addCurrentToCart()">${escapeHtml(shop.addToCartText || 'В корзину')}</button>`; })()}
       </div>
     </div>
   `;
@@ -2073,7 +2090,9 @@ window.selectOpt = (optId) => {
 
 window.modalQty = (delta) => {
   let v = (window.modalQty_value || 1) + delta;
-  if (v < 1) v = 1; if (v > 100) v = 100;
+  let max = 100;
+  if (currentProduct) { const si = stockInfo(currentProduct); if (si.tracked) max = Math.max(1, si.qty); }
+  if (v < 1) v = 1; if (v > max) v = max;
   window.modalQty_value = v;
   document.getElementById('modalQtyVal').textContent = v;
 };
@@ -2081,6 +2100,7 @@ window.modalQty = (delta) => {
 function addCurrentToCart() {
   if (!currentProduct) return;
   const p = currentProduct;
+  if (stockInfo(p).out) { showToast(shop.outOfStockText || 'Немає в наявності'); return; }
   const activeOpt = document.querySelector('#optRow .opt.active');
   let optionId = '', optionName = '', priceDelta = 0;
   if (activeOpt) {

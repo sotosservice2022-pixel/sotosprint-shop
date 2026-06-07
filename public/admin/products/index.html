@@ -644,6 +644,15 @@ function editProduct(idx) {
           <input type="checkbox" id="ed-reqphoto" ${p.requiresPhoto !== false ? 'checked' : ''} />
           <label for="ed-reqphoto" style="margin:0">Клієнт повинен прикріпити фото при оформленні</label>
         </div>
+        <div class="checkbox-inline">
+          <input type="checkbox" id="ed-showstock" ${p.showStock ? 'checked' : ''} />
+          <label for="ed-showstock" style="margin:0">Показувати наявність (залишок на складі)</label>
+        </div>
+        <div id="ed-stock-wrap" style="${p.showStock ? '' : 'display:none;'}">
+          <label>Кількість на складі</label>
+          <input type="number" id="ed-stock" value="${Number.isFinite(p.stock) ? p.stock : 0}" min="0" step="1" />
+          <div class="hint">Якщо <strong>0</strong> — на сайті буде «Немає в наявності» і кнопка замовлення заблокується. Зменшується автоматично після кожного замовлення.</div>
+        </div>
       </div>
     </div>
 
@@ -736,6 +745,15 @@ function editProduct(idx) {
     window.currentIdx = products.indexOf(p); // індекс міг змінитися після сортування
     renderList();
   });
+  // #2: наявність товару
+  const showStockEl = document.getElementById('ed-showstock');
+  const stockWrap = document.getElementById('ed-stock-wrap');
+  const stockEl = document.getElementById('ed-stock');
+  if (showStockEl) showStockEl.addEventListener('change', e => {
+    p.showStock = e.target.checked;
+    if (stockWrap) stockWrap.style.display = e.target.checked ? '' : 'none';
+  });
+  if (stockEl) stockEl.addEventListener('input', e => { p.stock = parseInt(e.target.value) || 0; });
 
   renderGallery(p);
   renderAttrs(p);

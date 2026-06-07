@@ -498,6 +498,11 @@ export async function onRequestPost({ request, env }) {
         const p = productsList.find(p => p.id === it.product.id);
         if (p) {
           p.soldCount = (parseInt(p.soldCount) || 0) + (it.qty || 1);
+          // #2: авто-списання залишку на складі (тільки якщо облік увімкнено)
+          if (p.showStock) {
+            const cur = Number.isFinite(p.stock) ? p.stock : 0;
+            p.stock = Math.max(0, cur - (it.qty || 1));
+          }
           productsChanged = true;
         }
       }
