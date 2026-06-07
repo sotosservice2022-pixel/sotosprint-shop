@@ -247,7 +247,7 @@
       <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">У редакторі товару виберете — до якої категорії належить.</div>
     </div>
     <div style="margin-top: 14px; display: flex; gap: 8px; align-items: center;">
-      <button class="btn btn-primary" onclick="saveCategories()">💾 Зберегти категорії</button>
+      <span style="font-size: 13px; color: #6b7280;">💡 Категорії зберігаються разом з усім — кнопкою <strong>«💾 Зберегти все»</strong> внизу сторінки.</span>
       <span id="catStatus" style="font-size: 13px; color: #6b7280;"></span>
     </div>
   </div>
@@ -455,45 +455,8 @@ function moveCategory(i, dir) {
   [categories[i], categories[t]] = [categories[t], categories[i]];
   renderCategories();
 }
-async function saveCategories() {
-  const status = document.getElementById('catStatus');
-  status.textContent = 'Зберігаю…';
-  status.style.color = '#6b7280';
-  appSettings.categories = categories;
-  appSettings.showCategoriesNav = document.getElementById('showCategoriesNav').checked;
-  appSettings.showAllCategoriesTab = document.getElementById('showAllCategoriesTab').checked;
-  appSettings.defaultCategoryName = document.getElementById('defaultCategoryName').value.trim() || 'Усі товари';
-  try {
-    // ВАЖЛИВО: спершу зберігаємо товари, щоб НЕ втратити правки у відкритому редакторі.
-    // products і settings — різні KV-ключі, тому зберігаємо обидва незалежно.
-    sanitizeProducts();
-    const pRes = await fetch('/api/admin/products', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(products),
-    });
-    if (!pRes.ok) throw new Error('Товари HTTP ' + pRes.status);
-
-    const r = await fetch('/api/admin/settings', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(appSettings),
-    });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    status.textContent = '✓ Збережено';
-    status.style.color = '#16a34a';
-    toast('✅ Категорії та товари збережено');
-    // НЕ викликаємо loadAll() — він перезатер би масив products і скинув би
-    // незбережені правки. Оновлюємо лише список категорій у відкритому редакторі.
-    renderCategories();
-    if (window.currentIdx != null && products[window.currentIdx]) {
-      editProduct(window.currentIdx);
-    }
-  } catch (e) {
-    status.textContent = '❌ ' + e.message;
-    status.style.color = '#dc2626';
-  }
-}
+// saveCategories() винесено нижче як аліас на saveAll() — категорії тепер
+// зберігаються разом з усім головною кнопкою «Зберегти все».
 
 // === Згортання блоку (категорії / редактор) ===
 // headingEl — заголовок (h2/h3) всередині блоку card. key — ключ для localStorage.
@@ -1238,37 +1201,68 @@ async function saveAll() {
   sanitizeProducts();
 
   setStatus('Зберігаю…');
+  const catStatus = document.getElementById('catStatus');
   try {
-    // Зберігаємо settings, якщо в них могли змінитися промокоди (прив'язка товар↔промокод
-    // у редакторі товару пише в appSettings.promoCodes). products і settings — різні KV-ключі.
+    // === 1) НАЛАШТУВАННЯ (категорії + промокоди) ===
+    // ВАЖЛИВО: read-modify-write. Беремо СВІЖІ settings із сервера і змінюємо ЛИШЕ
+    // ті поля, якими керує ЦЯ сторінка (категорії, вкладки, промокоди). Інакше ми
+    // перетирали б поля зі сторінки «Налаштування» (напр. showSoldCount) старими
+    // значеннями з пам'яті — саме через це чекбокс «Показувати куплено» повертався.
+    let serverSettings = {};
+    try {
+      const sg = await fetch('/api/admin/settings', { credentials: 'include' });
+      if (sg.ok) serverSettings = (await sg.json()).settings || {};
+    } catch {}
+    serverSettings.categories = categories;
+    const navEl = document.getElementById('showCategoriesNav');
+    const allTabEl = document.getElementById('showAllCategoriesTab');
+    const defNameEl = document.getElementById('defaultCategoryName');
+    if (navEl) serverSettings.showCategoriesNav = navEl.checked;
+    if (allTabEl) serverSettings.showAllCategoriesTab = allTabEl.checked;
+    if (defNameEl) serverSettings.defaultCategoryName = defNameEl.value.trim() || 'Усі товари';
+    // промокоди редагуються у редакторі товару (пишуть в appSettings.promoCodes)
     if (appSettings && Array.isArray(appSettings.promoCodes)) {
-      const sRes = await fetch('/api/admin/settings', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', body: JSON.stringify(appSettings),
-      });
-      if (!sRes.ok) throw new Error('Налаштування HTTP ' + sRes.status);
+      serverSettings.promoCodes = appSettings.promoCodes;
     }
+    const sRes = await fetch('/api/admin/settings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(serverSettings),
+    });
+    if (!sRes.ok) throw new Error('Налаштування HTTP ' + sRes.status);
+    appSettings = serverSettings; // локальна копія тепер збігається з сервером
+
+    // === 2) ТОВАРИ ===
     const r = await fetch('/api/admin/products', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify(products),
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
-    toast('✅ Збережено');
+
+    // === 3) НЕ перезавантажуємо products із сервера! ===
+    // Раніше тут був GET /api/admin/products одразу після збереження. Через
+    // eventual consistency KV (читання може віддавати СТАРЕ значення до ~60с)
+    // цей GET часом повертав застарілий масив і перетирав щойно збережене в пам'яті.
+    // Наступне збереження писало застарілий масив назад → втрата цін, шильдиків,
+    // зникнення доданих товарів. Тепер in-memory products = те, що ми вже зберегли.
+    toast('✅ Збережено (товари + категорії)');
     setStatus('Збережено ' + new Date().toLocaleTimeString('ru-RU'));
-    // Перезагружаем с сервера чтобы UI совпадал с фактическим состоянием
-    const fresh = await fetch('/api/admin/products', { credentials: 'include' }).then(r => r.json());
-    products = fresh.products || [];
+    if (catStatus) { catStatus.textContent = '✓ Збережено'; catStatus.style.color = '#16a34a'; }
+    renderCategories();
     renderList();
     if (window.currentIdx != null && products[window.currentIdx]) {
-      // Если редактор был открыт — обновляем его
-      editProduct(window.currentIdx);
+      editProduct(window.currentIdx); // оновлюємо відкритий редактор
     }
   } catch (e) {
     toast('❌ ' + e.message, 'error');
     setStatus('Помилка: ' + e.message, true);
+    if (catStatus) { catStatus.textContent = '❌ ' + e.message; catStatus.style.color = '#dc2626'; }
   }
 }
+
+// Стара окрема кнопка «Зберегти категорії» прибрана — категорії тепер зберігаються
+// головною кнопкою «Зберегти все». Лишаємо аліас на випадок зовнішніх викликів.
+async function saveCategories() { return saveAll(); }
 
 // === 💰 Групова зміна цін ===
 function priceBulkInit() {
