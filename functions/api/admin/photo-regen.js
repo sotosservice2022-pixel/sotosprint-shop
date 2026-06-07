@@ -65,8 +65,11 @@ async function runCloudflare(env, { buf, contentType }, prompt, width, height) {
   form.append('prompt', prompt);
   form.append('width', String(width));
   form.append('height', String(height));
-  form.append('steps', '28');
-  const res = await env.AI.run('@cf/black-forest-labs/flux-2-dev', form);
+  form.append('steps', '25');
+  // FLUX.2 на Workers AI приймає вхідні зображення лише через multipart-обгортку.
+  const res = await env.AI.run('@cf/black-forest-labs/flux-2-dev', {
+    multipart: { body: form, contentType: 'multipart/form-data' },
+  });
   // Відповідь: base64 у полі image (різні версії можуть віддавати по-різному)
   let b64 = null;
   if (typeof res === 'string') b64 = res;
