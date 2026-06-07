@@ -1794,17 +1794,22 @@ function linkifyContacts(text) {
   return html;
 }
 
-// Промокоди, які діють на товар і мають showOnCard — для бейджів на вітрині.
+// Промокоди, які діють на товар — для бейджів на вітрині (картка + модалка).
+// Показуємо, якщо showOnCard АБО промо прив'язаний саме до цього товару (scope=products з його id):
+// якщо акцію зробили адресно під товар — її логічно показати на ньому навіть без showOnCard.
 function getProductPromoBadges(p) {
   const now = new Date();
   return (shop.promoCodes || []).filter(promo => {
-    if (!promo || promo.enabled === false || !promo.showOnCard) return false;
+    if (!promo || promo.enabled === false) return false;
     if (promo.validUntil && new Date(promo.validUntil) < now) return false;
     if (promo.validFrom && new Date(promo.validFrom) > now) return false;
     const scope = promo.scope || 'all';
+    const isThisProduct = scope === 'products' && Array.isArray(promo.productIds) && promo.productIds.includes(p.id);
+    // адресний промо на товар показуємо завжди; інші — лише з showOnCard
+    if (!promo.showOnCard && !isThisProduct) return false;
     if (scope === 'all') return true;
     if (scope === 'categories') return Array.isArray(promo.categoryIds) && promo.categoryIds.includes(p.categoryId);
-    if (scope === 'products') return Array.isArray(promo.productIds) && promo.productIds.includes(p.id);
+    if (scope === 'products') return isThisProduct;
     return false;
   });
 }
