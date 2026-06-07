@@ -609,6 +609,11 @@
     .gallery .main-img img { width: 100%; height: 100%; object-fit: contain; background: var(--card); }
     .gallery .main-img img.zoomable { cursor: zoom-in; }
     .gallery .main-img img.linked { cursor: pointer; }
+    /* #4: підпис до фото в галереї */
+    .gallery .img-caption {
+      margin-top: 8px; font-size: 13px; line-height: 1.4; color: var(--muted);
+      text-align: center; padding: 0 6px; word-break: break-word;
+    }
 
     /* Lightbox для збільшеного перегляду фото */
     .lightbox-overlay {
@@ -1897,8 +1902,8 @@ function openModal(p) {
   // Нормалізуємо images: підтримуємо string (старий формат) і object (новий: { url, zoomable, link })
   const rawImages = (p.images && p.images.length) ? p.images : (p.image ? [p.image] : []);
   const images = rawImages.map(img => {
-    if (typeof img === 'string') return { url: img, zoomable: true, link: '' };
-    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '' };
+    if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '' };
+    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '' };
   }).filter(img => img.url);
   // Зберігаємо нормалізований масив для onClick хендлерів
   window.__currentImages = images;
@@ -1943,6 +1948,7 @@ function openModal(p) {
             <button class="nav next" onclick="navImg(1)">›</button>
           ` : ''}
         </div>
+        <div class="img-caption" id="imgCaption" style="${(images[0] && images[0].caption) ? '' : 'display:none;'}">${images[0] && images[0].caption ? escapeHtml(images[0].caption) : ''}</div>
         ${(images.length > 1 || hasVideo) ? `
           <div class="thumbs">
             ${images.map((img, i) => `
@@ -2012,6 +2018,11 @@ window.setImg = (i) => {
   `;
   document.querySelectorAll('.thumb').forEach(t => t.classList.toggle('active', parseInt(t.dataset.idx) === i));
   document.querySelectorAll('.video-thumb').forEach(t => t.classList.remove('active'));
+  const cap = document.getElementById('imgCaption');
+  if (cap) {
+    if (img.caption) { cap.textContent = img.caption; cap.style.display = ''; }
+    else { cap.textContent = ''; cap.style.display = 'none'; }
+  }
 };
 
 window.navImg = (delta) => {
@@ -2109,6 +2120,8 @@ window.showVideo = () => {
   document.getElementById('mainImgHolder').innerHTML = html;
   document.querySelectorAll('.thumb').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.video-thumb').forEach(t => t.classList.add('active'));
+  const cap = document.getElementById('imgCaption');
+  if (cap) { cap.textContent = ''; cap.style.display = 'none'; }
 };
 
 window.selectOpt = (optId) => {

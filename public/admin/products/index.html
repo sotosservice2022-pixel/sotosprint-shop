@@ -796,10 +796,10 @@ function renderGallery(p) {
   const el = document.getElementById('gallery');
   if (!el) return;
   el.innerHTML = '';
-  // Нормалізуємо: string → {url, zoomable, link}
+  // Нормалізуємо: string → {url, zoomable, link, caption}
   p.images = p.images.map(img => {
-    if (typeof img === 'string') return { url: img, zoomable: true, link: '' };
-    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '' };
+    if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '' };
+    return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '' };
   }).filter(img => img.url);
   p.images.forEach((img, i) => {
     const item = document.createElement('div');
@@ -819,6 +819,7 @@ function renderGallery(p) {
           🔍 Дозволити збільшення
         </label>
         <input type="url" value="${escapeAttr(img.link)}" placeholder="Посилання (опц.) — клік відкриє цю URL" oninput="setImgLink(${i}, this.value)" />
+        <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="Підпис до фото (опц.) — показується в галереї" oninput="setImgCaption(${i}, this.value)" />
       </div>
     `;
     el.appendChild(item);
@@ -846,6 +847,13 @@ window.setImgLink = (i, val) => {
   p.images[i].link = val.trim();
 };
 
+window.setImgCaption = (i, val) => {
+  const p = products[currentIdx];
+  if (!p.images[i]) return;
+  if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
+  p.images[i].caption = val;
+};
+
 window.setMain = (i) => {
   const p = products[currentIdx];
   if (i <= 0 || i >= p.images.length) return;
@@ -871,7 +879,7 @@ async function onImageSelect(e) {
       const maxSide = window.PRODUCT_IMG_MAX_SIDE || 1200;
       const quality = window.PRODUCT_IMG_QUALITY || 0.85;
       const url = await uploadToR2(f, { compress: true, maxSide, quality, prefix: 'product' });
-      p.images.push({ url, zoomable: true, link: '' });
+      p.images.push({ url, zoomable: true, link: '', caption: '' });
     } catch (err) { toast('Помилка завантаження: ' + err.message, 'error'); }
   }
   renderGallery(p);
