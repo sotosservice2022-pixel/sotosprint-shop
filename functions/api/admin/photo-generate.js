@@ -51,7 +51,7 @@ async function loadRef(env, url) {
 }
 
 // --- Gemini: генерація (текст + опціональні референси) ---
-async function runPremium(env, prompt, refs) {
+async function runPremium(env, prompt, refs, aspectRatio) {
   let apiKey = env.IMAGE_API_KEY;
   if (!apiKey && env.SHOP_KV) {
     try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
@@ -63,11 +63,24 @@ async function runPremium(env, prompt, refs) {
   for (const ref of refs) {
     parts.push({ inline_data: { mime_type: ref.contentType || 'image/jpeg', data: bufToB64(ref.buf) } });
   }
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts }] }),
-  });
+  const baseBody = { contents: [{ parts }] };
+
+  const callGemini = async (withAspect) => {
+    const body = withAspect
+      ? { ...baseBody, generationConfig: { imageConfig: { aspectRatio: withAspect } } }
+      : baseBody;
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  };
+
+  // Пробуємо із заданим співвідношенням (A4 → 3:4 / 4:3). Якщо модель не підтримує параметр — повтор без нього.
+  let r = await callGemini(aspectRatio && aspectRatio !== '1:1' ? aspectRatio : null);
+  if (!r.ok && aspectRatio && aspectRatio !== '1:1') {
+    r = await callGemini(null);
+  }
   if (!r.ok) {
     const txt = await r.text();
     throw new Error('Gemini API помилка ' + r.status + ': ' + txt.slice(0, 300));
@@ -151,6 +164,11 @@ export async function onRequestPost({ request, env }) {
   const refUrls = Array.isArray(body.refUrls) ? body.refUrls.slice(0, 4) : [];
   const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt' };
 
+  // Формат/орієнтація: квадрат | A4 книжкова (вертикальна) | A4 альбомна (горизонтальна)
+  const FORMAT_TO_SIZE = { square: '1024x1024', a4p: '1024x1536', a4l: '1536x1024' };
+  const FORMAT_TO_AR = { square: '1:1', a4p: '3:4', a4l: '4:3' };
+  const format = ['square', 'a4p', 'a4l'].includes(body.format) ? body.format : 'square';
+
   try {
     const refs = [];
     for (const u of refUrls) {
@@ -159,10 +177,11 @@ export async function onRequestPost({ request, env }) {
     }
     const modelOverride = (body.model && String(body.model).trim()) || '';
     const gptQuality = (body.quality && String(body.quality).trim()) || '';
-    const gptSize = (body.size && String(body.size).trim()) || '';
+    // Розмір беремо з формату (єдине джерело правди для режиму «Створення»)
+    const gptSize = FORMAT_TO_SIZE[format];
     let out;
     if (engine === 'gpt') out = await runGPT(env, prompt, refs, modelOverride, gptQuality, gptSize);
-    else out = await runPremium(env, prompt, refs);
+    else out = await runPremium(env, prompt, refs, FORMAT_TO_AR[format]);
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
     return jsonResp({ ok: true, url, engine });
   } catch (e) {

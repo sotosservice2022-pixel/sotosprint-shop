@@ -221,6 +221,14 @@
       </div>
       <div class="hint" style="margin-top:6px;">Без прикладу — генерація з нуля за описом. З прикладом — AI орієнтується на нього.</div>
 
+      <div class="field-label" style="margin-top:14px;">Формат / розмір</div>
+      <select id="genFormat" style="min-width:240px;">
+        <option value="square" selected>⬛ Квадрат (1:1)</option>
+        <option value="a4p">📄 A4 книжкова (вертикальна)</option>
+        <option value="a4l">📃 A4 альбомна (горизонтальна)</option>
+      </select>
+      <div class="hint" style="margin-top:6px;">Книжкова/альбомна — пропорції під A4. Для GPT це більший розмір (1024×1536 / 1536×1024). Якість GPT — у блоці «🔑 Ключ OpenAI».</div>
+
       <div class="row" style="margin-top:16px;">
         <button class="btn btn-primary" id="generateBtn" onclick="generateNow()">✨ Згенерувати</button>
       </div>
@@ -364,7 +372,7 @@ async function generateNow() {
   const btn = document.getElementById('generateBtn');
   btn.disabled = true;
   const id = 'g' + Date.now() + Math.random().toString(36).slice(2, 6);
-  const item = { id, name: 'Згенеровано', srcUrl: genRefUrl || null, afterUrl: null, status: 'busy', gen: true, prompt, refUrl: genRefUrl || null };
+  const item = { id, name: 'Згенеровано', srcUrl: genRefUrl || null, afterUrl: null, status: 'busy', gen: true, prompt, refUrl: genRefUrl || null, format: getGenFormat() };
   items.push(item);
   document.getElementById('resultsCard').style.display = '';
   renderItem(item); updateCounter();
@@ -376,9 +384,9 @@ async function generateNow() {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        prompt, engine,
+        prompt, engine, format: getGenFormat(),
         refUrls: genRefUrl ? [genRefUrl] : [],
-        model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined,
+        model: gptModel || undefined, quality: gptQuality || undefined,
       }),
     });
     if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
@@ -488,8 +496,9 @@ async function retryGen(id) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         prompt: item.prompt || document.getElementById('genPrompt').value.trim(), engine,
+        format: item.format || getGenFormat(),
         refUrls: item.refUrl ? [item.refUrl] : [],
-        model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined,
+        model: gptModel || undefined, quality: gptQuality || undefined,
       }),
     });
     if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
@@ -536,7 +545,7 @@ function saveItems() {
       .map(i => ({
         id: i.id, name: i.name, srcUrl: i.srcUrl || null, afterUrl: i.afterUrl || null,
         afterKind: i.afterKind || null, regenSrcUrl: i.regenSrcUrl || null,
-        gen: i.gen || false, prompt: i.prompt || null, refUrl: i.refUrl || null,
+        gen: i.gen || false, prompt: i.prompt || null, refUrl: i.refUrl || null, format: i.format || null,
         // транзитні стани не зберігаємо як є — інакше після перезавантаження «зависнуть»
         status: (i.status === 'uploading' || i.status === 'busy')
           ? (i.afterUrl ? 'done' : (i.gen ? 'err' : 'pending'))
@@ -746,12 +755,17 @@ function getGptModel() {
 }
 function getGptQuality() { try { return localStorage.getItem('restoreGptQuality') || 'medium'; } catch { return 'medium'; } }
 function getGptSize() { try { return localStorage.getItem('restoreGptSize') || '1024x1024'; } catch { return '1024x1024'; } }
+function getGenFormat() { try { return localStorage.getItem('restoreGenFormat') || 'square'; } catch { return 'square'; } }
 (function initGptModel() {
   const inp = document.getElementById('gptModel');
   if (inp) inp.value = getGptModel();
   const q = document.getElementById('gptQuality'); if (q) q.value = getGptQuality();
   const s = document.getElementById('gptSize'); if (s) s.value = getGptSize();
+  const gf = document.getElementById('genFormat'); if (gf) gf.value = getGenFormat();
 })();
+document.getElementById('genFormat').onchange = (e) => {
+  try { localStorage.setItem('restoreGenFormat', e.target.value); } catch {}
+};
 document.getElementById('saveGptModel').onclick = () => {
   const v = document.getElementById('gptModel').value.trim();
   const msg = document.getElementById('gptModelMsg');
