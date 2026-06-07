@@ -324,7 +324,6 @@
   }
 
   function setupTileReorder() {
-    if (isReorderLocked()) return;
     const tiles = Array.from(document.querySelectorAll('a.card'));
     if (tiles.length < 2) return;
 
@@ -483,7 +482,9 @@
       refresh();
     }
 
-    refresh();
+    // Збережений порядок застосовуємо завжди (навіть коли заблоковано),
+    // а кнопки ▲▼ / перетягування додаємо лише коли НЕ заблоковано.
+    if (!isReorderLocked()) refresh();
   }
 
   // Дашборд автоматично активує tile reorder
