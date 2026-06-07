@@ -356,7 +356,7 @@
     .product .body {
       padding: 12px; flex: 1; display: flex; flex-direction: column; gap: 8px;
     }
-    .product .name { font-size: 14px; font-weight: 600; line-height: 1.3; flex: 1; }
+    .product .name { font-size: 14px; font-weight: 600; line-height: 1.3; flex: 1; overflow-wrap: anywhere; word-break: break-word; }
     .product .price { font-size: 16px; font-weight: 700; color: var(--text); }
     .product .add {
       padding: 8px 12px; background: var(--accent); color: var(--accent-text);
@@ -700,7 +700,9 @@
 
     /* Информация */
     .info { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
-    .info h2 { margin: 0; font-size: 22px; line-height: 1.3; }
+    .info h2 { margin: 0; font-size: 22px; line-height: 1.3; overflow-wrap: anywhere; word-break: break-word; }
+    /* щоб довга назва переносилась на 2 рядок і не залазила під хрестик закриття */
+    @media (min-width: 700px) { .info h2 { padding-right: 44px; } }
     .info .price-line { font-size: 26px; font-weight: 700; }
     .info .desc { color: var(--text); font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
     .info .attrs {
