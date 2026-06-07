@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI-пост — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 60px; }
+    .wrap { max-width: 760px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #374151; }
+    label { font-weight: 600; font-size: 13px; display: block; margin-bottom: 4px; color: #374151; }
+    input[type=text], select, textarea {
+      width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc; }
+    textarea { resize: vertical; }
+    .row { margin-bottom: 12px; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+    .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; }
+    .btn-primary { background: #0b8aff; color: #fff; }
+    .btn-primary:hover { background: #0670d9; }
+    .btn-primary:disabled { background: #93c5fd; cursor: default; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .btn-tg { background: #229ed9; color: #fff; }
+    .btn-tg:hover { background: #1c87ba; }
+    .seg { display: flex; gap: 6px; flex-wrap: wrap; }
+    .seg button { padding: 7px 12px; border: 1px solid #e5e7eb; background: #fafbfc; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #374151; }
+    .seg button.active { background: #0b8aff; color: #fff; border-color: #0b8aff; }
+    .preview { display: flex; gap: 14px; align-items: flex-start; }
+    .preview img { width: 120px; height: 120px; object-fit: cover; border-radius: 10px; background: #f1f5f9; flex: 0 0 auto; }
+    .post-out { white-space: pre-wrap; font-size: 14px; line-height: 1.5; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #fafbfc; min-height: 80px; }
+    .tags { margin-top: 8px; color: #0b8aff; font-size: 13px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    .hint { font-size: 12px; color: #6b7280; margin-top: 4px; }
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; z-index: 200; max-width: 90vw; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">← Адмінка</a></div>
+  <h1>📣 AI-пост для каналу</h1>
+  <p class="sub">Обери товар — AI напише продаючий пост + хештеги і візьме фото товару. Скопіюй або відправ одразу в Telegram-канал.</p>
+
+  <div class="card">
+    <div class="row">
+      <label>Товар</label>
+      <select id="prodSel"></select>
+    </div>
+    <div class="grid-2">
+      <div class="row">
+        <label>Платформа</label>
+        <div class="seg" id="platSeg">
+          <button data-v="telegram" class="active">📨 Telegram</button>
+          <button data-v="instagram">📸 Instagram</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Стиль</label>
+        <div class="seg" id="toneSeg">
+          <button data-v="friendly" class="active">😊 Дружній</button>
+          <button data-v="sale">🔥 Продаючий</button>
+          <button data-v="premium">💎 Преміум</button>
+          <button data-v="short">⚡ Короткий</button>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <label>Додаткові побажання (необовʼязково)</label>
+      <input type="text" id="extra" placeholder="напр.: акцент на подарунок, згадай безкоштовну доставку…" maxlength="300" />
+    </div>
+    <button class="btn btn-primary" id="genBtn" onclick="generate()">✨ Згенерувати пост</button>
+  </div>
+
+  <div class="card" id="resultCard" style="display:none;">
+    <h2>Результат</h2>
+    <div class="preview">
+      <img id="prevImg" alt="" style="display:none;" />
+      <div style="flex:1; min-width:0;">
+        <div class="post-out" id="postOut" contenteditable="true"></div>
+        <div class="tags" id="tagsOut"></div>
+        <div class="hint">Текст можна редагувати прямо тут перед копіюванням/відправкою.</div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-secondary" onclick="copyPost()">📋 Копіювати</button>
+      <button class="btn btn-secondary" onclick="generate()">🔄 Ще варіант</button>
+      <button class="btn btn-tg" onclick="sendTg()" id="sendBtn">📨 Відправити в Telegram</button>
+    </div>
+    <div class="row" style="margin-top:12px;">
+      <label>Канал для відправки (необовʼязково)</label>
+      <input type="text" id="target" placeholder="@my_channel або chat_id (порожнє = чат бота за замовчуванням)" />
+      <div class="hint">⚠️ Бот має бути доданий у канал як <b>адміністратор</b>. Налаштування бота — у розділі «Безпека».</div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let PRODUCTS = [];
+let platform = 'telegram', tone = 'friendly';
+let lastImageUrl = '';
+
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 2600);
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function segInit(id, cb) {
+  const seg = document.getElementById(id);
+  seg.querySelectorAll('button').forEach(b => b.onclick = () => {
+    seg.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); cb(b.dataset.v);
+  });
+}
+segInit('platSeg', v => platform = v);
+segInit('toneSeg', v => tone = v);
+
+async function loadProducts() {
+  const r = await fetch('/api/admin/products', { credentials: 'include' });
+  if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+  const d = await r.json();
+  PRODUCTS = (d.products || []);
+  const sel = document.getElementById('prodSel');
+  if (!PRODUCTS.length) { sel.innerHTML = '<option>Немає товарів — додай у розділі «Товари»</option>'; document.getElementById('genBtn').disabled = true; return; }
+  sel.innerHTML = PRODUCTS.map(p => `<option value="${esc(p.id)}">${esc((p.name || '').replace(/\s+/g, ' '))}${p.price != null ? ' — ' + p.price + ' ' + (p.currency || '₴') : ''}</option>`).join('');
+}
+
+async function generate() {
+  const productId = document.getElementById('prodSel').value;
+  if (!productId) { toast('Оберіть товар', 'error'); return; }
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Генерую…';
+  try {
+    const r = await fetch('/api/admin/promo-post', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'generate', productId, platform, tone, extra: document.getElementById('extra').value.trim() }),
+    });
+    const d = await r.json();
+    if (!d.ok) { toast('❌ ' + (d.error || 'Помилка'), 'error'); return; }
+    document.getElementById('resultCard').style.display = '';
+    document.getElementById('postOut').textContent = d.caption || '';
+    const tags = (d.hashtags || []);
+    document.getElementById('tagsOut').textContent = tags.join(' ');
+    lastImageUrl = d.imageUrl || '';
+    const img = document.getElementById('prevImg');
+    if (lastImageUrl) { img.src = lastImageUrl; img.style.display = ''; } else { img.style.display = 'none'; }
+    document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '✨ Згенерувати пост';
+  }
+}
+
+function fullText() {
+  const caption = document.getElementById('postOut').textContent.trim();
+  const tags = document.getElementById('tagsOut').textContent.trim();
+  return caption + (tags ? '\n\n' + tags : '');
+}
+
+async function copyPost() {
+  try { await navigator.clipboard.writeText(fullText()); toast('✅ Скопійовано'); }
+  catch (_) { toast('Не вдалося скопіювати', 'error'); }
+}
+
+async function sendTg() {
+  const productId = document.getElementById('prodSel').value;
+  const text = fullText();
+  if (!text) { toast('Спочатку згенеруй пост', 'error'); return; }
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>Відправляю…';
+  try {
+    const r = await fetch('/api/admin/promo-post', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'send', productId, text, target: document.getElementById('target').value.trim() }),
+    });
+    const d = await r.json();
+    if (!d.ok) { toast('❌ ' + (d.error || 'Помилка'), 'error'); return; }
+    toast('✅ Відправлено в Telegram');
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.innerHTML = '📨 Відправити в Telegram';
+  }
+}
+
+loadProducts();
+</script>
+<script src="/admin/_admin.js"></script>
+</body>
+</html>

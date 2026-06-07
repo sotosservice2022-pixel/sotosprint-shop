@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Клієнти — Адмінка</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f4f6fa; color: #1c2129; margin: 0; padding: 16px; padding-bottom: 60px; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    .crumbs { font-size: 13px; color: #6b7280; margin-bottom: 8px; }
+    .crumbs a { color: #6b7280; text-decoration: none; }
+    h1 { font-size: 24px; margin: 0 0 4px; }
+    .sub { color: #6b7280; font-size: 14px; margin-bottom: 18px; }
+    .card { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 14px;
+      box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    @media (max-width: 700px) { .stats { grid-template-columns: 1fr 1fr; } }
+    .stat { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: 0 2px 12px rgba(20,30,60,.05); }
+    .stat .v { font-size: 22px; font-weight: 800; color: #0b8aff; }
+    .stat .l { font-size: 12px; color: #6b7280; margin-top: 2px; }
+    .toolbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    input[type=text], select { padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px;
+      font-size: 14px; font-family: inherit; background: #fafbfc; }
+    #search { flex: 1; min-width: 180px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { padding: 9px 8px; text-align: left; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+    th { color: #6b7280; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .03em;
+      cursor: pointer; user-select: none; white-space: nowrap; }
+    th:hover { color: #0b8aff; }
+    td.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .name { font-weight: 600; }
+    .phone { color: #0b8aff; text-decoration: none; font-family: 'SF Mono', Menlo, monospace; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge.repeat { background: #fef3c7; color: #92400e; }
+    .badge.new { background: #e0e7ff; color: #3730a3; }
+    .tp { color: #6b7280; font-size: 12px; }
+    .spent { font-weight: 700; color: #166534; }
+    .row-medal { font-size: 13px; }
+    .empty { text-align: center; padding: 30px; color: #9ca3af; font-style: italic; }
+    .table-scroll { overflow-x: auto; }
+    .btn { padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+    .btn-secondary { background: #f3f4f6; color: #374151; border: 1px solid #e5e7eb; }
+    .toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+      padding: 12px 20px; border-radius: 8px; font-size: 14px; opacity: 0;
+      transition: opacity .2s; pointer-events: none; z-index: 200; }
+    .toast.show { opacity: 1; }
+    .toast.success { background: #dcfce7; color: #166534; }
+    .toast.error { background: #fee2e2; color: #991b1b; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="crumbs"><a href="/admin/">← Адмінка</a></div>
+  <h1>👥 Клієнти</h1>
+  <p class="sub">Зведення по клієнтах із усіх замовлень. Бачиш найкращих покупців і повторні замовлення — зручно для повторних продажів.</p>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="search" placeholder="🔍 Пошук за іменем або телефоном…" oninput="render()" />
+      <select id="sortSel" onchange="render()">
+        <option value="totalSpent">Сума (спадання)</option>
+        <option value="ordersCount">Кількість замовлень</option>
+        <option value="lastOrderAt">Останнє замовлення</option>
+        <option value="avgOrder">Середній чек</option>
+        <option value="name">Імʼя (А-Я)</option>
+      </select>
+      <select id="filterSel" onchange="render()">
+        <option value="all">Усі клієнти</option>
+        <option value="repeat">Тільки повторні</option>
+        <option value="new">Тільки нові (1 замовлення)</option>
+      </select>
+      <button class="btn btn-secondary" onclick="exportCsv()">⬇️ CSV</button>
+    </div>
+    <div class="table-scroll">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th style="width:30px;">#</th>
+            <th onclick="setSort('name')">Клієнт</th>
+            <th onclick="setSort('ordersCount')" class="num">Замовлень</th>
+            <th onclick="setSort('totalSpent')" class="num">Сума</th>
+            <th onclick="setSort('avgOrder')" class="num">Середній</th>
+            <th>Топ-товари</th>
+            <th onclick="setSort('lastOrderAt')">Останнє</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="empty" class="empty" style="display:none;">Поки що немає клієнтів — зʼявляться після перших замовлень.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let CUSTOMERS = [];
+function toast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show ' + type;
+  setTimeout(() => t.className = 'toast', 2200);
+}
+function fmtMoney(n) { return (Math.round(n) || 0).toLocaleString('uk-UA') + ' ₴'; }
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('uk-UA', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function load() {
+  const r = await fetch('/api/admin/customers', { credentials: 'include' });
+  if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+  const d = await r.json();
+  if (!d.ok) { toast('❌ ' + (d.error || 'Помилка'), 'error'); return; }
+  CUSTOMERS = d.customers || [];
+  renderStats(d.summary || {});
+  render();
+}
+
+function renderStats(s) {
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="v">${s.totalCustomers || 0}</div><div class="l">Усього клієнтів</div></div>
+    <div class="stat"><div class="v">${s.repeatCustomers || 0}</div><div class="l">Повторні клієнти</div></div>
+    <div class="stat"><div class="v">${fmtMoney(s.totalRevenue || 0)}</div><div class="l">Загальна виручка</div></div>
+    <div class="stat"><div class="v">${s.ordersAnalyzed || 0}</div><div class="l">Замовлень проаналізовано</div></div>`;
+}
+
+let SORT = 'totalSpent';
+function setSort(k) { SORT = k; document.getElementById('sortSel').value = k; render(); }
+
+function render() {
+  SORT = document.getElementById('sortSel').value;
+  const q = document.getElementById('search').value.trim().toLowerCase();
+  const filter = document.getElementById('filterSel').value;
+  let list = CUSTOMERS.slice();
+
+  if (q) list = list.filter(c => (c.name || '').toLowerCase().includes(q) || (c.phone || '').toLowerCase().includes(q) || (c.phoneNorm || '').includes(q.replace(/\D/g, '')));
+  if (filter === 'repeat') list = list.filter(c => c.repeat);
+  else if (filter === 'new') list = list.filter(c => !c.repeat);
+
+  list.sort((a, b) => {
+    if (SORT === 'name') return (a.name || '').localeCompare(b.name || '', 'uk');
+    if (SORT === 'lastOrderAt') return (b.lastOrderAt || '').localeCompare(a.lastOrderAt || '');
+    return (b[SORT] || 0) - (a[SORT] || 0);
+  });
+
+  const tbody = document.getElementById('tbody');
+  const empty = document.getElementById('empty');
+  if (!list.length) { tbody.innerHTML = ''; empty.style.display = 'block'; return; }
+  empty.style.display = 'none';
+
+  const medals = ['🥇', '🥈', '🥉'];
+  tbody.innerHTML = list.map((c, i) => {
+    const rank = (SORT === 'totalSpent' && !q && filter === 'all') ? (medals[i] || (i + 1)) : (i + 1);
+    const tel = (c.phone || '').replace(/\s/g, '');
+    const tp = (c.topProducts || []).map(p => `${esc(p.name)}${p.qty > 1 ? ' ×' + p.qty : ''}`).join(', ');
+    const badge = c.repeat
+      ? `<span class="badge repeat">↻ ${c.ordersCount}×</span>`
+      : `<span class="badge new">новий</span>`;
+    return `<tr>
+      <td class="row-medal">${rank}</td>
+      <td>
+        <div class="name">${esc(c.name || '(без імені)')} ${badge}</div>
+        ${c.phone ? `<a class="phone" href="tel:${esc(tel)}">${esc(c.phone)}</a>` : ''}
+      </td>
+      <td class="num">${c.ordersCount}</td>
+      <td class="num spent">${fmtMoney(c.totalSpent)}</td>
+      <td class="num">${fmtMoney(c.avgOrder)}</td>
+      <td class="tp">${tp || '—'}</td>
+      <td>${fmtDate(c.lastOrderAt)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function exportCsv() {
+  if (!CUSTOMERS.length) { toast('Немає даних', 'error'); return; }
+  const head = ['Імʼя', 'Телефон', 'Замовлень', 'Сума', 'Середній чек', 'Перше', 'Останнє', 'Повторний'];
+  const rows = CUSTOMERS.map(c => [
+    c.name || '', c.phone || '', c.ordersCount, Math.round(c.totalSpent), c.avgOrder,
+    (c.firstOrderAt || '').slice(0, 10), (c.lastOrderAt || '').slice(0, 10), c.repeat ? 'так' : 'ні',
+  ]);
+  const csv = [head, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'clients_' + new Date().toISOString().slice(0, 10) + '.csv';
+  a.click();
+  toast('✅ CSV завантажено');
+}
+
+load();
+</script>
+<script src="/admin/_admin.js"></script>
+</body>
+</html>

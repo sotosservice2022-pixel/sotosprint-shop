@@ -241,6 +241,7 @@
       <div class="big-icon">📷</div>
       <div style="font-weight:600;">Перетягни фото сюди або клікни</div>
       <div class="hint">JPG / PNG / WEBP · можна декілька одразу</div>
+      <div class="hint" style="margin-top:4px;">📦 Кількість фото за раз не обмежена — обробляються <b>по черзі, одне за одним</b>. Рекомендуємо <b>до 20-30 за раз</b>, щоб не впертись у ліміти AI/API.</div>
     </div>
     <input type="file" id="fileInput" accept="image/*" multiple style="display:none;" />
     <div class="row" style="margin-top:14px; justify-content: space-between;">
@@ -403,6 +404,7 @@ async function generateNow() {
 async function addFiles(fileList) {
   const arr = Array.from(fileList).filter(f => f.type.startsWith('image/'));
   if (!arr.length) return;
+  if (arr.length > 30) toast('Додано ' + arr.length + ' фото. Обробляться по черзі — це може зайняти час; за потреби краще розбити на групи по 20-30.', 'success');
   document.getElementById('resultsCard').style.display = '';
   for (const file of arr) {
     const id = 'i' + Date.now() + Math.random().toString(36).slice(2, 6);
