@@ -873,10 +873,12 @@ function showEditorView() {
     v.scrollTop = 0;
     document.body.style.overflow = 'hidden'; // блокуємо прокрутку фону
   }
-  // Налаштування: показувати дві панелі збереження (верх+низ) чи тільки верхню
-  const dual = appSettings.editorDualSaveBar !== false; // дефолт — дві
+  // Налаштування: режим панелей збереження — 'both' | 'top' | 'bottom'
+  const mode = appSettings.editorSaveBarMode || (appSettings.editorDualSaveBar === false ? 'top' : 'both');
+  const top = document.getElementById('editorTopBar');
   const bottom = document.getElementById('editorBottomBar');
-  if (bottom) bottom.style.display = dual ? '' : 'none';
+  if (top) top.style.display = (mode === 'bottom') ? 'none' : '';
+  if (bottom) bottom.style.display = (mode === 'top') ? 'none' : '';
 }
 function closeEditor() {
   const v = document.getElementById('editorView');
@@ -920,18 +922,23 @@ function renderGallery(p) {
           🔍 Дозволити збільшення
         </label>
         <input type="url" value="${escapeAttr(img.link)}" placeholder="Посилання (опц.) — клік відкриє цю URL" oninput="setImgLink(${i}, this.value)" />
-        <label style="display:block; font-size:12px; color:#6b7280; margin:4px 0 2px;">🏷️ Шильдик</label>
-        <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="напр.: Розмір А4 / Вид збоку — порожньо = без шильдика" oninput="setImgCaption(${i}, this.value)" />
-        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:11px; color:#6b7280;">
-          <label style="display:flex; align-items:center; gap:3px;">Фон:
-            ${colorFieldHtml(img.capBg || '#dc2626', `onchange="setImgCapBg(${i}, this.value)"`)}
-          </label>
-          <label style="display:flex; align-items:center; gap:3px;">Текст:
-            ${colorFieldHtml(img.capColor || '#ffffff', `onchange="setImgCapColor(${i}, this.value)"`)}
-          </label>
-          <label style="display:flex; align-items:center; gap:3px;">Розмір:
-            <input type="number" min="8" max="48" value="${parseInt(img.capSize) || 12}" onchange="setImgCapSize(${i}, this.value)" style="width:52px; padding:4px 6px; border:1px solid #e5e7eb; border-radius:6px;" />px
-          </label>
+        <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#6b7280; margin:6px 0 2px;">
+          <input type="checkbox" ${img.caption ? 'checked' : ''} onchange="toggleImgBadge(${i}, this.checked)" style="margin:0;" />
+          🏷️ Шильдик
+        </label>
+        <div class="badge-fields" id="badgeFields-${i}" style="display:${img.caption ? 'block' : 'none'};">
+          <input type="text" value="${escapeAttr(img.caption || '')}" placeholder="напр.: Розмір А4 / Вид збоку" oninput="setImgCaption(${i}, this.value)" />
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:4px; font-size:11px; color:#6b7280;">
+            <label style="display:flex; align-items:center; gap:3px;">Фон:
+              ${colorFieldHtml(img.capBg || '#dc2626', `onchange="setImgCapBg(${i}, this.value)"`)}
+            </label>
+            <label style="display:flex; align-items:center; gap:3px;">Текст:
+              ${colorFieldHtml(img.capColor || '#ffffff', `onchange="setImgCapColor(${i}, this.value)"`)}
+            </label>
+            <label style="display:flex; align-items:center; gap:2px;">Розмір:
+              <input type="number" min="8" max="48" value="${parseInt(img.capSize) || 12}" onchange="setImgCapSize(${i}, this.value)" style="width:40px; padding:4px 4px; border:1px solid #e5e7eb; border-radius:6px;" /><span style="margin-left:1px;">px</span>
+            </label>
+          </div>
         </div>
       </div>
     `;
@@ -965,6 +972,19 @@ window.setImgCaption = (i, val) => {
   if (!p.images[i]) return;
   if (typeof p.images[i] === 'string') p.images[i] = { url: p.images[i], zoomable: true, link: '' };
   p.images[i].caption = val;
+};
+// Перемикач шильдика: показати/сховати поля. Вимкнено = шильдик не показується (текст очищується).
+window.toggleImgBadge = (i, on) => {
+  const box = document.getElementById('badgeFields-' + i);
+  if (box) box.style.display = on ? 'block' : 'none';
+  if (on) {
+    const t = box && box.querySelector('input[type="text"]');
+    if (t) setTimeout(() => t.focus(), 30);
+  } else {
+    setImgCaption(i, ''); // прибираємо текст → шильдик зникає на сайті
+    const t = box && box.querySelector('input[type="text"]');
+    if (t) t.value = '';
+  }
 };
 window.setImgCapBg = (i, val) => {
   const p = products[currentIdx];
