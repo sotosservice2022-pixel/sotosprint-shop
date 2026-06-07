@@ -141,7 +141,22 @@
         <div><label>Кнопка «У кошик»</label><input type="text" id="addToCartText" /></div>
         <div><label>Кнопка коли товар вже в кошику</label><input type="text" id="inCartText" placeholder="✓ У кошику" /></div>
         <div><label>Кнопка «Оформити замовлення»</label><input type="text" id="proceedCheckoutText" /></div>
+        <div><label>Текст «Немає в наявності»</label><input type="text" id="outOfStockText" placeholder="Немає в наявності" /></div>
       </div>
+
+      <div style="border-top: 1px solid #e5e7eb; padding-top: 10px; margin-top: 8px;">
+        <strong style="font-size: 13px; color: #6b7280;">💧 Водяний знак на фото товарів</strong>
+      </div>
+      <div class="checkbox-row" style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="watermarkEnabled" />
+        <label for="watermarkEnabled" style="margin:0">Показувати водяний знак (плитка по діагоналі) на всіх фото товарів</label>
+      </div>
+      <div class="grid grid-2">
+        <div><label>Текст водяного знака</label><input type="text" id="watermarkText" placeholder="Sotosprint" /></div>
+        <div><label>Розмір тексту (px)</label><input type="number" id="watermarkSize" min="10" max="60" placeholder="22" /></div>
+        <div><label>Прозорість (0–1)</label><input type="number" id="watermarkOpacity" min="0" max="1" step="0.05" placeholder="0.22" /></div>
+      </div>
+      <div class="hint">Один глобальний текст для всього магазину. Накладається поверх фото на картках і в галереї товару.</div>
       <div class="grid grid-2">
         <div><label>Заголовок сторінки оформлення</label><input type="text" id="checkoutTitle" /></div>
         <div><label>Кнопка «Відправити замовлення»</label><input type="text" id="submitText" /></div>
@@ -661,7 +676,7 @@ const TEXT_FIELDS = [
   'soldCountTemplate',
   'orderItemsTitle','photosBlockTitle','choosePhotosText','contactDetailsTitle','deliveryBlockTitle',
   'paymentBlockTitle','contactsBlockTitle','cartTotalLabel','cartItemRemoveText','cartNothingSelectedText',
-  'adminHeaderText',
+  'adminHeaderText','outOfStockText',
 ];
 const NUMBER_FIELDS = ['compressMaxSide','compressQuality','productImageMaxSide','productImageQuality',
   'publicPollIntervalSec','adminPollIntervalSec','ordersAutoRefreshSec','shopVersionCacheSec','shopFullCacheSec'];
@@ -782,6 +797,11 @@ function render() {
   window.__topbarTitleSize = settings.topbarTitleSize || 17;
   updateMobilePreview();
   document.getElementById('autoCompress').checked = settings.autoCompress !== false;
+  // #3: водяний знак
+  document.getElementById('watermarkEnabled').checked = !!settings.watermarkEnabled;
+  document.getElementById('watermarkText').value = settings.watermarkText || '';
+  document.getElementById('watermarkSize').value = settings.watermarkSize || '';
+  document.getElementById('watermarkOpacity').value = (settings.watermarkOpacity != null ? settings.watermarkOpacity : '');
   document.getElementById('showBulkOperations').checked = settings.showBulkOperations !== false;
   // Sync lockReorder з settings → localStorage
   if (typeof syncLockReorder === 'function') syncLockReorder(settings);
@@ -962,6 +982,11 @@ async function saveAll() {
   settings.compressMaxSide = parseInt(document.getElementById('compressMaxSide').value, 10) || 4000;
   settings.compressQuality = parseInt(document.getElementById('compressQuality').value, 10) || 95;
   settings.autoCompress = document.getElementById('autoCompress').checked;
+  // #3: водяний знак
+  settings.watermarkEnabled = document.getElementById('watermarkEnabled').checked;
+  settings.watermarkText = document.getElementById('watermarkText').value;
+  { const _s = parseInt(document.getElementById('watermarkSize').value, 10); settings.watermarkSize = (_s >= 10 && _s <= 60) ? _s : 22; }
+  { const _o = parseFloat(document.getElementById('watermarkOpacity').value); settings.watermarkOpacity = (_o >= 0 && _o <= 1) ? _o : 0.22; }
   settings.showBulkOperations = document.getElementById('showBulkOperations').checked;
   // Швидкість
   const clamp = (v, mn, mx, def) => { v = parseInt(v, 10); return (v >= mn && v <= mx) ? v : def; };
