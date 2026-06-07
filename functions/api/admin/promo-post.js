@@ -48,6 +48,39 @@ async function geminiText(env, prompt) {
   return text;
 }
 
+// --- OpenAI GPT text generation ---
+async function gptText(env, prompt) {
+  let apiKey = env.OPENAI_API_KEY;
+  if (!apiKey && env.SHOP_KV) {
+    try { apiKey = await env.SHOP_KV.get('openai_image_key'); } catch (_) {}
+  }
+  if (!apiKey) throw new Error('GPT-ключ не налаштовано: введи ключ OpenAI на сторінці «AI-обробка фото» (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
+  const model = env.TEXT_GPT_MODEL || 'gpt-4o-mini';
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      temperature: 0.9,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'Ти — SMM-копірайтер. Повертай відповідь СТРОГО у форматі JSON.' },
+        { role: 'user', content: prompt },
+      ],
+    }),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`GPT ${r.status}: ${t.slice(0, 300)}`);
+  }
+  const data = await r.json();
+  return data?.choices?.[0]?.message?.content || '';
+}
+
+async function generateText(env, engine, prompt) {
+  return (engine === 'gpt') ? gptText(env, prompt) : geminiText(env, prompt);
+}
+
 function buildPrompt(p, settings, platform, tone, extra) {
   const shopName = settings?.title || 'магазин';
   const price = (p.price != null) ? `${p.price} ${p.currency || '₴'}` : '';
@@ -147,8 +180,9 @@ export async function onRequestPost({ request, env }) {
 
     // mode === 'generate'
     const settings = await getSettings(env);
+    const engine = (body.engine === 'gpt') ? 'gpt' : 'gemini';
     const prompt = buildPrompt(product, settings, body.platform, body.tone, String(body.extra || '').slice(0, 500));
-    const raw = await geminiText(env, prompt);
+    const raw = await generateText(env, engine, prompt);
     const { caption, hashtags } = parseResult(raw);
     if (!caption) return jsonResp({ ok: false, error: 'AI не повернув текст. Спробуй ще раз.' }, 502);
 
@@ -158,6 +192,7 @@ export async function onRequestPost({ request, env }) {
       hashtags,
       imageUrl: firstImageUrl(product),
       productName: product.name,
+      engine,
     });
   } catch (e) {
     return jsonResp({ ok: false, error: e.message || String(e) }, 500);

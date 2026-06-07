@@ -70,6 +70,14 @@
         </div>
       </div>
       <div class="row">
+        <label>AI-модель</label>
+        <div class="seg" id="engineSeg">
+          <button data-v="gemini" class="active">💎 Gemini</button>
+          <button data-v="gpt">🤖 GPT</button>
+        </div>
+        <div class="hint">Gemini — ключ Google AI Studio. GPT — ключ OpenAI. Обидва налаштовуються на сторінці «AI-обробка фото».</div>
+      </div>
+      <div class="row">
         <label>Стиль</label>
         <div class="seg" id="toneSeg">
           <button data-v="friendly" class="active">😊 Дружній</button>
@@ -113,7 +121,7 @@
 
 <script>
 let PRODUCTS = [];
-let platform = 'telegram', tone = 'friendly';
+let platform = 'telegram', tone = 'friendly', engine = 'gemini';
 let lastImageUrl = '';
 
 function toast(msg, type='success') {
@@ -132,6 +140,7 @@ function segInit(id, cb) {
 }
 segInit('platSeg', v => platform = v);
 segInit('toneSeg', v => tone = v);
+segInit('engineSeg', v => engine = v);
 
 async function loadProducts() {
   const r = await fetch('/api/admin/products', { credentials: 'include' });
@@ -152,7 +161,7 @@ async function generate() {
     const r = await fetch('/api/admin/promo-post', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'generate', productId, platform, tone, extra: document.getElementById('extra').value.trim() }),
+      body: JSON.stringify({ mode: 'generate', productId, platform, tone, engine, extra: document.getElementById('extra').value.trim() }),
     });
     const d = await r.json();
     if (!d.ok) { toast('❌ ' + (d.error || 'Помилка'), 'error'); return; }
