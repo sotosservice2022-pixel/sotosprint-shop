@@ -52,6 +52,7 @@
     .color-field { display: flex; align-items: center; width: 100%; }
     .cf2-trigger { width: 100%; max-width: 200px; height: 44px; border: 1px solid #d1d5db; border-radius: 7px; cursor: pointer; padding: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,.5); }
     .cf2-pop { position: fixed; z-index: 3000; width: 196px; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 36px rgba(20,30,60,.22); padding: 10px; }
+    .cf2-drag { cursor: move; user-select: none; text-align: center; color: #9ca3af; font-size: 14px; line-height: 1; margin: -2px 0 8px; padding: 3px 0; border-bottom: 1px solid #f1f5f9; }
     .cf2-sv { position: relative; width: 176px; height: 118px; border-radius: 7px; cursor: crosshair; overflow: hidden; }
     .cf2-sv-white { position: absolute; inset: 0; background: linear-gradient(to right, #fff, rgba(255,255,255,0)); }
     .cf2-sv-black { position: absolute; inset: 0; background: linear-gradient(to top, #000, rgba(0,0,0,0)); }
@@ -1569,6 +1570,7 @@ function ensurePopover() {
   cpEl.className = 'cf2-pop';
   cpEl.style.display = 'none';
   cpEl.innerHTML = `
+    <div class="cf2-drag" title="Перетягни, щоб посунути">⠿ <span style="font-size:11px;color:#9ca3af;">перетягни мене</span></div>
     <div class="cf2-sv"><div class="cf2-sv-white"></div><div class="cf2-sv-black"></div><div class="cf2-sv-cursor"></div></div>
     <div class="cf2-hue"><div class="cf2-hue-cursor"></div></div>
     <div class="cf2-hex">
@@ -1581,6 +1583,26 @@ function ensurePopover() {
   document.body.appendChild(cpEl);
   // запобігаємо закриттю при кліку всередині
   cpEl.addEventListener('mousedown', e => e.stopPropagation());
+  // --- перетягування всього попапа за ручку ---
+  const drag = cpEl.querySelector('.cf2-drag');
+  if (drag) {
+    let dx = 0, dy = 0;
+    const dMove = (e) => {
+      const cx = (e.touches ? e.touches[0].clientX : e.clientX);
+      const cy = (e.touches ? e.touches[0].clientY : e.clientY);
+      const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+      let nl = Math.max(2, Math.min(vw - cpEl.offsetWidth - 2, cx - dx));
+      let nt = Math.max(2, Math.min(vh - cpEl.offsetHeight - 2, cy - dy));
+      cpEl.style.left = nl + 'px'; cpEl.style.top = nt + 'px';
+    };
+    const dUp = () => { document.removeEventListener('mousemove', dMove); document.removeEventListener('mouseup', dUp); };
+    drag.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      const r = cpEl.getBoundingClientRect();
+      dx = (e.clientX) - r.left; dy = (e.clientY) - r.top;
+      document.addEventListener('mousemove', dMove); document.addEventListener('mouseup', dUp);
+    });
+  }
   // --- перетягування по градієнту S/V ---
   const sv = cpEl.querySelector('.cf2-sv');
   const svMove = (e) => {
@@ -1632,14 +1654,18 @@ window.openColorPopover = function(triggerEl) {
   cpRenderUI();
   cpRenderPresets();
   cpEl.style.display = 'block';
-  // позиціонування (fixed — координати viewport)
+  // позиціонування (fixed — координати viewport).
+  // Відкриваємо ЗБОКУ (праворуч, інакше ліворуч), щоб попап не перекривав прев'ю кнопок під полем.
   const rect = triggerEl.getBoundingClientRect();
   const pw = cpEl.offsetWidth || 210, ph = cpEl.offsetHeight || 240;
   const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
-  let left = rect.left, top = rect.bottom + 6;
+  let left, top = rect.top;
+  if (rect.right + 6 + pw <= vw - 8) left = rect.right + 6;        // праворуч від поля
+  else if (rect.left - 6 - pw >= 8) left = rect.left - 6 - pw;     // інакше ліворуч
+  else { left = rect.left; top = rect.bottom + 6; }               // як fallback — знизу
   if (left + pw > vw - 8) left = vw - pw - 8;
   if (left < 8) left = 8;
-  if (top + ph > vh - 8) top = Math.max(8, rect.top - ph - 6); // не влазить знизу — показати зверху
+  if (top + ph > vh - 8) top = Math.max(8, vh - ph - 8);          // не влазить по висоті — підняти
   cpEl.style.left = left + 'px';
   cpEl.style.top = top + 'px';
 };
