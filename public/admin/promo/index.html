@@ -89,6 +89,67 @@
     </div>
     <div id="listContainer"><div class="empty">Завантаження...</div></div>
   </div>
+
+  <div class="card">
+    <h2>🏠 Промоблок на головній сторінці</h2>
+    <p class="sub">Окремий блок з промокодами на головній. Клік по плашці копіює код + спливає підказка «Скопійовано».</p>
+    <div class="checkbox-inline">
+      <input type="checkbox" id="hp_enabled" onchange="updateHpPreview()" />
+      <label for="hp_enabled" style="margin:0">Показувати промоблок на головній</label>
+    </div>
+    <div class="grid-2" style="margin-top:14px;">
+      <div class="row">
+        <label>Розташування</label>
+        <select id="hp_placement" onchange="updateHpPreview()">
+          <option value="top">Над нейро-банером (самий верх)</option>
+          <option value="aboveCatalog">Над каталогом (під банером)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Стиль плашок</label>
+        <select id="hp_style" onchange="updateHpPreview()">
+          <option value="badge">🏷 Шильдик (тільки код)</option>
+          <option value="text">📝 Код + «знижка …»</option>
+          <option value="fromSum">💰 Код + «від суми ₴»</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Вирівнювання</label>
+        <select id="hp_align" onchange="updateHpPreview()">
+          <option value="left">Ліворуч</option>
+          <option value="center">По центру</option>
+          <option value="right">Праворуч</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>Відступ зверху: <strong id="hp_offsetYVal">0</strong> px</label>
+        <input type="range" id="hp_offsetY" min="0" max="60" step="2" value="0"
+               oninput="document.getElementById('hp_offsetYVal').textContent=this.value; updateHpPreview()" style="width:100%;" />
+      </div>
+      <div class="row">
+        <label>Розмір плашок: <strong id="hp_scaleVal">100</strong>%</label>
+        <input type="range" id="hp_scale" min="0.8" max="1.6" step="0.05" value="1"
+               oninput="document.getElementById('hp_scaleVal').textContent=Math.round(this.value*100); updateHpPreview()" style="width:100%;" />
+      </div>
+      <div class="row">
+        <label>Колір плашки</label>
+        <input type="color" id="hp_bgColor" value="#7c3aed" oninput="updateHpPreview()" style="width:100%; height:40px; cursor:pointer;" />
+      </div>
+      <div class="row">
+        <label>Колір тексту</label>
+        <input type="color" id="hp_textColor" value="#ffffff" oninput="updateHpPreview()" style="width:100%; height:40px; cursor:pointer;" />
+      </div>
+    </div>
+    <div class="row">
+      <label>Які промокоди показувати у блоці</label>
+      <div id="hp_codesList" style="display:flex; flex-direction:column; gap:6px;"><div class="empty" style="font-size:13px; color:#6b7280;">Спершу додайте промокоди вище.</div></div>
+    </div>
+    <div class="row">
+      <label>Попередній перегляд</label>
+      <div id="hp_preview" style="background:#f3f4f6; border-radius:10px; padding:14px; min-height:60px;"></div>
+    </div>
+    <button class="btn btn-primary" onclick="saveHomePromo()">💾 Зберегти промоблок</button>
+  </div>
 </div>
 
 <!-- Модалка добавлення/редагування -->
@@ -220,11 +281,13 @@ async function loadSettings() {
   document.getElementById('promoEnabled').checked = settings.promoEnabled !== false;
   document.getElementById('promoFieldLabel').value = settings.promoFieldLabel || '🎟 Промокод (якщо є)';
   renderList();
+  loadHomePromo();
 }
 
 async function saveAll() {
   settings.promoEnabled = document.getElementById('promoEnabled').checked;
   settings.promoFieldLabel = document.getElementById('promoFieldLabel').value || '🎟 Промокод (якщо є)';
+  if (typeof collectHomePromo === 'function') collectHomePromo();
   const r = await fetch('/api/admin/settings', {
     method: 'POST',
     credentials: 'include',
@@ -280,6 +343,94 @@ function renderList() {
       </div>`;
   });
   cont.innerHTML = html;
+  if (typeof renderHpCodes === 'function') renderHpCodes();
+}
+
+// === Промоблок на головній (П.1) ===
+function hpDefaults() {
+  return { enabled: false, placement: 'aboveCatalog', style: 'badge', align: 'center', offsetY: 0, scale: 1, bgColor: '#7c3aed', textColor: '#ffffff', codes: [] };
+}
+function loadHomePromo() {
+  const hp = Object.assign(hpDefaults(), settings.homePromo || {});
+  document.getElementById('hp_enabled').checked = !!hp.enabled;
+  document.getElementById('hp_placement').value = hp.placement || 'aboveCatalog';
+  document.getElementById('hp_style').value = hp.style || 'badge';
+  document.getElementById('hp_align').value = hp.align || 'center';
+  document.getElementById('hp_offsetY').value = parseInt(hp.offsetY, 10) || 0;
+  document.getElementById('hp_offsetYVal').textContent = parseInt(hp.offsetY, 10) || 0;
+  const sc = (typeof hp.scale === 'number') ? hp.scale : 1;
+  document.getElementById('hp_scale').value = sc;
+  document.getElementById('hp_scaleVal').textContent = Math.round(sc * 100);
+  document.getElementById('hp_bgColor').value = hp.bgColor || '#7c3aed';
+  document.getElementById('hp_textColor').value = hp.textColor || '#ffffff';
+  settings.homePromo = hp;
+  renderHpCodes();
+  updateHpPreview();
+}
+function renderHpCodes() {
+  const cont = document.getElementById('hp_codesList');
+  if (!cont) return;
+  const list = settings.promoCodes || [];
+  const selected = (settings.homePromo && Array.isArray(settings.homePromo.codes)) ? settings.homePromo.codes : [];
+  if (!list.length) {
+    cont.innerHTML = '<div class="empty" style="font-size:13px; color:#6b7280;">Спершу додайте промокоди вище.</div>';
+    return;
+  }
+  cont.innerHTML = list.map(p => {
+    const val = p.type === 'percent' ? `${p.value}%` : (p.type === 'fixed' ? `${p.value}₴` : 'дост.');
+    const checked = selected.includes(p.code) ? 'checked' : '';
+    return `<label class="checkbox-inline" style="gap:8px;">
+      <input type="checkbox" class="hp-code-cb" value="${escapeHtml(p.code)}" ${checked} onchange="updateHpPreview()" />
+      <span><strong>${escapeHtml(p.code)}</strong> — ${val}${p.description ? ' · ' + escapeHtml(p.description) : ''}${p.enabled === false ? ' <span style="color:#dc2626">(вимкнений)</span>' : ''}</span>
+    </label>`;
+  }).join('');
+}
+function collectHomePromo() {
+  if (!document.getElementById('hp_enabled')) return;
+  const codes = Array.from(document.querySelectorAll('.hp-code-cb')).filter(cb => cb.checked).map(cb => cb.value);
+  settings.homePromo = {
+    enabled: document.getElementById('hp_enabled').checked,
+    placement: document.getElementById('hp_placement').value,
+    style: document.getElementById('hp_style').value,
+    align: document.getElementById('hp_align').value,
+    offsetY: parseInt(document.getElementById('hp_offsetY').value, 10) || 0,
+    scale: parseFloat(document.getElementById('hp_scale').value) || 1,
+    bgColor: document.getElementById('hp_bgColor').value || '#7c3aed',
+    textColor: document.getElementById('hp_textColor').value || '#ffffff',
+    codes,
+  };
+}
+function hpChipLabel(p, style) {
+  const code = p.code;
+  const amt = p.type === 'percent' ? `${p.value}%` : `${p.value}₴`;
+  if (style === 'text') return `🎟 ${code} · знижка ${amt}${p.scope === 'all' ? ' на все' : ''}`;
+  if (style === 'fromSum') return p.minOrder > 0 ? `🎟 ${code} · від ${p.minOrder}₴` : `🎟 ${code} · знижка ${amt}`;
+  return `🎟 ${code}`;
+}
+function updateHpPreview() {
+  collectHomePromo();
+  const hp = settings.homePromo || hpDefaults();
+  const box = document.getElementById('hp_preview');
+  if (!box) return;
+  const all = settings.promoCodes || [];
+  const codes = all.filter(p => hp.codes.includes(p.code) && p.enabled !== false && !isExpired(p));
+  if (!hp.enabled) { box.innerHTML = '<div style="font-size:13px; color:#6b7280;">Блок вимкнено.</div>'; return; }
+  if (!codes.length) { box.innerHTML = '<div style="font-size:13px; color:#6b7280;">Оберіть хоча б один активний промокод вище.</div>'; return; }
+  const justify = hp.align === 'left' ? 'flex-start' : (hp.align === 'right' ? 'flex-end' : 'center');
+  const fs = (14 * (hp.scale || 1)).toFixed(1);
+  const chips = codes.map(p => {
+    const label = hpChipLabel(p, hp.style);
+    return `<span style="display:inline-flex;align-items:center;gap:.4em;background:${escapeHtml(hp.bgColor)};color:${escapeHtml(hp.textColor)};font-weight:700;border-radius:999px;padding:.6em 1.05em;box-shadow:0 2px 6px rgba(0,0,0,.14);white-space:nowrap;">${escapeHtml(label)}</span>`;
+  }).join('');
+  const place = hp.placement === 'top' ? 'над нейро-банером (самий верх)' : 'над каталогом';
+  box.innerHTML = `<div style="font-size:11px;color:#6b7280;margin-bottom:8px;">📍 ${place}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:.5em;justify-content:${justify};margin-top:${parseInt(hp.offsetY,10)||0}px;font-size:${fs}px;">${chips}</div>`;
+}
+async function saveHomePromo() {
+  collectHomePromo();
+  const ok = await saveAll();
+  if (ok) toast('✅ Промоблок збережено');
+  else toast('❌ Помилка', 'error');
 }
 
 function updateValueLabel() {

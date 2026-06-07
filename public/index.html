@@ -557,6 +557,18 @@
       .hero-banner-text { font-size: 18px; padding: 12px 16px; }
     }
 
+    /* === Промоблок на головній === */
+    .home-promo { width: 100%; box-sizing: border-box; padding: 6px 12px; }
+    .home-promo-inner { display: flex; flex-wrap: wrap; gap: 0.5em; align-items: center; }
+    .home-promo-chip {
+      display: inline-flex; align-items: center; gap: 0.4em; border: none; cursor: pointer;
+      font-weight: 700; font-size: 1em; line-height: 1.1; font-family: inherit;
+      border-radius: 999px; padding: 0.6em 1.05em; box-shadow: 0 2px 6px rgba(0,0,0,.14);
+      transition: transform .1s ease, opacity .15s ease; white-space: nowrap;
+    }
+    .home-promo-chip:hover { transform: translateY(-1px); opacity: .92; }
+    .home-promo-chip:active { transform: translateY(0); }
+
     /* === Модалка товара === */
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,.6);
@@ -1262,9 +1274,11 @@ function renderShop() {
       <div class="topbar-zone center">${elementsForZone('center')}</div>
       <div class="topbar-zone right">${elementsForZone('right')}</div>
     </div>
+    ${renderHomePromo('top')}
     ${renderHeroBanner()}
     <div class="wrap">
       ${shop.subtitle ? `<p class="sub align-${shop.subtitleAlign || 'left'}">${escapeHtml(shop.subtitle)}</p>` : ''}
+      ${renderHomePromo('aboveCatalog')}
       ${shop.catalogTitle && shop.catalogTitle.trim() ? `<h2 class="section-title">${escapeHtml(shop.catalogTitle)}</h2>` : ''}
       ${renderCategoriesNav()}
       ${productsHtml}
@@ -1457,6 +1471,52 @@ function renderSideBanners() {
 }
 
 // === Hero-банер під шапкою ===
+// === Промоблок на головній (П.1) ===
+function homePromoActive(p) {
+  if (!p || p.enabled === false) return false;
+  const now = new Date();
+  if (p.validFrom && new Date(p.validFrom) > now) return false;
+  if (p.validUntil && new Date(p.validUntil) < now) return false;
+  return true;
+}
+function hpChipLabel(p, style) {
+  const code = p.code;
+  const amt = p.type === 'percent' ? `${p.value}%` : `${p.value}₴`;
+  if (style === 'text') return `🎟 ${code} · знижка ${amt}${p.scope === 'all' ? ' на все' : ''}`;
+  if (style === 'fromSum') return p.minOrder > 0 ? `🎟 ${code} · від ${p.minOrder}₴` : `🎟 ${code} · знижка ${amt}`;
+  return `🎟 ${code}`; // badge
+}
+function renderHomePromo(placement) {
+  const hp = shop.homePromo;
+  if (!hp || !hp.enabled || (hp.placement || 'aboveCatalog') !== placement) return '';
+  const wanted = Array.isArray(hp.codes) ? hp.codes : [];
+  if (!wanted.length) return '';
+  const all = Array.isArray(shop.promoCodes) ? shop.promoCodes : [];
+  const codes = all.filter(p => wanted.includes(p.code) && homePromoActive(p));
+  if (!codes.length) return '';
+  const style = hp.style || 'badge';
+  const align = ['left', 'center', 'right'].includes(hp.align) ? hp.align : 'center';
+  const justify = align === 'left' ? 'flex-start' : (align === 'right' ? 'flex-end' : 'center');
+  const scale = (typeof hp.scale === 'number' && hp.scale >= 0.6 && hp.scale <= 2) ? hp.scale : 1;
+  const offsetY = parseInt(hp.offsetY, 10) || 0;
+  const bg = hp.bgColor || '#7c3aed';
+  const fg = hp.textColor || '#ffffff';
+  const chips = codes.map(p => {
+    const label = hpChipLabel(p, style);
+    return `<button class="home-promo-chip" style="background:${escapeAttr(bg)};color:${escapeAttr(fg)};" title="Натисни щоб скопіювати промокод" onclick="copyHomePromo('${escapeAttr(p.code)}', this)">${escapeHtml(label)}</button>`;
+  }).join('');
+  return `<div class="home-promo" style="margin-top:${offsetY}px; font-size:${(14 * scale).toFixed(1)}px;"><div class="home-promo-inner" style="justify-content:${justify};">${chips}</div></div>`;
+}
+window.copyHomePromo = function(code, btn) {
+  copyPromoCode(code);
+  if (btn) {
+    if (!btn.getAttribute('data-label')) btn.setAttribute('data-label', btn.textContent);
+    btn.textContent = '✅ Скопійовано!';
+    clearTimeout(btn.__t);
+    btn.__t = setTimeout(() => { btn.textContent = btn.getAttribute('data-label'); }, 1300);
+  }
+};
+
 // Банер активної категорії має пріоритет; якщо у категорії банер вимкнено — показуємо глобальний Hero.
 function getActiveHeroBanner() {
   try {
