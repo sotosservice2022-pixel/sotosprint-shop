@@ -49,6 +49,14 @@
       border: 2px solid #0b8aff; background: #eff6ff;
       box-shadow: 0 4px 16px rgba(11,138,255,.18);
     }
+    /* #6: drag&drop порядку товарів */
+    .product-row.dragging { opacity: .45; }
+    .product-row.drag-over { border-color: #0b8aff; box-shadow: 0 0 0 2px #bfdbfe inset; }
+    .product-row .drag-handle {
+      cursor: grab; color: #9ca3af; font-size: 18px; line-height: 1;
+      flex-shrink: 0; user-select: none; padding: 0 2px;
+    }
+    .product-row .drag-handle:active { cursor: grabbing; }
     .product-row .thumb {
       width: 64px; height: 64px; border-radius: 8px; background: #eef0f3;
       display: flex; align-items: center; justify-content: center; font-size: 24px; color: #c0c4cc;
@@ -199,6 +207,10 @@
   <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
     <button id="priceLockBtn" type="button" class="btn btn-secondary" onclick="togglePriceLock()" style="font-size:13px;">🔒 Ціни заблоковані</button>
     <span style="font-size:12px; color:#6b7280;">захист від випадкових змін. Натисни, щоб редагувати ціну прямо в рядку.</span>
+    <label title="Заблокувати, щоб не перетягнути товари випадково" style="display:flex; align-items:center; gap:5px; font-size:13px; cursor:pointer;">
+      <input type="checkbox" id="lockProductReorder" onchange="toggleProductReorderLock(this.checked)" />
+      <span>🔒 Порядок</span>
+    </label>
     <span id="productCount" style="font-size:13px; color:#374151; font-weight:600; margin-left:auto; white-space:nowrap;"></span>
   </div>
 
@@ -557,13 +569,18 @@ function renderList() {
   }
   wrap.innerHTML = '';
   const unlocked = window.priceEditUnlocked === true;
+  const reorderLocked = isProductReorderLocked();
+  const lockChk = document.getElementById('lockProductReorder');
+  if (lockChk) lockChk.checked = reorderLocked;
   products.forEach((p, idx) => {
     const row = document.createElement('div');
     row.className = 'product-row' + (window.currentIdx === idx ? ' editing' : '');
+    row.dataset.idx = idx;
     const firstImg = p.images?.[0];
     const mainImg = (typeof firstImg === 'object' ? firstImg?.url : firstImg) || p.image || '';
     const catName = p.categoryId ? (categories.find(c => c.id === p.categoryId)?.name || '?') : '';
     row.innerHTML = `
+      ${reorderLocked ? '' : '<span class="drag-handle" title="Перетягни, щоб змінити порядок" onclick="event.stopPropagation()">⠿</span>'}
       <input type="checkbox" class="row-check" data-pid="${escapeAttr(p.id)}" onchange="updateProductBulkBar()" onclick="event.stopPropagation()" style="flex-shrink: 0;" />
       <div class="thumb">${mainImg ? `<img src="${mainImg}" />` : '🖼️'}</div>
       <div class="info">
@@ -587,9 +604,59 @@ function renderList() {
       </div>
     `;
     row.addEventListener('click', () => editProduct(idx));
+    // #6: drag&drop (тільки якщо не заблоковано)
+    if (!reorderLocked) {
+      row.setAttribute('draggable', 'true');
+      row.addEventListener('dragstart', (e) => {
+        window.__dragIdx = idx;
+        row.classList.add('dragging');
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(idx)); } catch (_) {}
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        document.querySelectorAll('.product-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = 'move'; } catch (_) {}
+        if (window.__dragIdx !== idx) row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        dropReorder(idx);
+      });
+    }
     wrap.appendChild(row);
   });
 }
+
+// #6: блокування drag-reorder (локально в браузері; глобальний перемикач є в Налаштуваннях)
+function isProductReorderLocked() {
+  return localStorage.getItem('productReorderLocked') === '1';
+}
+window.toggleProductReorderLock = function(checked) {
+  if (checked) localStorage.setItem('productReorderLocked', '1');
+  else localStorage.removeItem('productReorderLocked');
+  renderList();
+};
+// Переміщення товару з позиції __dragIdx на позицію targetIdx
+window.dropReorder = function(targetIdx) {
+  const from = window.__dragIdx;
+  window.__dragIdx = undefined;
+  if (from == null || from === targetIdx || from < 0 || from >= products.length) return;
+  // Запам'ятовуємо товар, який редагується (за посиланням), щоб currentIdx слідував за ним
+  const editingProduct = (window.currentIdx != null && window.currentIdx >= 0) ? products[window.currentIdx] : null;
+  const [moved] = products.splice(from, 1);
+  products.splice(targetIdx, 0, moved);
+  if (editingProduct) {
+    const ni = products.indexOf(editingProduct);
+    window.currentIdx = ni >= 0 ? ni : window.currentIdx;
+  }
+  renderList();
+  if (typeof toast === 'function') toast('↕ Порядок змінено — натисни «Зберегти все»');
+};
 
 function editProduct(idx) {
   const p = products[idx];
