@@ -221,7 +221,17 @@
     </label>
   </div>
 
-  <div id="editorWrap"></div>
+  <!-- #7: Редактор товару — окремий екран (overlay) поверх списку. -->
+  <div id="editorView" style="display:none; position:fixed; inset:0; background:#f3f4f6; z-index:1000; overflow-y:auto; -webkit-overflow-scrolling:touch;">
+    <div style="position:sticky; top:0; background:#fff; border-bottom:1px solid #e5e7eb; padding:10px 16px; display:flex; gap:10px; align-items:center; z-index:5; box-shadow:0 1px 6px rgba(20,30,60,.06);">
+      <button class="btn btn-secondary" type="button" onclick="closeEditor()">← Назад до списку</button>
+      <strong id="editorViewTitle" style="font-size:15px; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#374151;">Редагування товару</strong>
+      <button class="btn btn-primary" type="button" onclick="saveFromEditor()">💾 Зберегти</button>
+    </div>
+    <div class="wrap" style="padding:16px;">
+      <div id="editorWrap"></div>
+    </div>
+  </div>
 
   <div class="card no-collapse" id="categoriesCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 id="categoriesHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">📁 Категорії товарів</h2>
@@ -688,13 +698,17 @@ function editProduct(idx) {
       <div class="hint">Познач промокоди, які діють на цей товар. Промокод почне діяти лише на цей товар (scope «товари»). Зміни збережуться при «💾 Зберегти все».</div>
     </div>
 
-    <div style="display: flex; gap: 8px; margin-top: 12px;">
-      <button class="btn btn-secondary" onclick="closeEditor()">Закрити редактор</button>
-      <button class="btn btn-danger" onclick="removeProduct(currentIdx)">🗑 Видалити товар</button>
+    <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+      <button class="btn btn-primary" onclick="saveFromEditor()">💾 Зберегти і закрити</button>
+      <button class="btn btn-secondary" onclick="closeEditor()">← Назад до списку</button>
+      <button class="btn btn-danger" onclick="removeProduct(currentIdx)" style="margin-left:auto;">🗑 Видалити товар</button>
     </div>
   `;
   wrap.appendChild(ed);
   window.currentIdx = idx;
+  showEditorView(); // #7: відкриваємо редактор окремим екраном
+  const evTitle = document.getElementById('editorViewTitle');
+  if (evTitle) evTitle.textContent = 'Редагування: ' + (p.name || '(без імені)');
   renderList(); // підсвічуємо рядок товару, який редагується
   // Показуємо прев'ю якщо вже є відео
   setTimeout(() => updateVideoPreview(idx), 50);
@@ -706,7 +720,11 @@ function editProduct(idx) {
       if (k === 'price') p[k] = parseFloat(el.value) || 0;
       else if (k === 'soldCount') p[k] = parseInt(el.value) || 0;
       else p[k] = el.value;
-      if (k === 'name') document.getElementById('ed-title').textContent = el.value;
+      if (k === 'name') {
+        document.getElementById('ed-title').textContent = el.value;
+        const evt = document.getElementById('editorViewTitle');
+        if (evt) evt.textContent = 'Редагування: ' + (el.value || '(без імені)');
+      }
     });
   });
   document.getElementById('ed-enabled').addEventListener('change', e => { p.enabled = e.target.checked; });
@@ -732,10 +750,27 @@ function editProduct(idx) {
   ed.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// #7: показати окремий екран редактора
+function showEditorView() {
+  const v = document.getElementById('editorView');
+  if (v) {
+    v.style.display = 'block';
+    v.scrollTop = 0;
+    document.body.style.overflow = 'hidden'; // блокуємо прокрутку фону
+  }
+}
 function closeEditor() {
+  const v = document.getElementById('editorView');
+  if (v) v.style.display = 'none';
+  document.body.style.overflow = ''; // повертаємо прокрутку списку
   document.getElementById('editorWrap').innerHTML = '';
   window.currentIdx = null;
   renderList(); // знімаємо підсвічування редагованого рядка
+}
+// #7: зберегти прямо з редактора і повернутись до списку
+async function saveFromEditor() {
+  await saveAll(false); // не переоткривати редактор
+  closeEditor();
 }
 
 // === Галерея ===
@@ -1272,7 +1307,7 @@ function sanitizeProducts() {
   }
 }
 
-async function saveAll() {
+async function saveAll(reopenEditor = true) {
   sanitizeProducts();
 
   setStatus('Зберігаю…');
@@ -1329,7 +1364,7 @@ async function saveAll() {
     if (catStatus) { catStatus.textContent = '✓ Збережено'; catStatus.style.color = '#16a34a'; }
     renderCategories();
     renderList();
-    if (window.currentIdx != null && products[window.currentIdx]) {
+    if (reopenEditor && window.currentIdx != null && products[window.currentIdx]) {
       editProduct(window.currentIdx); // оновлюємо відкритий редактор
     }
   } catch (e) {
