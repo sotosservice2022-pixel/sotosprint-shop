@@ -121,12 +121,12 @@
   </div>
 
   <!-- ОНЛАЙН-ОПЛАТА -->
-  <div class="card coming-soon">
-    <h2>💳 Онлайн-оплата <span class="status-badge soon">Заготовка</span></h2>
+  <div class="card">
+    <h2>💳 Онлайн-оплата <span class="status-badge" id="payStatus">—</span></h2>
     <div class="grid">
       <div class="checkbox-inline">
         <input type="checkbox" id="onlinePaymentEnabled" />
-        <label for="onlinePaymentEnabled" style="margin:0">Увімкнути онлайн-оплату (буде в наступних версіях)</label>
+        <label for="onlinePaymentEnabled" style="margin:0">Увімкнути онлайн-оплату</label>
       </div>
       <div>
         <label>Постачальник</label>
@@ -143,7 +143,7 @@
         <div><label>Secret Key / API Key</label><input type="password" id="onlinePaymentApiKey" autocomplete="off" /></div>
       </div>
       <div class="hint" style="background: #eff6ff; padding: 10px; border-radius: 8px; color: #1d4ed8;">
-        ℹ️ Поки що поле для зберігання — інтеграція буде в одному з наступних оновлень.
+        ℹ️ Збережіть дані вашого платіжного провайдера тут. Підключення обраної системи безпосередньо до оформлення замовлення активуємо на наступному кроці.
         <br><br>
         <strong>Рекомендую:</strong>
         <ul style="margin: 4px 0 0 18px; padding: 0;">
@@ -355,6 +355,7 @@ function render() {
   document.getElementById('onlinePaymentProvider').value = settings.onlinePaymentProvider || '';
   document.getElementById('onlinePaymentMerchantId').value = settings.onlinePaymentMerchantId || '';
   document.getElementById('onlinePaymentApiKey').value = ''; // не возвращается из API
+  updatePayStatus();
 
   // SEO
   document.getElementById('seoTitle').value = settings.seoTitle || '';
@@ -380,6 +381,26 @@ function render() {
     seoStatus.textContent = 'Не налаштовано'; seoStatus.className = 'status-badge inactive';
   }
 }
+
+function updatePayStatus() {
+  const badge = document.getElementById('payStatus');
+  if (!badge) return;
+  const enabled = document.getElementById('onlinePaymentEnabled').checked;
+  const provider = document.getElementById('onlinePaymentProvider').value;
+  const merchant = document.getElementById('onlinePaymentMerchantId').value.trim();
+  if (enabled && provider && merchant) {
+    badge.textContent = 'Активна'; badge.className = 'status-badge active';
+  } else if (provider || merchant) {
+    badge.textContent = 'Налаштування'; badge.className = 'status-badge soon';
+  } else {
+    badge.textContent = 'Не активна'; badge.className = 'status-badge inactive';
+  }
+}
+
+['onlinePaymentEnabled','onlinePaymentProvider','onlinePaymentMerchantId'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) { el.addEventListener('change', updatePayStatus); el.addEventListener('input', updatePayStatus); }
+});
 
 async function saveAll() {
   // NP
