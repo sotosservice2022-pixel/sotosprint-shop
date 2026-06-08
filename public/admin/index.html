@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Адмінка — Sotosprint Shop</title>
+  <title>Адмінка — AGPRNT Shop</title>
   <style>
     * { box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -358,7 +358,7 @@ async function downloadBackup() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     const dt = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-    a.href = url; a.download = `sotosprint-backup-${dt}.json`;
+    a.href = url; a.download = `agprnt-backup-${dt}.json`;
     document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
     status.textContent = '✓ Завантажено: ' + a.download;

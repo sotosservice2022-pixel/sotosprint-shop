@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin/
 Disallow: /api/
 
-Sitemap: https://sotosprint.store/sitemap.xml
+Sitemap: https://agprnt.com/sitemap.xml
