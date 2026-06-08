@@ -4,6 +4,63 @@
 (function () {
   'use strict';
 
+  // ============ Серверна синхронізація розкладки (між ПК) ============
+  // Порядок плиток/карток і стан згортання дублюються в KV через /api/admin/ui-layout,
+  // тож на будь-якому комп'ютері адмінка виглядає однаково. localStorage лишається миттєвим кешем.
+  const LAYOUT_API = '/api/admin/ui-layout';
+
+  function postLayout(kind, value) {
+    try {
+      fetch(LAYOUT_API, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, path: location.pathname, value }),
+      }).catch(function () {});
+    } catch (_) {}
+  }
+
+  // Підтягуємо серверну розкладку; якщо вона відрізняється від локальної —
+  // перезаписуємо localStorage і один раз перезавантажуємо сторінку (як syncLockReorder).
+  // Якщо на сервері порожньо, а локально є — піднімаємо локальну нагору (bootstrap, без reload).
+  async function syncLayoutFromServer() {
+    let res;
+    try { res = await fetch(LAYOUT_API, { credentials: 'include' }); } catch (_) { return; }
+    if (!res || !res.ok) return;
+    let data;
+    try { data = await res.json(); } catch (_) { return; }
+    if (!data || !data.ok || !data.layout) return;
+
+    const path = location.pathname;
+    const L = data.layout;
+    const kinds = [
+      { kind: 'tiles', ls: 'adminTilesOrder_' + path },
+      { kind: 'cards', ls: 'adminOrder_' + path },
+      { kind: 'collapse', ls: 'adminCollapse_' + path },
+    ];
+    let changedLocal = false;
+    for (const k of kinds) {
+      const serverVal = L[k.kind] ? L[k.kind][path] : undefined;
+      const hasServer = serverVal != null && (
+        (Array.isArray(serverVal) && serverVal.length > 0) ||
+        (typeof serverVal === 'object' && !Array.isArray(serverVal) && Object.keys(serverVal).length > 0)
+      );
+      const localRaw = localStorage.getItem(k.ls);
+      if (hasServer) {
+        const serverStr = JSON.stringify(serverVal);
+        if (localRaw !== serverStr) { localStorage.setItem(k.ls, serverStr); changedLocal = true; }
+      } else if (localRaw) {
+        try { postLayout(k.kind, JSON.parse(localRaw)); } catch (_) {}
+      }
+    }
+    if (changedLocal) {
+      if (sessionStorage.getItem('uiLayoutReloadGuard')) return;
+      sessionStorage.setItem('uiLayoutReloadGuard', '1');
+      setTimeout(function () { sessionStorage.removeItem('uiLayoutReloadGuard'); }, 5000);
+      location.reload();
+    }
+  }
+
   // ============ Згортання карток ============
   // Автоматично додає кнопку ▾ у верхній правий кут кожної .card
   // Стан зберігається в localStorage (per-page, per-card-title)
@@ -18,6 +75,7 @@
 
   function saveState(state) {
     localStorage.setItem(getKey(), JSON.stringify(state));
+    postLayout('collapse', state);
   }
 
   function cardId(card, idx) {
@@ -102,6 +160,7 @@
   }
   function saveOrder(arr) {
     localStorage.setItem(getOrderKey(), JSON.stringify(arr));
+    postLayout('cards', arr);
   }
 
   function applyOrder(cards) {
@@ -272,6 +331,7 @@
     document.getElementById('ui-reset-order')?.addEventListener('click', () => {
       if (!confirm('Скинути порядок карток до початкового? (стан розгорнутості збережеться)')) return;
       localStorage.removeItem(getOrderKey());
+      postLayout('cards', []); // очистити і на сервері
       location.reload();
     });
   }
@@ -388,6 +448,7 @@
       if (!parent) return;
       const order = Array.from(parent.querySelectorAll(':scope > a.card')).map(tileId);
       localStorage.setItem(orderKey, JSON.stringify(order));
+      postLayout('tiles', order);
     }
 
     function clearDropHints() {
@@ -491,6 +552,8 @@
   function autoStart() {
     setupCollapsible();
     setupTileReorder();
+    // після застосування локального стану — звіряємось із сервером (інший ПК -> reload)
+    syncLayoutFromServer();
   }
 
   // Запускаємо коли DOM готовий
