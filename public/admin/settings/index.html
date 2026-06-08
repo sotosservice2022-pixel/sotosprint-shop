@@ -111,7 +111,7 @@
     <h2 data-i18n="settings.shop_info_title">🏪 Інформація про магазин</h2>
     <div class="grid">
       <div><label>Заголовок</label><input type="text" id="title" oninput="updateMobilePreview()" /></div>
-      <div><label>⚙️ Підзаголовок у шапці адмінки</label><input type="text" id="adminHeaderText" placeholder="Напр.: Sotosprint — управління сайтом і товарами" />
+      <div><label>⚙️ Підзаголовок у шапці адмінки</label><input type="text" id="adminHeaderText" placeholder="Напр.: AGPRNT — управління сайтом і товарами" />
         <div class="hint">Текст під заголовком «Адмінка магазину» на головній сторінці адмінки.</div>
       </div>
       <div><label>📑 Назва вкладки в браузері</label><input type="text" id="browserTabTitle" placeholder="Якщо порожньо — використовується SEO Title або Заголовок" />
@@ -125,7 +125,7 @@
           <div id="mobilePreviewBox" style="width: 343px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
             <div style="display: flex; align-items: flex-start; gap: 8px;">
               <div style="font-size: 20px; flex-shrink: 0;">📷</div>
-              <div id="mobilePreviewTitle" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">Sotosprint</div>
+              <div id="mobilePreviewTitle" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">AGPRNT</div>
               <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
             </div>
           </div>
@@ -152,7 +152,7 @@
         <label for="watermarkEnabled" style="margin:0">Показувати водяний знак (плитка по діагоналі) на всіх фото товарів</label>
       </div>
       <div class="grid grid-2">
-        <div><label>Текст водяного знака</label><input type="text" id="watermarkText" placeholder="Sotosprint" /></div>
+        <div><label>Текст водяного знака</label><input type="text" id="watermarkText" placeholder="AGPRNT" /></div>
         <div><label>Розмір тексту (px)</label><input type="number" id="watermarkSize" min="10" max="60" placeholder="22" /></div>
         <div><label>Прозорість (0–1)</label><input type="number" id="watermarkOpacity" min="0" max="1" step="0.05" placeholder="0.22" /></div>
       </div>
@@ -438,7 +438,7 @@
       </div>
       <div>
         <label>Відправник (Alpha-name / From-номер)</label>
-        <input type="text" id="smsSender" placeholder="напр. SOTOSPRINT або +14155551234" />
+        <input type="text" id="smsSender" placeholder="напр. AGPRNT або +14155551234" />
         <div class="hint">TurboSMS / SMSClub: затверджене альфа-імʼя. Twilio: ваш Twilio-номер у форматі <code>+...</code></div>
       </div>
       <div>
@@ -651,7 +651,7 @@ function updateMobilePreview() {
   let text = input.value.trim();
   let usingFallback = false;
   if (!text) {
-    text = (fallback?.value || 'Sotosprint').trim();
+    text = (fallback?.value || 'AGPRNT').trim();
     usingFallback = true;
   }
 
