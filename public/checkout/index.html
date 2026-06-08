@@ -283,19 +283,27 @@ function render() {
       `;
     })()}
 
-    ${(shop.paymentMethods || []).length > 0 ? `
-      <div class="card">
-        <h2>${escapeHtml(shop.paymentBlockTitle || '💳 Оплата')}</h2>
-        <div class="radio-group" id="paymentGroup">
-          ${shop.paymentMethods.map((m, i) => `
-            <label class="radio-row${i === 0 ? ' selected' : ''}">
-              <input type="radio" name="payment" value="${escapeAttr(m)}" ${i === 0 ? 'checked' : ''} onchange="markRadio(this)" />
-              <span class="text">${escapeHtml(m)}</span>
-            </label>
-          `).join('')}
-        </div>
-      </div>
-    ` : ''}
+    ${(() => {
+      const methods = (shop.paymentMethods || []).slice();
+      const online = [];
+      if (shop.payLiqpayAvailable) online.push({ prov: 'liqpay', label: '💳 Карткою онлайн (LiqPay)' });
+      if (shop.payMonoAvailable) online.push({ prov: 'monobank', label: '💳 Карткою онлайн (Monobank)' });
+      // Якщо немає ні ручних способів, ні онлайн — блок не показуємо (як було раніше)
+      if (methods.length === 0 && online.length === 0) return '';
+      let idx = 0;
+      const rows = [];
+      methods.forEach((m) => {
+        const checked = idx === 0;
+        rows.push(`<label class="radio-row${checked ? ' selected' : ''}"><input type="radio" name="payment" value="${escapeAttr(m)}" ${checked ? 'checked' : ''} onchange="markRadio(this)" /><span class="text">${escapeHtml(m)}</span></label>`);
+        idx++;
+      });
+      online.forEach((o) => {
+        const checked = idx === 0;
+        rows.push(`<label class="radio-row${checked ? ' selected' : ''}"><input type="radio" name="payment" value="${escapeAttr(o.label)}" data-online="${o.prov}" ${checked ? 'checked' : ''} onchange="markRadio(this)" /><span class="text">${escapeHtml(o.label)}</span></label>`);
+        idx++;
+      });
+      return `<div class="card"><h2>${escapeHtml(shop.paymentBlockTitle || '💳 Оплата')}</h2><div class="radio-group" id="paymentGroup">${rows.join('')}</div></div>`;
+    })()}
 
     ${shop.customerEmailEnabled ? `
       <div class="block">
@@ -562,6 +570,27 @@ function renderPreview(idx) {
   });
 }
 
+// Перенаправлення на платіжний шлюз: type='redirect' (Monobank) або type='form' (LiqPay)
+function redirectToGateway(pay) {
+  if (!pay) return;
+  if (pay.type === 'redirect' && pay.url) { location.href = pay.url; return; }
+  if (pay.type === 'form' && pay.action) {
+    const f = document.createElement('form');
+    f.method = 'POST';
+    f.action = pay.action;
+    f.style.display = 'none';
+    for (const [k, v] of Object.entries(pay.fields || {})) {
+      const inp = document.createElement('input');
+      inp.type = 'hidden';
+      inp.name = k;
+      inp.value = v;
+      f.appendChild(inp);
+    }
+    document.body.appendChild(f);
+    f.submit();
+  }
+}
+
 async function submitOrder() {
   const submitBtn = document.getElementById('submitBtn');
   const statusEl = document.getElementById('status');
@@ -710,7 +739,11 @@ async function submitOrder() {
       const deliveryEl = document.querySelector('input[name=delivery]:checked');
       const paymentEl = document.querySelector('input[name=payment]:checked');
       if (deliveryEl) fd.append('delivery', deliveryEl.value);
-      if (paymentEl) fd.append('payment', paymentEl.value);
+      if (paymentEl) {
+        fd.append('payment', paymentEl.value);
+        const online = paymentEl.getAttribute('data-online');
+        if (online) fd.append('onlinePay', online);
+      }
       if (npCity && npWarehouse) {
         fd.append('npCity', npCity);
         fd.append('npWarehouse', npWarehouse);
@@ -732,6 +765,24 @@ async function submitOrder() {
 
       const result = await uploadOrder(fd, p => progressBar.style.width = `${p}%`);
       if (result.ok) {
+        // Онлайн-оплата: чистимо кошик і переходимо на платіжний шлюз
+        if (result.payment) {
+          try {
+            const allCart = JSON.parse(localStorage.getItem(CART_KEY)) || [];
+            const remaining = allCart.filter(item => item.selected === false);
+            if (remaining.length === 0) localStorage.removeItem(CART_KEY);
+            else localStorage.setItem(CART_KEY, JSON.stringify(remaining));
+          } catch { localStorage.removeItem(CART_KEY); }
+          try { localStorage.removeItem(PROMO_KEY); } catch {}
+          showStatus(shop.redirectPayText || '↪️ Переходимо до оплати…', 'success');
+          redirectToGateway(result.payment);
+          return;
+        }
+        // Замовлення створене, але оплату не вдалося ініціювати
+        if (result.paymentError) {
+          showStatus('⚠️ ' + result.paymentError, 'error');
+          break;
+        }
         const msg = (shop.successText || '✅ Замовлення #{orderId} прийнято').replace('{orderId}', result.orderId);
         showStatus(msg, 'success');
         // В корзине оставляем только товары которые НЕ были вибрані (selected === false)

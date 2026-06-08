@@ -3,7 +3,8 @@
 //   cart      — JSON-строка корзины [{ productId, productName, optionId, optionName, quantity, unitPrice, photoCount }, ...]
 //   name, phone, comment, delivery, payment — поля
 //   photos_<idx>  — файлы для позиции idx (idx — индекс в cart)
-import { getSettings, getProducts, getBotConfig, saveOrder, escapeMd, escapeHtml, jsonResp, invalidateOrdersCache, notifyLimitHit, classifyLimitError, saveSettings, sendSms } from '../_utils/shop.js';
+import { getSettings, getProducts, getBotConfig, saveOrder, updateOrder, escapeMd, escapeHtml, jsonResp, invalidateOrdersCache, notifyLimitHit, classifyLimitError, saveSettings, sendSms } from '../_utils/shop.js';
+import { liqpayBuildCheckout, monoCreateInvoice } from '../_utils/payments.js';
 
 // === Защита от spam: одному номеру телефона нельзя слать заказ чаще раза в N секунд ===
 const ANTI_SPAM_WINDOW_SEC = 30;
@@ -217,6 +218,16 @@ export async function onRequestPost({ request, env }) {
   // Email клієнта (надсилається завжди коли включено + є валідний email)
   const customerEmail = (form.get('email') || '').toString().trim();
 
+  // === Онлайн-оплата: який провайдер обрав клієнт (і чи він реально доступний) ===
+  const onlinePayRaw = (form.get('onlinePay') || '').toString().trim().toLowerCase();
+  const liqpayAvailable = !!(settings.payLiqpayEnabled && settings.payLiqpayPublicKey && settings.payLiqpayPrivateKey);
+  const monoAvailable = !!(settings.payMonoEnabled && settings.payMonoToken);
+  let onlineProvider = '';
+  if (onlinePayRaw === 'liqpay' && liqpayAvailable) onlineProvider = 'liqpay';
+  else if (onlinePayRaw === 'monobank' && monoAvailable) onlineProvider = 'monobank';
+  const isOnline = !!onlineProvider;
+  let savedOrderKvKey = null;
+
   // Анти-спам: один телефон не может слать заказы чаще раза в N секунд
   if (phone && env.SHOP_KV) {
     const phoneKey = 'lastOrder_' + phone.replace(/\D/g, '');
@@ -257,7 +268,11 @@ export async function onRequestPost({ request, env }) {
   const npWarehouse = (form.get('npWarehouse') || '').toString().trim();
   if (npCity) lines.push(`📍 *Город НП:* ${escapeMd(npCity)}`);
   if (npWarehouse) lines.push(`🏪 *Отделение:* ${escapeMd(npWarehouse)}`);
-  if (payment) lines.push(`💳 *Оплата:* ${escapeMd(payment)}`);
+  if (payment || isOnline) {
+    const payText = payment || (onlineProvider === 'liqpay' ? 'Картою онлайн (LiqPay)' : 'Картою онлайн (Monobank)');
+    const payLine = isOnline ? `${escapeMd(payText)} — ⏳ очікує оплати` : escapeMd(payText);
+    lines.push(`💳 *Оплата:* ${payLine}`);
+  }
   if (comment) {
     if (comment.includes('\n')) {
       lines.push(`💬 *Комментарий:*`);
@@ -363,14 +378,14 @@ export async function onRequestPost({ request, env }) {
 
     // Сохраняем заказ в KV для админ-раздела
     try {
-      await saveOrder(env, {
+      const orderObj = {
         id: orderId,
         createdAt: new Date().toISOString(),
         customerName: name,
         phone,
         comment,
         delivery,
-        payment,
+        payment: payment || (isOnline ? (onlineProvider === 'liqpay' ? 'Картою онлайн (LiqPay)' : 'Картою онлайн (Monobank)') : ''),
         npCity,
         npWarehouse,
         items: enrichedCart.map(it => ({
@@ -389,8 +404,19 @@ export async function onRequestPost({ request, env }) {
         totalPhotos,
         isRead: false,
         isDone: false,
-      });
+      };
+      if (isOnline) {
+        orderObj.paymentProvider = onlineProvider;
+        orderObj.paymentStatus = 'pending';
+        orderObj.paid = false;
+      }
+      await saveOrder(env, orderObj);
       await invalidateOrdersCache();
+      // Індекс orderId → kvKey, щоб callback оплати знайшов замовлення (saveOrder проставив orderObj.kvKey)
+      if (isOnline && env.SHOP_KV && orderObj.kvKey) {
+        try { await env.SHOP_KV.put('payidx_' + orderId, orderObj.kvKey, { expirationTtl: 7 * 24 * 60 * 60 }); } catch {}
+      }
+      savedOrderKvKey = orderObj.kvKey;
     } catch (e) {
       console.log(`[${reqId}] saveOrder failed: ${e.message}`);
       const limitKind = classifyLimitError(e);
@@ -512,8 +538,10 @@ export async function onRequestPost({ request, env }) {
       }
     }
 
-    // Инкрементируем счётчик продаж по каждому товару
-    try {
+    // Инкрементируем счётчик продаж по каждому товару.
+    // Для онлайн-замовлень (ще не оплачені) — пропускаємо, списання робимо у webhook після оплати,
+    // щоб не списувати склад на покинутих оплатах.
+    if (!isOnline) try {
       const productsList = await getProducts(env);
       let productsChanged = false;
       for (const it of enrichedCart) {
@@ -533,6 +561,39 @@ export async function onRequestPost({ request, env }) {
       }
     } catch (e) {
       console.log(`[${reqId}] soldCount update failed: ${e.message}`);
+    }
+
+    // === Онлайн-оплата: формуємо payload для редіректу/форми на платіжний шлюз ===
+    if (isOnline) {
+      try {
+        const origin = new URL(request.url).origin;
+        const resultUrl = origin + '/checkout/success/';
+        let payment;
+        if (onlineProvider === 'liqpay') {
+          payment = await liqpayBuildCheckout(settings, {
+            orderId, amount: totalPrice,
+            description: `Замовлення #${orderId}`,
+            resultUrl,
+            serverUrl: origin + '/api/pay/liqpay-callback',
+          });
+        } else {
+          payment = await monoCreateInvoice(settings, {
+            orderId, amount: totalPrice,
+            description: `Замовлення #${orderId}`,
+            redirectUrl: resultUrl,
+            webHookUrl: origin + '/api/pay/mono-callback',
+          });
+          if (payment?.invoiceId && savedOrderKvKey) {
+            try { await updateOrder(env, savedOrderKvKey, { paymentInvoiceId: payment.invoiceId }); } catch {}
+          }
+        }
+        console.log(`[${reqId}] online payment ready: ${onlineProvider}`);
+        return jsonResp({ ok: true, orderId, total: totalPrice, payment });
+      } catch (e) {
+        console.log(`[${reqId}] payment init failed: ${e.message}`);
+        // Замовлення вже створене — повертаємо ok, але без редіректу й з підказкою
+        return jsonResp({ ok: true, orderId, total: totalPrice, paymentError: 'Не вдалося ініціювати онлайн-оплату. Ми зв’яжемось з вами щодо оплати.' });
+      }
     }
 
     return jsonResp({ ok: true, orderId, total: totalPrice });

@@ -218,11 +218,18 @@ const DEFAULT_SETTINGS = {
   // Стиснення картинок товарів (в адмінці)
   productImageMaxSide: 1200,
   productImageQuality: 85,
-  // Готовність до онлайн-оплати (заготовка)
+  // Готовність до онлайн-оплати (legacy, не використовується новим кодом)
   onlinePaymentEnabled: false,
   onlinePaymentProvider: '',
   onlinePaymentMerchantId: '',
   onlinePaymentApiKey: '',
+  // === Онлайн-оплата (LiqPay + Monobank) ===
+  payTestMode: false,            // тестовий режим (LiqPay sandbox / тестовий токен Monobank)
+  payLiqpayEnabled: false,
+  payLiqpayPublicKey: '',
+  payLiqpayPrivateKey: '',       // СЕКРЕТ — не віддається назад у UI/публічно
+  payMonoEnabled: false,
+  payMonoToken: '',              // СЕКРЕТ (X-Token) — не віддається назад у UI/публічно
   // Аналітика
   googleAnalyticsId: '',          // G-XXXXXXX (GA4)
   googleTagManagerId: '',         // GTM-XXXXXXX

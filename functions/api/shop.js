@@ -3,7 +3,9 @@
 // Інвалідація відбувається через CF Cache Purge API при змінах в адмінці.
 import { getSettings, getProducts } from '../_utils/shop.js';
 
-const SECRET_FIELDS = ['npApiKey', 'emailApiKey', 'emailFrom', 'emailTo', 'twoFactorChatId', 'cfApiToken', 'smsApiToken', 'smsAccountSid'];
+const SECRET_FIELDS = ['npApiKey', 'emailApiKey', 'emailFrom', 'emailTo', 'twoFactorChatId', 'cfApiToken', 'smsApiToken', 'smsAccountSid',
+  // Платіжні секрети — ніколи не віддаємо публічно
+  'onlinePaymentApiKey', 'payLiqpayPublicKey', 'payLiqpayPrivateKey', 'payMonoToken'];
 
 export async function onRequestGet({ request, env }) {
   const [settings, products] = await Promise.all([getSettings(env), getProducts(env)]);
@@ -11,6 +13,10 @@ export async function onRequestGet({ request, env }) {
   const publicSettings = { ...settings };
   for (const f of SECRET_FIELDS) delete publicSettings[f];
   publicSettings.npAvailable = !!(settings.npApiKey && settings.npEnabled);
+  // Онлайн-оплата: публічно лише булеві прапори доступності (без ключів)
+  publicSettings.payLiqpayAvailable = !!(settings.payLiqpayEnabled && settings.payLiqpayPublicKey && settings.payLiqpayPrivateKey);
+  publicSettings.payMonoAvailable = !!(settings.payMonoEnabled && settings.payMonoToken);
+  publicSettings.payTestMode = !!settings.payTestMode;
 
   const ttl = Math.max(5, Math.min(300, parseInt(settings.shopFullCacheSec, 10) || 30));
   const body = JSON.stringify({

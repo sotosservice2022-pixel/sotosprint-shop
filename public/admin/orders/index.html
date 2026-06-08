@@ -223,7 +223,7 @@ function render() {
       <td onclick="event.stopPropagation()"><input type="checkbox" class="row-check" data-key="${escapeAttr(o.kvKey)}" onchange="updateBulkBar()" /></td>
       <td onclick="openDetails('${escapeAttr(o.kvKey)}')">#${escapeHtml(o.id)}</td>
       <td onclick="openDetails('${escapeAttr(o.kvKey)}')">${escapeHtml(o.customerName || '—')}<br><small style="color:#6b7280">${escapeHtml(o.phone || '')}</small></td>
-      <td onclick="openDetails('${escapeAttr(o.kvKey)}')"><strong>${o.totalPrice} ₴</strong></td>
+      <td onclick="openDetails('${escapeAttr(o.kvKey)}')"><strong>${o.totalPrice} ₴</strong>${o.paymentStatus === 'paid' ? ' <span title="Оплачено онлайн" style="color:#16a34a">💳✅</span>' : (o.paymentStatus === 'pending' ? ' <span title="Очікує онлайн-оплати" style="color:#a16207">💳⏳</span>' : '')}</td>
       <td onclick="openDetails('${escapeAttr(o.kvKey)}')">${formatDate(o.createdAt)}</td>
       <td onclick="openDetails('${escapeAttr(o.kvKey)}')">${o.isDone ? '✅' : '⏳'}</td>
       <td class="row-actions" onclick="event.stopPropagation()">
@@ -349,7 +349,7 @@ function renderDetails(o) {
     ${o.delivery ? `<div class="order-row"><div class="l">Доставка</div><div class="v">${escapeHtml(o.delivery)}</div></div>` : ''}
     ${o.npCity ? `<div class="order-row"><div class="l">Місто (НП)</div><div class="v">${escapeHtml(o.npCity)}</div></div>` : ''}
     ${o.npWarehouse ? `<div class="order-row"><div class="l">Відділення</div><div class="v">${escapeHtml(o.npWarehouse)}</div></div>` : ''}
-    ${o.payment ? `<div class="order-row"><div class="l">Оплата</div><div class="v">${escapeHtml(o.payment)}${copyBtn(o.payment)}</div></div>` : ''}
+    ${o.payment || o.paymentProvider ? `<div class="order-row"><div class="l">Оплата</div><div class="v">${escapeHtml(o.payment || '')}${o.paymentStatus === 'paid' ? ' <span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">✅ Оплачено</span>' : (o.paymentStatus === 'pending' ? ' <span style="background:#fef9c3;color:#a16207;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">⏳ Очікує оплати</span>' : '')}${copyBtn(o.payment || '')}</div></div>` : ''}
     ${o.comment ? `<div class="order-row"><div class="l">Коментар</div><div class="v" style="white-space:pre-wrap">${escapeHtml(o.comment)}</div></div>` : ''}
     <div class="order-row">
       <div class="l">Склад замовлення</div>

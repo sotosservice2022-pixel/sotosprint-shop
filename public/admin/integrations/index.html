@@ -125,32 +125,40 @@
     <h2>💳 Онлайн-оплата <span class="status-badge" id="payStatus">—</span></h2>
     <div class="grid">
       <div class="checkbox-inline">
-        <input type="checkbox" id="onlinePaymentEnabled" />
-        <label for="onlinePaymentEnabled" style="margin:0">Увімкнути онлайн-оплату</label>
+        <input type="checkbox" id="payTestMode" />
+        <label for="payTestMode" style="margin:0">🧪 Тестовий режим (sandbox — без реальних грошей)</label>
       </div>
-      <div>
-        <label>Постачальник</label>
-        <select id="onlinePaymentProvider">
-          <option value="">— оберіть —</option>
-          <option value="liqpay">LiqPay (ПриватБанк)</option>
-          <option value="fondy">Fondy</option>
-          <option value="monobank">Monobank Acquiring</option>
-          <option value="wayforpay">WayForPay</option>
-        </select>
+
+      <!-- LiqPay -->
+      <div style="border:1px solid #e5e7eb; border-radius:10px; padding:12px;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="payLiqpayEnabled" />
+          <label for="payLiqpayEnabled" style="margin:0; font-weight:600;">Увімкнути LiqPay (ПриватБанк)</label>
+          <span class="status-badge" id="payLiqpayStatus" style="margin-left:auto;">—</span>
+        </div>
+        <div class="grid grid-2" style="margin-top:8px;">
+          <div><label>Public Key</label><input type="text" id="payLiqpayPublicKey" autocomplete="off" placeholder="i00000000000" /></div>
+          <div><label>Private Key</label><input type="password" id="payLiqpayPrivateKey" autocomplete="off" placeholder="••••••" /></div>
+        </div>
+        <div class="hint" style="margin-top:6px;">Ключі: <a href="https://www.liqpay.ua/" target="_blank">liqpay.ua</a> → кабінет → Налаштування API (Public + Private key).</div>
       </div>
-      <div class="grid grid-2">
-        <div><label>Merchant ID / Public Key</label><input type="text" id="onlinePaymentMerchantId" /></div>
-        <div><label>Secret Key / API Key</label><input type="password" id="onlinePaymentApiKey" autocomplete="off" /></div>
+
+      <!-- Monobank -->
+      <div style="border:1px solid #e5e7eb; border-radius:10px; padding:12px;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="payMonoEnabled" />
+          <label for="payMonoEnabled" style="margin:0; font-weight:600;">Увімкнути Monobank Acquiring</label>
+          <span class="status-badge" id="payMonoStatus" style="margin-left:auto;">—</span>
+        </div>
+        <div style="margin-top:8px;">
+          <label>Token (X-Token)</label><input type="password" id="payMonoToken" autocomplete="off" placeholder="••••••" />
+        </div>
+        <div class="hint" style="margin-top:6px;">Токен: <a href="https://web.monobank.ua/" target="_blank">monobank</a> → Еквайринг та інтернет-магазин → API-токен. Для тесту — тестовий токен з <a href="https://api.monobank.ua/" target="_blank">api.monobank.ua</a>.</div>
       </div>
+
       <div class="hint" style="background: #eff6ff; padding: 10px; border-radius: 8px; color: #1d4ed8;">
-        ℹ️ Збережіть дані вашого платіжного провайдера тут. Підключення обраної системи безпосередньо до оформлення замовлення активуємо на наступному кроці.
-        <br><br>
-        <strong>Рекомендую:</strong>
-        <ul style="margin: 4px 0 0 18px; padding: 0;">
-          <li><a href="https://www.liqpay.ua/" target="_blank">LiqPay</a> — найпростіше для України, ~1.5%/100₴/міс</li>
-          <li><a href="https://www.monobank.ua/business/acquiring" target="_blank">Monobank Acquiring</a> — 1.4-1.7%</li>
-          <li><a href="https://fondy.ua/" target="_blank">Fondy</a> — гнучкі тарифи</li>
-        </ul>
+        ℹ️ Увімкни потрібного провайдера й встав ключі. Якщо ввімкнено <strong>обидва</strong> — клієнт обере спосіб на оформленні. Якщо вимкнено всі — на сайті для клієнта все як раніше.
+        <br>URL для повернення та webhook налаштовуються автоматично за доменом магазину.
       </div>
     </div>
   </div>
@@ -350,11 +358,13 @@ function render() {
     npStatus.textContent = 'Не активна'; npStatus.className = 'status-badge inactive';
   }
 
-  // Online payment
-  document.getElementById('onlinePaymentEnabled').checked = !!settings.onlinePaymentEnabled;
-  document.getElementById('onlinePaymentProvider').value = settings.onlinePaymentProvider || '';
-  document.getElementById('onlinePaymentMerchantId').value = settings.onlinePaymentMerchantId || '';
-  document.getElementById('onlinePaymentApiKey').value = ''; // не возвращается из API
+  // Online payment (LiqPay + Monobank)
+  document.getElementById('payTestMode').checked = !!settings.payTestMode;
+  document.getElementById('payLiqpayEnabled').checked = !!settings.payLiqpayEnabled;
+  document.getElementById('payLiqpayPublicKey').value = settings.payLiqpayPublicKey || '';
+  document.getElementById('payLiqpayPrivateKey').value = settings.payLiqpayPrivateKey ? '••••••••••' : '';
+  document.getElementById('payMonoEnabled').checked = !!settings.payMonoEnabled;
+  document.getElementById('payMonoToken').value = settings.payMonoToken ? '••••••••••' : '';
   updatePayStatus();
 
   // SEO
@@ -382,22 +392,42 @@ function render() {
   }
 }
 
+function setBadge(el, state, text) {
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'status-badge ' + state; // active / inactive / soon
+}
 function updatePayStatus() {
-  const badge = document.getElementById('payStatus');
-  if (!badge) return;
-  const enabled = document.getElementById('onlinePaymentEnabled').checked;
-  const provider = document.getElementById('onlinePaymentProvider').value;
-  const merchant = document.getElementById('onlinePaymentMerchantId').value.trim();
-  if (enabled && provider && merchant) {
-    badge.textContent = 'Активна'; badge.className = 'status-badge active';
-  } else if (provider || merchant) {
-    badge.textContent = 'Налаштування'; badge.className = 'status-badge soon';
-  } else {
-    badge.textContent = 'Не активна'; badge.className = 'status-badge inactive';
-  }
+  const test = document.getElementById('payTestMode').checked;
+  // LiqPay: ключі вважаємо заповненими, якщо в полі є значення (маска •• означає що ключ уже збережено)
+  const lqEnabled = document.getElementById('payLiqpayEnabled').checked;
+  const lqPub = document.getElementById('payLiqpayPublicKey').value.trim();
+  const lqPriv = document.getElementById('payLiqpayPrivateKey').value.trim();
+  const lqReady = !!(lqPub && lqPriv);
+  const lqBadge = document.getElementById('payLiqpayStatus');
+  if (!lqEnabled) setBadge(lqBadge, 'inactive', 'Вимкнено');
+  else if (lqReady) setBadge(lqBadge, 'active', test ? 'Тест' : 'Активна');
+  else setBadge(lqBadge, 'soon', 'Введіть ключі');
+
+  // Monobank
+  const moEnabled = document.getElementById('payMonoEnabled').checked;
+  const moToken = document.getElementById('payMonoToken').value.trim();
+  const moReady = !!moToken;
+  const moBadge = document.getElementById('payMonoStatus');
+  if (!moEnabled) setBadge(moBadge, 'inactive', 'Вимкнено');
+  else if (moReady) setBadge(moBadge, 'active', test ? 'Тест' : 'Активна');
+  else setBadge(moBadge, 'soon', 'Введіть токен');
+
+  // Загальний бейдж
+  const main = document.getElementById('payStatus');
+  const anyReady = (lqEnabled && lqReady) || (moEnabled && moReady);
+  const anyEnabled = lqEnabled || moEnabled;
+  if (anyReady) setBadge(main, 'active', test ? 'Тестовий режим' : 'Активна');
+  else if (anyEnabled) setBadge(main, 'soon', 'Налаштування');
+  else setBadge(main, 'inactive', 'Не активна');
 }
 
-['onlinePaymentEnabled','onlinePaymentProvider','onlinePaymentMerchantId'].forEach(id => {
+['payTestMode','payLiqpayEnabled','payLiqpayPublicKey','payLiqpayPrivateKey','payMonoEnabled','payMonoToken'].forEach(id => {
   const el = document.getElementById(id);
   if (el) { el.addEventListener('change', updatePayStatus); el.addEventListener('input', updatePayStatus); }
 });
@@ -413,12 +443,15 @@ async function saveAll() {
   settings.npWarehouseEmptyPlaceholder = document.getElementById('npWarehouseEmptyPlaceholder').value;
   settings.npLoadingText = document.getElementById('npLoadingText').value;
 
-  // Online payment
-  settings.onlinePaymentEnabled = document.getElementById('onlinePaymentEnabled').checked;
-  settings.onlinePaymentProvider = document.getElementById('onlinePaymentProvider').value;
-  settings.onlinePaymentMerchantId = document.getElementById('onlinePaymentMerchantId').value.trim();
-  const newPayKey = document.getElementById('onlinePaymentApiKey').value.trim();
-  if (newPayKey) settings.onlinePaymentApiKey = newPayKey;
+  // Online payment (LiqPay + Monobank)
+  settings.payTestMode = document.getElementById('payTestMode').checked;
+  settings.payLiqpayEnabled = document.getElementById('payLiqpayEnabled').checked;
+  settings.payLiqpayPublicKey = document.getElementById('payLiqpayPublicKey').value.trim();
+  const lqPriv = document.getElementById('payLiqpayPrivateKey').value.trim();
+  if (lqPriv && !lqPriv.startsWith('••')) settings.payLiqpayPrivateKey = lqPriv;
+  settings.payMonoEnabled = document.getElementById('payMonoEnabled').checked;
+  const moToken = document.getElementById('payMonoToken').value.trim();
+  if (moToken && !moToken.startsWith('••')) settings.payMonoToken = moToken;
 
   // SEO
   settings.seoTitle = document.getElementById('seoTitle').value.trim();
