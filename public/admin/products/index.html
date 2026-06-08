@@ -709,6 +709,7 @@ function editProduct(idx) {
   if (p.image && p.images.length === 0) { p.images.push(p.image); p.image = ''; }
   if (!Array.isArray(p.attributes)) p.attributes = [];
   if (!Array.isArray(p.options)) p.options = [];
+  if (!Array.isArray(p.qtyTiers)) p.qtyTiers = [];
 
   const ed = document.createElement('div');
   ed.className = 'editor';
@@ -761,6 +762,19 @@ function editProduct(idx) {
           <input type="number" id="ed-stock" value="${Number.isFinite(p.stock) ? p.stock : 0}" min="0" step="1" />
           <div class="hint">Якщо <strong>0</strong> — на сайті буде «Немає в наявності» і кнопка замовлення заблокується. Зменшується автоматично після кожного замовлення.</div>
         </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h4>💰 Оптова ціна (від кількості)</h4>
+      <div class="checkbox-inline" style="margin-bottom:8px;">
+        <input type="checkbox" id="ed-qtypricing" ${p.qtyPricing ? 'checked' : ''} />
+        <label for="ed-qtypricing" style="margin:0">Ціна залежить від кількості (опт)</label>
+      </div>
+      <div id="ed-tier-wrap" style="${p.qtyPricing ? '' : 'display:none;'}">
+        <div id="tierList"></div>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="addTier()">+ Додати поріг</button>
+        <div class="hint">Базова «Ціна» вище — це ціна за 1 шт. Тут додай пороги: <b>від N шт → ціна за шт</b>. Коли клієнт набирає кількість ≥ порогу — <b>усі</b> штуки рахуються за цією ціною. Приклад: ціна 100₴, поріг «від 10 шт → 80₴»: за 10 шт буде 800₴ (по 80). Надбавки за варіанти та промокоди застосовуються поверх оптової ціни.</div>
       </div>
     </div>
 
@@ -867,10 +881,22 @@ function editProduct(idx) {
     if (stockWrap) stockWrap.style.display = e.target.checked ? '' : 'none';
   });
   if (stockEl) stockEl.addEventListener('input', e => { p.stock = parseInt(e.target.value) || 0; });
+  // 💰 Оптова ціна (від кількості)
+  const qtyPricingEl = document.getElementById('ed-qtypricing');
+  const tierWrap = document.getElementById('ed-tier-wrap');
+  if (qtyPricingEl) qtyPricingEl.addEventListener('change', e => {
+    p.qtyPricing = e.target.checked;
+    if (tierWrap) tierWrap.style.display = e.target.checked ? '' : 'none';
+    if (e.target.checked && (!Array.isArray(p.qtyTiers) || !p.qtyTiers.length)) {
+      p.qtyTiers = [{ minQty: '', price: '' }];
+      renderTiers(p);
+    }
+  });
 
   renderGallery(p);
   renderAttrs(p);
   renderOpts(p);
+  renderTiers(p);
   renderBadges(p);
   renderProductPromos(p);
 
@@ -1450,6 +1476,41 @@ window.addOpt = () => {
   renderOpts(p);
 };
 
+// === 💰 Оптова ціна (пороги від кількості) ===
+function renderTiers(p) {
+  const el = document.getElementById('tierList');
+  if (!el) return;
+  if (!Array.isArray(p.qtyTiers)) p.qtyTiers = [];
+  el.innerHTML = '';
+  p.qtyTiers.forEach((t, i) => {
+    const row = document.createElement('div');
+    row.className = 'opt-row';
+    row.innerHTML = `
+      <span style="font-size:13px; color:#475569; white-space:nowrap;">від</span>
+      <input type="number" placeholder="N" value="${Number.isFinite(t.minQty) ? t.minQty : ''}" data-k="minQty" min="2" step="1" title="Від якої кількості діє ця ціна" />
+      <span style="font-size:13px; color:#475569; white-space:nowrap;">шт →</span>
+      <input type="number" placeholder="ціна/шт" value="${Number.isFinite(t.price) ? t.price : ''}" data-k="price" min="0" step="1" title="Ціна за 1 шт при цій кількості" />
+      <span style="font-size:13px; color:#475569; white-space:nowrap;">₴/шт</span>
+      <button class="btn btn-danger btn-icon" type="button">×</button>
+    `;
+    row.querySelectorAll('[data-k]').forEach(input => {
+      input.addEventListener('input', () => {
+        const k = input.dataset.k;
+        const v = input.value === '' ? '' : (k === 'minQty' ? (parseInt(input.value, 10) || 0) : (parseFloat(input.value) || 0));
+        t[k] = v;
+      });
+    });
+    row.querySelector('button').onclick = () => { p.qtyTiers.splice(i, 1); renderTiers(p); };
+    el.appendChild(row);
+  });
+}
+window.addTier = () => {
+  const p = products[currentIdx];
+  if (!Array.isArray(p.qtyTiers)) p.qtyTiers = [];
+  p.qtyTiers.push({ minQty: '', price: '' });
+  renderTiers(p);
+};
+
 // === Список товаров: операции ===
 // #5: стабільне сортування — закріплені (pinTop) товари піднімаються нагору,
 // решта зберігає свій відносний порядок. Викликається при перемиканні чекбокса
@@ -1670,6 +1731,14 @@ function sanitizeProducts() {
     if (Array.isArray(p.attributes)) {
       p.attributes = p.attributes.filter(a => a.label || a.value);
     }
+    // 💰 Оптові пороги: лишаємо тільки валідні (від ≥2 шт, ціна ≥0), сортуємо за кількістю
+    if (Array.isArray(p.qtyTiers)) {
+      p.qtyTiers = p.qtyTiers
+        .map(t => ({ minQty: parseInt(t.minQty, 10) || 0, price: parseFloat(t.price) || 0 }))
+        .filter(t => t.minQty >= 2 && t.price >= 0)
+        .sort((a, b) => a.minQty - b.minQty);
+    } else p.qtyTiers = [];
+    if (!p.qtyTiers.length) p.qtyPricing = false;
     if (!Array.isArray(p.images)) p.images = [];
     // Поддержка legacy: первая картинка дублируется в .image
     if (p.images.length > 0) {

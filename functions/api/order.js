@@ -9,6 +9,22 @@ import { liqpayBuildCheckout, monoCreateInvoice } from '../_utils/payments.js';
 // === Защита от spam: одному номеру телефона нельзя слать заказ чаще раза в N секунд ===
 const ANTI_SPAM_WINDOW_SEC = 30;
 
+// 💰 Оптова ціна від кількості. Повертає базову ціну за 1 шт для заданого qty:
+// беремо поріг з найбільшим minQty, що ≤ qty; інакше product.price. Сервер — джерело істини.
+function tierUnitPrice(product, qty) {
+  const base = (product && product.price) || 0;
+  if (!product || !product.qtyPricing || !Array.isArray(product.qtyTiers)) return base;
+  const q = parseInt(qty, 10) || 1;
+  let price = base, bestMin = 1;
+  for (const t of product.qtyTiers) {
+    const mq = parseInt(t.minQty, 10);
+    const pr = parseFloat(t.price);
+    if (!Number.isFinite(mq) || mq < 2 || !Number.isFinite(pr) || pr < 0) continue;
+    if (q >= mq && mq >= bestMin) { bestMin = mq; price = pr; }
+  }
+  return price;
+}
+
 // === Telegram fetch с обработкой rate-limit (429 + retry_after) ===
 async function tgFetch(url, options, maxRetries = 4) {
   let attempt = 0;
@@ -85,7 +101,7 @@ export async function onRequestPost({ request, env }) {
       return jsonResp({ ok: false, error: `Товар "${item.productName || item.productId}" недоступен` }, 400);
     }
     const qty = Math.max(1, Math.min(parseInt(item.quantity, 10) || 1, 1000));
-    let unitPrice = product.price;
+    let unitPrice = tierUnitPrice(product, qty); // 💰 оптова ціна від кількості (база)
     let optionLabel = null;
     const prodOpts = Array.isArray(product.options) ? product.options : [];
     if (Array.isArray(item.optionIds) && item.optionIds.length && prodOpts.length) {
