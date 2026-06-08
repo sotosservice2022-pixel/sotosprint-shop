@@ -1,5 +1,5 @@
 // GET /api/storage/[key] — публічна віддача файлу з R2
-// URL шарінг: https://sotosprint.store/api/storage/abc123_logo.png
+// URL шарінг: https://agprnt.com/api/storage/abc123_logo.png
 export async function onRequestGet({ request, env, params }) {
   if (!env.STORAGE) return new Response('Storage not configured', { status: 500 });
 

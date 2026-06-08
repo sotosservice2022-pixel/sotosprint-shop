@@ -4,11 +4,11 @@ const DEFAULT_SETTINGS = {
   shopEnabled: true,
   browserTabTitle: '', // якщо порожньо — використовується seoTitle або title
   shopDisabledMessage: '🚫 Магазин тимчасово не приймає замовлення. Спробуйте пізніше.',
-  title: '🖨 Sotosprint — друк фотографій',
+  title: '🖨 AGPRNT — друк фотографій',
   subtitle: 'Якісний друк ваших фотографій з доставкою по Україні',
-  adminHeaderText: 'Sotosprint — управління сайтом і товарами', // підзаголовок у шапці адмінки
+  adminHeaderText: 'AGPRNT — управління сайтом і товарами', // підзаголовок у шапці адмінки
 
-  contacts: 'Телефон: +380 (XX) XXX-XX-XX\nІнстаграм: @sotosprint',
+  contacts: 'Телефон: +380 (XX) XXX-XX-XX\nІнстаграм: @agprnt',
   // Тексты способов доставки/оплаты в виде Markdown — клиент видит как текст-меню
   deliveryMethods: [
     'Самовивіз (адресу уточнимо по телефону)',
@@ -110,9 +110,9 @@ const DEFAULT_SETTINGS = {
   contactsEnabled: true,
   contactsList: [],        // строки для футера
   // SEO (для пошукових систем — Google, Bing, Яндекс)
-  seoTitle: 'Sotosprint — друк фотографій з доставкою по Україні',
+  seoTitle: 'AGPRNT — друк фотографій з доставкою по Україні',
   seoDescription: 'Якісний друк фотографій з доставкою Новою Поштою по всій Україні. Замовляй фото з телефону за хвилину — без реєстрації.',
-  seoKeywords: 'друк фото, фотодрук, друк фотографій, фото на замовлення, фотолабораторія, sotosprint, нова пошта, Україна',
+  seoKeywords: 'друк фото, фотодрук, друк фотографій, фото на замовлення, фотолабораторія, agprnt, нова пошта, Україна',
   seoOgImage: '', // URL картинки для превью в соцмережах (1200×630 рекомендовано)
   // Раздел заказов
   newOrderToastText: '🛍 Нове замовлення #{orderId}',
@@ -132,11 +132,11 @@ const DEFAULT_SETTINGS = {
   cfAccountId: '',               // Account ID з Cloudflare Dashboard
   cfNamespaceId: '2b33bf309cd7409aa255274b8eb25380', // ID нашого SHOP_KV (заповнено)
   cfZoneId: '',                  // Zone ID домену (для миттєвого purge кешу при змінах)
-  cfProjectName: 'sotosprint-shop', // Pages-проект — для додавання доменів через API
-  primaryDomain: 'sotosprint.store', // основний домен сайту — використовується у purge, webhook, redirect
+  cfProjectName: 'agprnt-shop', // Pages-проект — для додавання доменів через API
+  primaryDomain: 'agprnt.com', // основний домен сайту — використовується у purge, webhook, redirect
   // Резервний (запасний) проект — другий магазин якого можна вмикати/вимикати одним кліком
   reserveProjectName: '',  // напр. 'tehno-store'
-  reserveDomain: '',       // напр. 'sotosprint.store'
+  reserveDomain: '',       // напр. 'agprnt.com'
 
   // Швидкість оновлення UI / продуктивність
   publicPollIntervalSec: 5,      // як часто публічний сайт перевіряє оновлення (1-60)
@@ -921,7 +921,7 @@ export async function invalidateOrdersCache() {
   } catch {}
 }
 
-// Повертає основний домен сайту з settings, або fallback 'sotosprint.store'.
+// Повертає основний домен сайту з settings, або fallback 'agprnt.com'.
 // Використовується скрізь де потрібен домен у URL (purge, webhook, redirect).
 export async function getPrimaryDomain(env) {
   try {
@@ -929,7 +929,7 @@ export async function getPrimaryDomain(env) {
     const d = (s.primaryDomain || '').trim().replace(/^https?:\/\//, '').replace(/\/$/, '');
     if (d) return d;
   } catch {}
-  return 'sotosprint.store';
+  return 'agprnt.com';
 }
 
 // Інвалідація CDN-кешу /api/shop після зміни settings/products
@@ -1006,7 +1006,7 @@ export async function notifyLimitHit(env, kind, errorMessage) {
     const label = labels[kind] || labels.unknown;
     const time = new Date().toLocaleString('uk-UA', { timeZone: 'Europe/Kyiv' });
 
-    const text = `⚠️ *Sotosprint: вичерпано ліміт Cloudflare*\n\n` +
+    const text = `⚠️ *AGPRNT: вичерпано ліміт Cloudflare*\n\n` +
       `*Тип:* ${label}\n` +
       `*Час:* ${time}\n` +
       `*Помилка:* \`${(errorMessage || '').slice(0, 200)}\`\n\n` +

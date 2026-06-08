@@ -8,8 +8,8 @@ export async function onRequestGet({ request, env }) {
   const settings = await getSettings(env);
   const token = (settings.cfApiToken || '').trim();
   const accountId = (settings.cfAccountId || '').trim();
-  const projectName = (settings.cfProjectName || 'sotosprint-shop').trim();
-  const primaryDomain = (settings.primaryDomain || 'sotosprint.store').trim();
+  const projectName = (settings.cfProjectName || 'agprnt-shop').trim();
+  const primaryDomain = (settings.primaryDomain || 'agprnt.com').trim();
 
   if (!token || !accountId) {
     return jsonResp({
@@ -63,7 +63,7 @@ export async function onRequestPost({ request, env }) {
   const settings = await getSettings(env);
   const token = (settings.cfApiToken || '').trim();
   const accountId = (settings.cfAccountId || '').trim();
-  const projectName = (settings.cfProjectName || 'sotosprint-shop').trim();
+  const projectName = (settings.cfProjectName || 'agprnt-shop').trim();
 
   if (!token || !accountId) {
     return jsonResp({ ok: false, error: 'CF API не налаштовано (потрібен cfApiToken + cfAccountId)' }, 400);
@@ -122,7 +122,7 @@ export async function onRequestPost({ request, env }) {
       return jsonResp(result);
     }
 
-    // 3. Створюємо CNAME запис → sotosprint-shop.pages.dev
+    // 3. Створюємо CNAME запис → agprnt-shop.pages.dev
     try {
       // Для apex домена використовуємо name = '@' (CF підтримує CNAME flattening)
       // Для www.example.com → name = www

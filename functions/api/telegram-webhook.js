@@ -54,7 +54,7 @@ async function verifyShopState(expectedEnabled) {
   await new Promise(r => setTimeout(r, 1000));
   try {
     // Запит з cache-busting query — щоб точно отримати свіже
-    const url = `https://sotosprint.store/api/shop?_t=${Date.now()}`;
+    const url = `https://agprnt.com/api/shop?_t=${Date.now()}`;
     const r = await fetch(url, { headers: { 'Cache-Control': 'no-cache' } });
     if (!r.ok) return false;
     const data = await r.json();

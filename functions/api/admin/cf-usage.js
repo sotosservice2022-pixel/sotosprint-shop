@@ -105,7 +105,7 @@ export async function onRequestGet({ request, env }) {
           const p = await fetch(`https://api.cloudflare.com/client/v4/zones/${zoneId}/purge_cache`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ files: [`https://${(settings2.primaryDomain || 'sotosprint.store').trim()}/test-purge-` + Date.now()] }),
+            body: JSON.stringify({ files: [`https://${(settings2.primaryDomain || 'agprnt.com').trim()}/test-purge-` + Date.now()] }),
           });
           const pj = await p.json();
           if (pj.success) {
