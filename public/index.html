@@ -106,7 +106,10 @@
       flex: 0 1 auto;       /* НЕ розтягуємо, ТАК стискаємо */
       min-width: 0;
       max-width: 100%;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit;
+      overflow: hidden; color: inherit;
+      white-space: normal;                       /* дозволяємо перенос на 2-й рядок */
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+      line-height: 1.2;
       transform: translateX(var(--title-offset-x, 0));
     }
     .topbar a.title-link h1 { transform: none; }   /* щоб трансформ не дублювався */
