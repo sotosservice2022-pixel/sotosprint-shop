@@ -37,6 +37,12 @@
 
     /* Список товаров */
     .product-list { display: grid; gap: 10px; margin-bottom: 14px; }
+    .cat-divider { display: flex; align-items: center; gap: 8px; margin: 16px 0 2px;
+      padding: 4px 2px 6px; font-size: 13px; font-weight: 700; color: #374151;
+      border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: #f6f7f9; z-index: 1; }
+    .cat-divider:first-child { margin-top: 0; }
+    .cat-divider .cnt { font-weight: 500; color: #9ca3af; font-size: 12px;
+      background: #eef2f7; padding: 1px 8px; border-radius: 99px; }
     .product-row {
       display: flex; gap: 12px; align-items: center;
       background: #fff; padding: 10px 14px; border-radius: 10px;
@@ -238,6 +244,11 @@
       <span>🔒 Порядок</span>
     </label>
     <span id="productCount" style="font-size:13px; color:#374151; font-weight:600; margin-left:auto; white-space:nowrap;"></span>
+  </div>
+
+  <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;">
+    <input type="search" id="productSearch" placeholder="🔍 Пошук товару за назвою…" oninput="renderList()" autocomplete="off" style="flex:1; min-width:180px; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+    <select id="productCatFilter" onchange="renderList()" title="Фільтр за категорією" style="padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc; max-width:220px;"></select>
   </div>
 
   <div class="product-list" id="productList"></div>
@@ -612,7 +623,35 @@ function renderList() {
   const reorderLocked = isProductReorderLocked();
   const lockChk = document.getElementById('lockProductReorder');
   if (lockChk) lockChk.checked = reorderLocked;
+  // Пошук + фільтр за категорією
+  populateCatFilter();
+  const q = (document.getElementById('productSearch')?.value || '').trim().toLowerCase();
+  const catFilter = document.getElementById('productCatFilter')?.value || '';
+  const filtering = !!q || !!catFilter;
+  const matchesFilter = (p) => {
+    if (q && !((p.name || '').toLowerCase().includes(q))) return false;
+    if (!catFilter) return true;
+    if (catFilter === '__none__') return !p.categoryId;
+    return p.categoryId === catFilter;
+  };
+  let lastCatKey = null;
+  let shownAny = false;
   products.forEach((p, idx) => {
+    if (!matchesFilter(p)) return;
+    shownAny = true;
+    // Роздільник категорії (тільки в режимі «Усі категорії»)
+    if (!catFilter) {
+      const key = p.categoryId || '__none__';
+      if (key !== lastCatKey) {
+        lastCatKey = key;
+        const cName = p.categoryId ? (categories.find(c => c.id === p.categoryId)?.name || '?') : '📂 Без категорії';
+        const cCount = products.filter(x => matchesFilter(x) && (x.categoryId || '__none__') === key).length;
+        const divEl = document.createElement('div');
+        divEl.className = 'cat-divider';
+        divEl.innerHTML = `<span>${escapeHtml(cName)}</span><span class="cnt">${cCount}</span>`;
+        wrap.appendChild(divEl);
+      }
+    }
     const row = document.createElement('div');
     row.className = 'product-row' + (window.currentIdx === idx ? ' editing' : '');
     row.dataset.idx = idx;
@@ -620,7 +659,7 @@ function renderList() {
     const mainImg = (typeof firstImg === 'object' ? firstImg?.url : firstImg) || p.image || '';
     const catName = p.categoryId ? (categories.find(c => c.id === p.categoryId)?.name || '?') : '';
     row.innerHTML = `
-      ${reorderLocked ? '' : '<span class="drag-handle" title="Перетягни, щоб змінити порядок" onclick="event.stopPropagation()">⠿</span>'}
+      ${(reorderLocked || filtering) ? '' : '<span class="drag-handle" title="Перетягни, щоб змінити порядок" onclick="event.stopPropagation()">⠿</span>'}
       <input type="checkbox" class="row-check" data-pid="${escapeAttr(p.id)}" onchange="updateProductBulkBar()" onclick="event.stopPropagation()" style="flex-shrink: 0;" />
       <div class="thumb">${mainImg ? `<img src="${mainImg}" />` : '🖼️'}</div>
       <div class="info">
@@ -645,8 +684,8 @@ function renderList() {
       </div>
     `;
     row.addEventListener('click', () => editProduct(idx));
-    // #6: drag&drop (тільки якщо не заблоковано)
-    if (!reorderLocked) {
+    // #6: drag&drop (тільки якщо не заблоковано і не активний пошук/фільтр)
+    if (!reorderLocked && !filtering) {
       row.setAttribute('draggable', 'true');
       row.addEventListener('dragstart', (e) => {
         window.__dragIdx = idx;
@@ -671,6 +710,25 @@ function renderList() {
     }
     wrap.appendChild(row);
   });
+  if (!shownAny) {
+    wrap.innerHTML = '<div class="empty">Нічого не знайдено за запитом.</div>';
+  }
+}
+
+// Заповнюємо випадашку фільтра категорій (зберігаючи поточний вибір)
+function populateCatFilter() {
+  const sel = document.getElementById('productCatFilter');
+  if (!sel) return;
+  const prev = sel.value;
+  let html = '<option value="">Усі категорії</option>';
+  (categories || []).forEach(c => {
+    const n = products.filter(p => p.categoryId === c.id).length;
+    html += `<option value="${escapeAttr(c.id)}">${escapeHtml(c.name || '(без імені)')} (${n})</option>`;
+  });
+  const noneN = products.filter(p => !p.categoryId).length;
+  if (noneN > 0) html += `<option value="__none__">📂 Без категорії (${noneN})</option>`;
+  sel.innerHTML = html;
+  if (prev && Array.from(sel.options).some(o => o.value === prev)) sel.value = prev;
 }
 
 // #6: блокування drag-reorder (локально в браузері; глобальний перемикач є в Налаштуваннях)
