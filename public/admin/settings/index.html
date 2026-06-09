@@ -110,7 +110,9 @@
   <div class="card">
     <h2 data-i18n="settings.shop_info_title">🏪 Інформація про магазин</h2>
     <div class="grid">
-      <div><label>Заголовок</label><input type="text" id="title" oninput="updateMobilePreview()" /></div>
+      <div><label>Заголовок</label><input type="text" id="title" oninput="updateMobilePreview()" />
+        <div class="hint">Щоб примусово перенести текст на новий рядок — встав <code>\n</code> там, де треба розрив. Напр.: <code>AGPRNT\nдрук фото на металі</code></div>
+      </div>
       <div><label>⚙️ Підзаголовок у шапці адмінки</label><input type="text" id="adminHeaderText" placeholder="Напр.: AGPRNT — управління сайтом і товарами" />
         <div class="hint">Текст під заголовком «Адмінка магазину» на головній сторінці адмінки.</div>
       </div>
@@ -118,7 +120,7 @@
         <div class="hint">Те що видно в табі/закладці браузера. Бажано до 60 символів.</div>
       </div>
       <div><label>📱 Заголовок для мобільних (опціонально, коротший)</label><input type="text" id="mobileTitle" placeholder="Якщо порожньо — використовується звичайний" oninput="updateMobilePreview()" />
-        <div class="hint">Показується на екранах ≤700px замість основного. Корисно якщо назва довга та не вміщається.</div>
+        <div class="hint">Показується на екранах ≤700px замість основного. Корисно якщо назва довга та не вміщається. Перенос рядка — встав мітку <code>\n</code> де треба.</div>
         <!-- Превʼю того, як буде виглядати на мобільному -->
         <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px;">
           <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю на мобільному (ширина екрану 375px):</div>
