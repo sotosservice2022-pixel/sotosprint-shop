@@ -974,7 +974,7 @@ let currentImgIdx = 0;
     return;
   }
   // Назва вкладки браузера: окреме поле browserTabTitle, або seoTitle, або обчислюється з title
-  document.title = shop.browserTabTitle || shop.seoTitle || stripEmoji(shop.title) || 'Магазин';
+  document.title = shop.browserTabTitle || shop.seoTitle || stripEmoji((shop.title || '').replace(/\r?\n|\\n/g, ' ')) || 'Магазин';
 
   // Режим прев'ю для адміна: ?preview=1 + валідна адмін-сесія (перевіряємо на сервері,
   // бо кука admin_session — HttpOnly і JS її не бачить).
@@ -987,7 +987,7 @@ let currentImgIdx = 0;
   }
   if (shop.shopEnabled === false && !_isPreview) {
     document.getElementById('app').innerHTML = `
-      <div class="topbar"><h1>${escapeHtml(shop.title || '')}</h1></div>
+      <div class="topbar"><h1>${escapeHtml(shop.title || '').replace(/\r?\n|\\n/g, '<br>')}</h1></div>
       <div class="wrap">
         <div class="closed-card">${escapeHtml(shop.shopDisabledMessage || '🚫 Магазин закритий')}</div>
       </div>
@@ -1270,8 +1270,10 @@ function renderShop() {
       </div>`
     : '';
 
-  const desktopTitle = escapeHtml(shop.title || '');
-  const mobTitle = shop.mobileTitle ? escapeHtml(shop.mobileTitle) : desktopTitle;
+  // \n у полі назви → примусовий перенос рядка (поле — звичайний input, тому ловимо і \n-токен)
+  const titleBreak = (s) => escapeHtml(s || '').replace(/\r?\n|\\n/g, '<br>');
+  const desktopTitle = titleBreak(shop.title);
+  const mobTitle = shop.mobileTitle ? titleBreak(shop.mobileTitle) : desktopTitle;
   const titleHtml = shop.titleLinksToHome
     ? `<a class="title-link" href="/" title="На головну"><h1><span class="title-desktop">${desktopTitle}</span><span class="title-mobile">${mobTitle}</span></h1></a>`
     : `<h1><span class="title-desktop">${desktopTitle}</span><span class="title-mobile">${mobTitle}</span></h1>`;

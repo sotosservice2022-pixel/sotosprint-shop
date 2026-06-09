@@ -659,7 +659,7 @@ function updateMobilePreview() {
   const baseSize = window.__topbarTitleSize || 17;
   const mobileSize = baseSize * 0.85;
   previewTitle.style.fontSize = mobileSize + 'px';
-  previewTitle.textContent = text;
+  previewTitle.innerHTML = text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])).replace(/\r?\n|\\n/g, '<br>');
   previewTitle.style.display = '-webkit-box';
   previewTitle.style.webkitLineClamp = '3';
   previewTitle.style.webkitBoxOrient = 'vertical';
