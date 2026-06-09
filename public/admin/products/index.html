@@ -39,9 +39,12 @@
     .product-list { display: grid; gap: 10px; margin-bottom: 14px; }
     .cat-divider { display: flex; align-items: center; gap: 8px; margin: 16px 0 2px;
       padding: 4px 2px 6px; font-size: 13px; font-weight: 700; color: #374151;
-      border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: #f6f7f9; z-index: 1; }
+      border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: #f6f7f9; z-index: 1;
+      cursor: pointer; user-select: none; }
+    .cat-divider:hover { background: #eef2f7; }
     .cat-divider:first-child { margin-top: 0; }
-    .cat-divider .cnt { font-weight: 500; color: #9ca3af; font-size: 12px;
+    .cat-divider .cat-arrow { color: #9ca3af; font-size: 11px; width: 10px; display: inline-block; text-align: center; }
+    .cat-divider .cnt { font-weight: 500; color: #9ca3af; font-size: 12px; margin-left: auto;
       background: #eef2f7; padding: 1px 8px; border-radius: 99px; }
     .product-row {
       display: flex; gap: 12px; align-items: center;
@@ -634,7 +637,9 @@ function renderList() {
     if (catFilter === '__none__') return !p.categoryId;
     return p.categoryId === catFilter;
   };
+  const collapsedCats = getCollapsedCats();
   let lastCatKey = null;
+  let curCatCollapsed = false;
   let shownAny = false;
   products.forEach((p, idx) => {
     if (!matchesFilter(p)) return;
@@ -644,13 +649,18 @@ function renderList() {
       const key = p.categoryId || '__none__';
       if (key !== lastCatKey) {
         lastCatKey = key;
+        const isCollapsed = collapsedCats.has(key);
+        curCatCollapsed = isCollapsed;
         const cName = p.categoryId ? (categories.find(c => c.id === p.categoryId)?.name || '?') : '📂 Без категорії';
         const cCount = products.filter(x => matchesFilter(x) && (x.categoryId || '__none__') === key).length;
         const divEl = document.createElement('div');
-        divEl.className = 'cat-divider';
-        divEl.innerHTML = `<span>${escapeHtml(cName)}</span><span class="cnt">${cCount}</span>`;
+        divEl.className = 'cat-divider' + (isCollapsed ? ' collapsed' : '');
+        divEl.title = isCollapsed ? 'Розгорнути категорію' : 'Згорнути категорію';
+        divEl.innerHTML = `<span class="cat-arrow">${isCollapsed ? '▸' : '▾'}</span><span>${escapeHtml(cName)}</span><span class="cnt">${cCount}</span>`;
+        divEl.onclick = () => toggleCatCollapse(key);
         wrap.appendChild(divEl);
       }
+      if (curCatCollapsed) return; // категорія згорнута — рядки не показуємо
     }
     const row = document.createElement('div');
     row.className = 'product-row' + (window.currentIdx === idx ? ' editing' : '');
@@ -714,6 +724,18 @@ function renderList() {
     wrap.innerHTML = '<div class="empty">Нічого не знайдено за запитом.</div>';
   }
 }
+
+// Згортання категорій у списку товарів (стан у localStorage)
+function getCollapsedCats() {
+  try { return new Set(JSON.parse(localStorage.getItem('prodCatCollapsed') || '[]')); }
+  catch { return new Set(); }
+}
+window.toggleCatCollapse = function(key) {
+  const s = getCollapsedCats();
+  if (s.has(key)) s.delete(key); else s.add(key);
+  localStorage.setItem('prodCatCollapsed', JSON.stringify([...s]));
+  renderList();
+};
 
 // Заповнюємо випадашку фільтра категорій (зберігаючи поточний вибір)
 function populateCatFilter() {
