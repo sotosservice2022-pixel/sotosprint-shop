@@ -55,10 +55,9 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-  <!-- Favicon: справжні файли (НЕ data:-URI) — Google у видачі бере лише реальні URL,
-       а /favicon.ico він запитує завжди. Файли згенеровані з pwa-icon-192.png. -->
-  <link rel="icon" href="/favicon.ico" sizes="48x48" />
-  <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+  <!-- Favicon: порожній за замовчуванням (data:,). Якщо в адмінці вибрано іконку —
+       сервер (functions/index.js) підставляє faviconImage у цей link. -->
+  <link rel="icon" href="data:," />
 
   <style>
     :root {
