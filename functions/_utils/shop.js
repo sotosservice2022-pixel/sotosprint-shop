@@ -439,6 +439,27 @@ export async function saveSettings(env, settings) {
 }
 
 // Надсилання SMS клієнту. Провайдер обирається в settings.smsProvider. Повертає { ok, id?, error? }.
+// === Секретне посилання відстеження (/track?t=...) ===
+// Токен виводиться з секрету + id + телефону (SHA-256), тому НЕ потребує міграції
+// старих замовлень — працює для всіх, включно зі старими. Секрет генерується один раз
+// і зберігається в settings (публічно НЕ віддається — див. SECRET_FIELDS в api/shop.js).
+export async function getTrackSecret(env) {
+  const s = await getSettings(env);
+  if (s.trackSecret) return s.trackSecret;
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  const secret = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('');
+  s.trackSecret = secret;
+  try { await saveSettings(env, s); } catch {}
+  return secret;
+}
+
+export async function trackTokenFor(secret, order) {
+  const phoneDigits = String(order.phone || '').replace(/\D/g, '');
+  const data = new TextEncoder().encode(`${secret}|${order.id}|${phoneDigits}`);
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+}
+
 export async function sendSms(settings, phone, text) {
   const num = (phone || '').replace(/\D/g, '');
   if (!num) return { ok: false, error: 'Порожній номер телефону' };

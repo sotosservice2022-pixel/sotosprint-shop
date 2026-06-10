@@ -3,7 +3,7 @@
 // Інвалідація відбувається через CF Cache Purge API при змінах в адмінці.
 import { getSettings, getProducts } from '../_utils/shop.js';
 
-const SECRET_FIELDS = ['npApiKey', 'emailApiKey', 'emailFrom', 'emailTo', 'twoFactorChatId', 'cfApiToken', 'smsApiToken', 'smsAccountSid',
+const SECRET_FIELDS = ['npApiKey', 'emailApiKey', 'emailFrom', 'emailTo', 'twoFactorChatId', 'cfApiToken', 'smsApiToken', 'smsAccountSid', 'trackSecret',
   // Платіжні секрети — ніколи не віддаємо публічно
   'onlinePaymentApiKey', 'payLiqpayPublicKey', 'payLiqpayPrivateKey', 'payMonoToken'];
 

@@ -5,7 +5,7 @@
 //
 // Якщо в адмінці вписано ТТН Нова Пошта — додатково тягнемо реальний статус посилки
 // через TrackingDocument API НП.
-import { getSettings, listOrders, jsonResp } from '../_utils/shop.js';
+import { getSettings, listOrders, jsonResp, getTrackSecret, trackTokenFor } from '../_utils/shop.js';
 
 // Мапа статусів замовлення (наша внутрішня) → текст для клієнта
 function orderStatusText(o) {
@@ -54,25 +54,40 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалідний запит' }, 400); }
 
+  const token = String(body.token || '').trim().toLowerCase();
   const orderId = String(body.orderId || '').replace(/\D/g, '');
   const phoneDigits = String(body.phone || '').replace(/\D/g, '');
 
-  if (!orderId) return jsonResp({ ok: false, error: 'Вкажіть номер замовлення' }, 400);
-  if (phoneDigits.length < 4) return jsonResp({ ok: false, error: 'Вкажіть номер телефону' }, 400);
-
-  // Шукаємо замовлення за id (id у нас — інкрементне число-рядок)
-  const orders = await listOrders(env, 1000);
-  const order = orders.find(o => String(o.id) === orderId);
-
-  // Єдине повідомлення і коли не знайдено, і коли телефон не збігся —
-  // щоб не можна було вгадати, які номери замовлень існують.
   const notFound = () => jsonResp({ ok: false, error: 'Замовлення не знайдено. Перевірте номер замовлення і телефон.' }, 404);
-  if (!order) return notFound();
 
-  const orderPhoneDigits = String(order.phone || '').replace(/\D/g, '');
-  // Звіряємо останні 4 цифри (клієнт міг ввести з кодом країни або без)
-  if (!orderPhoneDigits || orderPhoneDigits.slice(-4) !== phoneDigits.slice(-4)) {
-    return notFound();
+  let order = null;
+  if (/^[a-f0-9]{16}$/.test(token)) {
+    // Шлях 1: секретне посилання (/track?t=...). Токен неможливо підібрати,
+    // тож телефон не питаємо — клієнт одразу бачить статус.
+    const secret = await getTrackSecret(env);
+    const orders = await listOrders(env, 1000);
+    for (const o of orders) {
+      if ((await trackTokenFor(secret, o)) === token) { order = o; break; }
+    }
+    if (!order) return notFound();
+  } else {
+    // Шлях 2: ручний ввід — номер замовлення + телефон (запасний варіант).
+    if (!orderId) return jsonResp({ ok: false, error: 'Вкажіть номер замовлення' }, 400);
+    if (phoneDigits.length < 4) return jsonResp({ ok: false, error: 'Вкажіть номер телефону' }, 400);
+
+    // Шукаємо замовлення за id (id у нас — інкрементне число-рядок)
+    const orders = await listOrders(env, 1000);
+    order = orders.find(o => String(o.id) === orderId) || null;
+
+    // Єдине повідомлення і коли не знайдено, і коли телефон не збігся —
+    // щоб не можна було вгадати, які номери замовлень існують.
+    if (!order) return notFound();
+
+    const orderPhoneDigits = String(order.phone || '').replace(/\D/g, '');
+    // Звіряємо останні 4 цифри (клієнт міг ввести з кодом країни або без)
+    if (!orderPhoneDigits || orderPhoneDigits.slice(-4) !== phoneDigits.slice(-4)) {
+      return notFound();
+    }
   }
 
   const status = orderStatusText(order);

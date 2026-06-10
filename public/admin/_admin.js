@@ -4,6 +4,27 @@
   if (window.__adminInited) return;
   window.__adminInited = true;
 
+  // === Favicon адмінки ===
+  // Адмін-сторінки — статичні, без серверної підстановки favicon (вона працює лише
+  // на вітрині). Тому кастомну іконку з налаштувань (Зовнішній вигляд → Favicon)
+  // ставимо тут. Кеш у localStorage — щоб іконка з'являлась миттєво.
+  const FAV_KEY = 'admin_faviconUrl';
+  function applyFavicon(url) {
+    if (!url) return;
+    let l = document.querySelector('link[rel="icon"]');
+    if (!l) { l = document.createElement('link'); l.rel = 'icon'; document.head.appendChild(l); }
+    if (l.getAttribute('href') !== url) l.setAttribute('href', url);
+  }
+  try { applyFavicon(localStorage.getItem(FAV_KEY) || ''); } catch {}
+  fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' })
+    .then(r => r.json())
+    .then(s => {
+      const u = (s && s.faviconImage) ? String(s.faviconImage) : '';
+      if (u) { applyFavicon(u); try { localStorage.setItem(FAV_KEY, u); } catch {} }
+      else { try { localStorage.removeItem(FAV_KEY); } catch {} }
+    })
+    .catch(() => {});
+
   let POLL_INTERVAL = 60000; // буде перезавантажено з settings нижче
   const LS_KEY = 'admin_lastUnreadCount';
   let lastUnread = parseInt(localStorage.getItem(LS_KEY) || '0', 10);
