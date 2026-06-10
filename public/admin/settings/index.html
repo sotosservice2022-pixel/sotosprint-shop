@@ -675,6 +675,7 @@
       <div><label>Підзаголовок</label><input type="text" id="trackSubtitle" placeholder="Введіть номер замовлення і телефон" /></div>
       <div><label>Підказка в полі «Номер замовлення»</label><input type="text" id="trackOrderPlaceholder" placeholder="напр. 1024" /></div>
       <div><label>Підказка в полі «Телефон»</label><input type="text" id="trackPhonePlaceholder" placeholder="напр. 0991234567" /></div>
+      <div style="grid-column:1/-1"><label>Заготовка повідомлення клієнту (в картці замовлення; {orderId} — номер, {link} — посилання)</label><textarea id="trackMessageTemplate" rows="3" placeholder="Ваше замовлення №{orderId} виконане ✅&#10;Відстежити: {link}"></textarea></div>
     </div>
   </div>
 
@@ -928,6 +929,7 @@ function render() {
   document.getElementById('trackSubtitle').value = settings.trackSubtitle || '';
   document.getElementById('trackOrderPlaceholder').value = settings.trackOrderPlaceholder || '';
   document.getElementById('trackPhonePlaceholder').value = settings.trackPhonePlaceholder || '';
+  document.getElementById('trackMessageTemplate').value = settings.trackMessageTemplate || '';
   // Toast enabled
   document.getElementById('newOrderToastEnabled').checked = settings.newOrderToastEnabled !== false;
   document.getElementById('adminEscBackEnabled').checked = settings.adminEscBackEnabled !== false;
@@ -1136,6 +1138,7 @@ async function saveAll() {
   settings.trackSubtitle = document.getElementById('trackSubtitle').value.trim() || 'Введіть номер замовлення і телефон, на який оформляли';
   settings.trackOrderPlaceholder = document.getElementById('trackOrderPlaceholder').value.trim() || 'напр. 1024';
   settings.trackPhonePlaceholder = document.getElementById('trackPhonePlaceholder').value.trim() || 'напр. 0991234567';
+  settings.trackMessageTemplate = document.getElementById('trackMessageTemplate').value.trim() || 'Ваше замовлення №{orderId} виконане ✅\nВідстежити: {link}';
 
   setStatus('Зберігаю…');
   if (await postJson('/api/admin/settings', settings)) {

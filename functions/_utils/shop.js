@@ -134,6 +134,8 @@ const DEFAULT_SETTINGS = {
   trackSubtitle: 'Введіть номер замовлення і телефон, на який оформляли',
   trackOrderPlaceholder: 'напр. 1024',
   trackPhonePlaceholder: 'напр. 0991234567',
+  // Заготовка повідомлення клієнту в картці замовлення ({orderId} — номер, {link} — посилання)
+  trackMessageTemplate: 'Ваше замовлення №{orderId} виконане ✅\nВідстежити: {link}',
 
   // Раздел заказов
   newOrderToastText: '🛍 Нове замовлення #{orderId}',

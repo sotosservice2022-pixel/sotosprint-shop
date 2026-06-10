@@ -192,6 +192,12 @@ async function logout() {
   location.href = '/admin/login/';
 }
 
+// Заготовка повідомлення клієнту (шаблон редагується в Налаштування → Відстеження)
+let trackMsgTpl = 'Ваше замовлення №{orderId} виконане ✅\nВідстежити: {link}';
+fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json())
+  .then(s => { if (s && s.trackMessageTemplate) trackMsgTpl = s.trackMessageTemplate; })
+  .catch(() => {});
+
 async function loadOrders() {
   try {
     const [r, sr] = await Promise.all([
@@ -422,7 +428,12 @@ function renderDetails(o) {
           <a href="${escapeAttr(trackLink)}" target="_blank" rel="noopener" style="color:#0b8aff;font-size:13px;font-weight:600;text-decoration:none;word-break:break-all;">${escapeHtml(trackLink)}</a>
           ${copyBtn('Відстеження замовлення №' + o.id + ': ' + trackLink)}
         </div>
-        <div style="color:#6b7280;font-size:12px;margin-top:4px;">${trackHint} Кнопка копіює одразу з підписом «Відстеження замовлення».</div>
+        <div style="color:#6b7280;font-size:12px;margin-top:4px;">${trackHint}</div>
+        <div style="margin-top:8px;">
+          <textarea id="trackMsg_${o.id}" rows="3" style="width:100%;box-sizing:border-box;font-size:13px;font-family:inherit;border:1px solid #e5e7eb;border-radius:8px;padding:8px;resize:vertical;">${escapeHtml(trackMsgTpl.replaceAll('{orderId}', o.id).replaceAll('{link}', trackLink))}</textarea>
+          <button type="button" onclick="copyText(document.getElementById('trackMsg_${o.id}').value)" style="margin-top:4px;background:#0b8aff;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">📋 Скопіювати повідомлення</button>
+          <div style="color:#6b7280;font-size:12px;margin-top:2px;">Текст можна підправити перед копіюванням. Шаблон — у Налаштування → Відстеження.</div>
+        </div>
       </div>
     </div>`;
     })()}
