@@ -430,9 +430,12 @@ function renderDetails(o) {
         </div>
         <div style="color:#6b7280;font-size:12px;margin-top:4px;">${trackHint}</div>
         <div style="margin-top:8px;">
-          <textarea id="trackMsg_${o.id}" rows="3" style="width:100%;box-sizing:border-box;font-size:13px;font-family:inherit;border:1px solid #e5e7eb;border-radius:8px;padding:8px;resize:vertical;">${escapeHtml(trackMsgTpl.replaceAll('{orderId}', o.id).replaceAll('{link}', trackLink))}</textarea>
-          <button type="button" onclick="copyText(document.getElementById('trackMsg_${o.id}').value)" style="margin-top:4px;background:#0b8aff;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">📋 Скопіювати повідомлення</button>
-          <div style="color:#6b7280;font-size:12px;margin-top:2px;">Текст можна підправити перед копіюванням. Шаблон — у Налаштування → Відстеження.</div>
+          <textarea id="trackMsg_${o.id}" rows="3" style="width:100%;box-sizing:border-box;font-size:13px;font-family:inherit;border:1px solid #e5e7eb;border-radius:8px;padding:8px;resize:vertical;">${escapeHtml(o.clientMsg || trackMsgTpl.replaceAll('{orderId}', o.id).replaceAll('{link}', trackLink))}</textarea>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">
+            <button type="button" onclick="copyText(document.getElementById('trackMsg_${o.id}').value)" style="background:#0b8aff;color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">📋 Скопіювати повідомлення</button>
+            <button type="button" onclick="saveClientMsg('${escapeAttr(o.kvKey)}', '${escapeAttr(o.id)}')" style="background:#fff;color:#0b8aff;border:1px solid #0b8aff;border-radius:8px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;">💾 Зберегти текст</button>
+          </div>
+          <div style="color:#6b7280;font-size:12px;margin-top:2px;">Текст можна підправити і зберегти — лишиться в замовленні. Шаблон за замовчуванням — у Налаштування → Відстеження.</div>
         </div>
       </div>
     </div>`;
@@ -499,14 +502,39 @@ async function markAction(kvKey, action, opts = {}) {
     }
     // Обновляем локально
     const idx = orders.findIndex(o => o.kvKey === kvKey);
-    if (idx >= 0) orders[idx] = data.order;
+    // Зберігаємо trackToken — він є лише у списковому API, а тут би загубився
+    if (idx >= 0) orders[idx] = { ...data.order, trackToken: orders[idx].trackToken };
     if (currentOrder && currentOrder.kvKey === kvKey) {
-      currentOrder = data.order;
+      currentOrder = (orders.find(o => o.kvKey === kvKey)) || data.order;
       document.getElementById('panelActions').innerHTML = renderActions(data.order);
     }
     stats = recomputeStats(orders);
     render();
     if (!opts.silent) toast('✅ Збережено');
+  } catch (e) {
+    toast('Помилка: ' + e.message, 'error');
+  }
+}
+
+async function saveClientMsg(kvKey, orderId) {
+  const inp = document.getElementById('trackMsg_' + orderId);
+  if (!inp) return;
+  const clientMsg = inp.value.trim();
+  try {
+    const r = await fetch(`/api/admin/order/${encodeURIComponent(kvKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action: 'set-client-msg', clientMsg }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    setLocalPatch(kvKey, { clientMsg: clientMsg || null });
+    const idx = orders.findIndex(o => o.kvKey === kvKey);
+    // Зберігаємо trackToken — він є лише у списковому API, а тут би загубився
+    if (idx >= 0) orders[idx] = { ...data.order, trackToken: orders[idx].trackToken };
+    if (currentOrder && currentOrder.kvKey === kvKey) currentOrder = (orders.find(o => o.kvKey === kvKey)) || data.order;
+    toast(clientMsg ? '✅ Текст збережено' : '✅ Повернуто шаблон');
   } catch (e) {
     toast('Помилка: ' + e.message, 'error');
   }
@@ -527,8 +555,9 @@ async function saveTtn(kvKey) {
     if (!data.ok) throw new Error(data.error);
     setLocalPatch(kvKey, { ttn: ttn || null });
     const idx = orders.findIndex(o => o.kvKey === kvKey);
-    if (idx >= 0) orders[idx] = data.order;
-    if (currentOrder && currentOrder.kvKey === kvKey) currentOrder = data.order;
+    // Зберігаємо trackToken — він є лише у списковому API, а тут би загубився
+    if (idx >= 0) orders[idx] = { ...data.order, trackToken: orders[idx].trackToken };
+    if (currentOrder && currentOrder.kvKey === kvKey) currentOrder = (orders.find(o => o.kvKey === kvKey)) || data.order;
     toast(ttn ? '✅ ТТН збережено' : '✅ ТТН очищено');
   } catch (e) {
     toast('Помилка: ' + e.message, 'error');

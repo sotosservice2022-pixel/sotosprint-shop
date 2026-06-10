@@ -36,6 +36,10 @@ export async function onRequestPost({ request, env, params }) {
     const ttn = String(body.ttn || '').replace(/\D/g, '').slice(0, 14);
     patch.ttn = ttn || null;
   }
+  else if (action === 'set-client-msg') {
+    // Відредагований текст повідомлення клієнту (картка замовлення). Порожнє = повернути шаблон.
+    patch.clientMsg = String(body.clientMsg || '').slice(0, 2000) || null;
+  }
   else return jsonResp({ ok: false, error: 'Невідома дія' }, 400);
 
   const updated = await updateOrder(env, key, patch);
