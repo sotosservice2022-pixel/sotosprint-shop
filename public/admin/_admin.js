@@ -78,9 +78,11 @@
       const cur = stats.unread || 0;
       if (cur > lastUnread && stats.latestUnread && toastEnabled) {
         showOrderToast(stats.latestUnread);
-        // Якщо ми зараз на /admin/orders/ — автоматично перезавантажуємо список
-        if (location.pathname.startsWith('/admin/orders') && typeof window.loadOrders === 'function') {
-          window.loadOrders();
+        // Якщо ми зараз на /admin/orders/ — дозавантажуємо список з ретраями,
+        // бо KV.list() бачить нове замовлення із затримкою (eventual consistency).
+        if (location.pathname.startsWith('/admin/orders')) {
+          if (typeof window.loadOrdersForNew === 'function') window.loadOrdersForNew(stats.total || 0);
+          else if (typeof window.loadOrders === 'function') window.loadOrders();
         }
       }
       lastUnread = cur;

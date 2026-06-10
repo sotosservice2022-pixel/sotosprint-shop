@@ -49,6 +49,12 @@
   }
   </script>
 
+  <!-- PWA-маніфест: статично в HTML, щоб Chrome одразу бачив устанавливаемість.
+       Якщо PWA вимкнено в адмінці — /manifest.webmanifest віддає 404, і браузер його ігнорує
+       (нічого не ламається). Service worker реєструється лише при ввімкненому PWA (див. setupPWA). -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
   <!-- Прелоадинг шрифту/стилів якщо потрібно -->
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E📸%3C/text%3E%3C/svg%3E" />
 
@@ -963,6 +969,379 @@ function stockInfo(p) {
 }
 let currentImgIdx = 0;
 
+// === PWA: вмикається/вимикається з адмінки (shop.pwaEnabled) ===
+// enabled=true  → реєструємо service worker, ставимо theme-color, показуємо власну кнопку «Встановити».
+// enabled=false → знімаємо SW з реєстрації, чистимо кеші, прибираємо manifest-лінк.
+// Manifest-лінк стоїть статично в <head> (Chrome бачить його одразу). При вимкненому PWA
+// сам /manifest.webmanifest віддає 404, тож браузер його ігнорує.
+let _deferredInstallPrompt = null;
+
+function showInstallButton() {
+  if (document.getElementById('pwaInstallBtn')) return;
+  const btn = document.createElement('button');
+  btn.id = 'pwaInstallBtn';
+  btn.type = 'button';
+  btn.textContent = '📲 Встановити застосунок';
+  btn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:6000;' +
+    'background:var(--accent,#0b8aff);color:#fff;border:none;border-radius:24px;padding:12px 22px;' +
+    'font-size:15px;font-weight:700;box-shadow:0 6px 20px rgba(11,138,255,.45);cursor:pointer;';
+  btn.onclick = async () => {
+    if (!_deferredInstallPrompt) return;
+    btn.disabled = true;
+    _deferredInstallPrompt.prompt();
+    try { await _deferredInstallPrompt.userChoice; } catch (_) {}
+    _deferredInstallPrompt = null;
+    btn.remove();
+  };
+  document.body.appendChild(btn);
+}
+
+async function setupPWA(enabled) {
+  if (!('serviceWorker' in navigator)) return;
+
+  if (enabled) {
+    // theme-color з налаштувань
+    if (shop.pwaThemeColor) {
+      document.querySelector('meta[name="theme-color"]')?.setAttribute('content', shop.pwaThemeColor);
+    }
+    // реєстрація service worker
+    try { await navigator.serviceWorker.register('/sw.js'); } catch (_) {}
+
+    // Власна кнопка встановлення: Chrome кидає подію beforeinstallprompt, коли сайт
+    // відповідає критеріям. Перехоплюємо її й показуємо свою кнопку (зручніше, ніж шукати в меню).
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      _deferredInstallPrompt = e;
+      // Якщо вже встановлено як застосунок — кнопку не показуємо
+      if (!window.matchMedia('(display-mode: standalone)').matches) showInstallButton();
+    });
+    window.addEventListener('appinstalled', () => {
+      _deferredInstallPrompt = null;
+      document.getElementById('pwaInstallBtn')?.remove();
+    });
+  } else {
+    // Вимкнено — повне прибирання, щоб у клієнтів, які вже встановили, фіча відключилась
+    try {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+    } catch (_) {}
+    try {
+      if (window.caches) {
+        const keys = await caches.keys();
+        await Promise.all(keys.filter((k) => k.startsWith('agprnt-')).map((k) => caches.delete(k)));
+      }
+    } catch (_) {}
+    document.querySelector('link[rel="manifest"]')?.remove();
+    document.getElementById('pwaInstallBtn')?.remove();
+  }
+}
+
+// === Відстеження замовлення: плаваюча кнопка + модалка на вітрині ===
+// Не чіпає складну верстку шапки — створюється з JS, гейтиться тумблерами адмінки.
+function setupOrderTracking() {
+  if (document.getElementById('trackFab')) return;
+  const fab = document.createElement('button');
+  fab.id = 'trackFab';
+  fab.type = 'button';
+  fab.textContent = shop.trackButtonText || '📦 Відстежити замовлення';
+  fab.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:5500;background:var(--card,#fff);' +
+    'color:var(--accent,#0b8aff);border:1.5px solid var(--accent,#0b8aff);border-radius:22px;padding:10px 16px;' +
+    'font-size:14px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:pointer;';
+  fab.onclick = openTrackModal;
+  document.body.appendChild(fab);
+}
+
+function openTrackModal() {
+  if (document.getElementById('trackOverlay')) return;
+  const ov = document.createElement('div');
+  ov.id = 'trackOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:7000;background:rgba(0,0,0,.5);display:flex;' +
+    'align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = `
+    <div style="background:var(--card,#fff);color:var(--text,#1c2129);max-width:440px;width:100%;border-radius:16px;padding:22px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+      <button id="trackClose" aria-label="Закрити" style="position:absolute;right:12px;top:10px;background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--muted,#6b7280)">×</button>
+      <h2 style="margin:0 0 4px;font-size:19px">${escapeHtml(shop.trackTitle || '📦 Відстеження замовлення')}</h2>
+      <p style="margin:0 0 16px;color:var(--muted,#6b7280);font-size:13px">${escapeHtml(shop.trackSubtitle || 'Введіть номер замовлення і телефон')}</p>
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Номер замовлення</label>
+      <input id="tmOrder" type="text" inputmode="numeric" placeholder="${escapeAttr(shop.trackOrderPlaceholder || 'напр. 1024')}" style="width:100%;box-sizing:border-box;padding:11px 13px;font-size:16px;border:1px solid var(--border,#e5e7eb);border-radius:10px;margin-bottom:12px" />
+      <label style="display:block;font-size:13px;font-weight:600;margin-bottom:6px">Телефон</label>
+      <input id="tmPhone" type="tel" inputmode="tel" placeholder="${escapeAttr(shop.trackPhonePlaceholder || 'напр. 0991234567')}" style="width:100%;box-sizing:border-box;padding:11px 13px;font-size:16px;border:1px solid var(--border,#e5e7eb);border-radius:10px;margin-bottom:14px" />
+      <button id="tmSubmit" type="button" style="width:100%;padding:12px;font-size:16px;font-weight:700;color:#fff;background:var(--accent,#0b8aff);border:none;border-radius:10px;cursor:pointer">Перевірити статус</button>
+      <div id="tmErr" style="display:none;margin-top:14px;padding:11px 13px;background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;font-size:14px"></div>
+      <div id="tmResult" style="display:none;margin-top:16px"></div>
+    </div>`;
+  document.body.appendChild(ov);
+
+  const close = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  document.getElementById('trackClose').onclick = close;
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const fmtDate = iso => { try { return new Date(iso).toLocaleDateString('uk-UA', { day:'2-digit', month:'2-digit', year:'numeric' }); } catch { return ''; } };
+  const errBox = document.getElementById('tmErr');
+  const result = document.getElementById('tmResult');
+  const btn = document.getElementById('tmSubmit');
+
+  btn.onclick = async () => {
+    errBox.style.display = 'none'; result.style.display = 'none';
+    const orderId = document.getElementById('tmOrder').value.trim();
+    const phone = document.getElementById('tmPhone').value.trim();
+    if (!orderId || !phone) { errBox.textContent = 'Заповніть обидва поля.'; errBox.style.display = 'block'; return; }
+    btn.disabled = true; btn.textContent = 'Перевіряю…';
+    try {
+      const r = await fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, phone }) });
+      const data = await r.json();
+      if (!data.ok) { errBox.textContent = data.error || 'Не вдалося отримати статус.'; errBox.style.display = 'block'; }
+      else {
+        const o = data.order;
+        const stColor = o.status === 'done' ? 'background:#dcfce7;color:#166534' : 'background:#fef3c7;color:#92400e';
+        let html = `<div style="text-align:center;margin-bottom:12px"><span style="display:inline-block;padding:6px 14px;border-radius:20px;font-weight:700;font-size:15px;${stColor}">${esc(o.statusLabel)}</span></div>`;
+        const row = (k, v) => `<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border,#e5e7eb);font-size:14px"><span style="color:var(--muted,#6b7280)">${k}</span><span style="font-weight:600;text-align:right">${v}</span></div>`;
+        html += row('Замовлення', '#' + esc(o.id));
+        if (o.createdAt) html += row('Оформлено', esc(fmtDate(o.createdAt)));
+        if (o.itemsCount != null) html += row('Кількість', esc(o.itemsCount) + ' шт');
+        if (o.totalPrice != null) html += row('Сума', esc(o.totalPrice) + ' ₴');
+        if (o.delivery) html += row('Доставка', esc(o.delivery));
+        if (o.np) {
+          html += `<div style="margin-top:14px;padding:13px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px"><h3 style="margin:0 0 6px;font-size:15px;color:var(--accent-dark,#0670d9)">🚚 Нова Пошта</h3>`;
+          html += row('Статус посилки', esc(o.np.status || '—'));
+          if (o.np.warehouse) html += row('Відділення', esc(o.np.warehouse));
+          if (o.np.actualDelivery) html += row('Доставлено', esc(o.np.actualDelivery));
+          if (o.ttn) html += row('ТТН', esc(o.ttn));
+          html += `</div>`;
+        } else if (o.hasTtn) {
+          html += `<p style="margin-top:12px;color:var(--muted,#6b7280);font-size:13px">Посилку передано Новій Пошті, статус оновлюється.</p>`;
+        }
+        result.innerHTML = html; result.style.display = 'block';
+      }
+    } catch (_) { errBox.textContent = 'Мережа недоступна. Спробуйте ще раз.'; errBox.style.display = 'block'; }
+    finally { btn.disabled = false; btn.textContent = 'Перевірити статус'; }
+  };
+}
+
+// === Живий перегляд на металі: клієнт вантажить фото → бачить ефект виробу (canvas) ===
+// Працює повністю в браузері, без сервера. Гейтиться shop.metalPreviewEnabled.
+function openMetalPreview() {
+  if (document.getElementById('mpOverlay')) return;
+  const defMat = shop.metalDefaultMaterial || 'metal';
+  const defGloss = (typeof shop.metalGloss === 'number') ? shop.metalGloss : 0.5;
+  const defBright = (typeof shop.metalBrightness === 'number') ? shop.metalBrightness : 1.05;
+  const defScene = shop.metalScene || 'wall';
+  const sel = (v, want) => v === want ? ' selected' : '';
+
+  const ov = document.createElement('div');
+  ov.id = 'mpOverlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,.7);display:flex;' +
+    'align-items:center;justify-content:center;padding:16px;';
+  ov.innerHTML = `
+    <div style="background:var(--card,#fff);color:var(--text,#1c2129);max-width:580px;width:100%;border-radius:16px;padding:20px;position:relative;box-shadow:0 10px 40px rgba(0,0,0,.4);max-height:92vh;overflow:auto">
+      <button id="mpClose" aria-label="Закрити" style="position:absolute;right:12px;top:10px;background:none;border:none;font-size:26px;line-height:1;cursor:pointer;color:var(--muted,#6b7280)">×</button>
+      <h2 style="margin:0 0 4px;font-size:18px">🖼 Приміряти фото на виріб</h2>
+      <p style="margin:0 0 14px;color:var(--muted,#6b7280);font-size:13px">Завантажте фото — побачите, як воно виглядатиме на виробі. Це приблизний перегляд.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="flex:1;min-width:140px;text-align:center;padding:11px;font-size:14px;font-weight:700;color:#fff;background:var(--accent,#0b8aff);border-radius:10px;cursor:pointer">
+          📁 Обрати фото<input id="mpFile" type="file" accept="image/*" style="display:none" />
+        </label>
+        <select id="mpMaterial" style="flex:1;min-width:140px;padding:11px;font-size:14px;border:1px solid var(--border,#e5e7eb);border-radius:10px">
+          <option value="metal"${sel(defMat,'metal')}>Метал (глянець)</option>
+          <option value="brushed"${sel(defMat,'brushed')}>Метал (шліфований)</option>
+          <option value="acrylic"${sel(defMat,'acrylic')}>Акрил (глянець)</option>
+        </select>
+      </div>
+      <div id="mpControls" style="display:none;gap:14px;flex-wrap:wrap;margin-bottom:14px;align-items:center">
+        <label style="flex:1;min-width:150px;font-size:13px;color:var(--muted,#6b7280)">Глянець
+          <input id="mpGloss" type="range" min="0" max="1" step="0.05" value="${defGloss}" style="width:100%;accent-color:var(--accent,#0b8aff)" />
+        </label>
+        <label style="flex:1;min-width:150px;font-size:13px;color:var(--muted,#6b7280)">Яскравість
+          <input id="mpBright" type="range" min="0.7" max="1.4" step="0.02" value="${defBright}" style="width:100%;accent-color:var(--accent,#0b8aff)" />
+        </label>
+        <select id="mpScene" style="min-width:150px;padding:9px;font-size:13px;border:1px solid var(--border,#e5e7eb);border-radius:10px">
+          <option value="wall"${sel(defScene,'wall')}>🖼 На стіні</option>
+          <option value="stand"${sel(defScene,'stand')}>📐 На підставці</option>
+          <option value="plain"${sel(defScene,'plain')}>⬜ Без сцени</option>
+        </select>
+      </div>
+      <div id="mpStage" style="display:none;text-align:center">
+        <canvas id="mpCanvas" style="max-width:100%;border-radius:10px"></canvas>
+        <p style="color:var(--muted,#6b7280);font-size:12px;margin:10px 0 0">Перегляд приблизний — реальний колір/яскравість можуть відрізнятись.</p>
+      </div>
+      <div id="mpEmpty" style="text-align:center;padding:30px 10px;color:var(--muted,#6b7280);font-size:14px">Фото ще не завантажене</div>
+    </div>`;
+  document.body.appendChild(ov);
+
+  const close = () => ov.remove();
+  ov.addEventListener('click', e => { if (e.target === ov) close(); });
+  document.getElementById('mpClose').onclick = close;
+
+  let curImg = null;
+  const fileInp = document.getElementById('mpFile');
+  const matSel = document.getElementById('mpMaterial');
+  const glossInp = document.getElementById('mpGloss');
+  const brightInp = document.getElementById('mpBright');
+  const sceneSel = document.getElementById('mpScene');
+  const canvas = document.getElementById('mpCanvas');
+
+  const redraw = () => { if (curImg) drawMetalPreview(canvas, curImg, {
+    material: matSel.value, gloss: parseFloat(glossInp.value), brightness: parseFloat(brightInp.value), scene: sceneSel.value,
+  }); };
+
+  fileInp.addEventListener('change', () => {
+    const f = fileInp.files && fileInp.files[0];
+    if (!f) return;
+    const img = new Image();
+    img.onload = () => { curImg = img;
+      document.getElementById('mpEmpty').style.display = 'none';
+      document.getElementById('mpStage').style.display = 'block';
+      document.getElementById('mpControls').style.display = 'flex';
+      redraw(); };
+    img.src = URL.createObjectURL(f);
+  });
+  [matSel, glossInp, brightInp, sceneSel].forEach(el => el.addEventListener('input', redraw));
+}
+
+// Малює фото з ефектом матеріалу + сценою на canvas.
+// opts = { material, gloss(0..1), brightness(0.7..1.4), scene('wall'|'stand'|'plain') }
+function drawMetalPreview(canvas, img, opts) {
+  const material = opts.material || 'metal';
+  const gloss = Math.max(0, Math.min(1, opts.gloss ?? 0.5));
+  const brightness = Math.max(0.7, Math.min(1.4, opts.brightness ?? 1.05));
+  const scene = opts.scene || 'wall';
+
+  // Розмір виробу
+  const MAX = 520;
+  const scale = Math.min(MAX / img.width, MAX / img.height, 1);
+  const pw = Math.round(img.width * scale);
+  const ph = Math.round(img.height * scale);
+
+  // Поля навколо виробу під сцену (зверху менше, знизу більше — для тіні/підставки)
+  const padX = scene === 'plain' ? 8 : Math.round(pw * 0.16);
+  const padTop = scene === 'plain' ? 8 : Math.round(ph * 0.14);
+  const padBottom = scene === 'plain' ? 8 : Math.round(ph * 0.26);
+  const W = pw + padX * 2;
+  const H = ph + padTop + padBottom;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const px = padX, py = padTop;      // лівий-верхній кут виробу
+  const radius = Math.round(Math.min(pw, ph) * 0.04);
+
+  // 1) Фон сцени
+  if (scene === 'wall') {
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#eef1f6'); bg.addColorStop(1, '#dde2ea');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  } else if (scene === 'stand') {
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#f3f5f9'); bg.addColorStop(0.7, '#e7ebf1'); bg.addColorStop(1, '#cfd6e0');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  }
+
+  // 2) Тінь під виробом
+  if (scene !== 'plain') {
+    ctx.save();
+    if (scene === 'stand') {
+      // еліпс-тінь під підставкою
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.beginPath();
+      ctx.ellipse(W / 2, py + ph + padBottom * 0.45, pw * 0.42, padBottom * 0.28, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      // м'яка тінь «висить на стіні» — зсув вправо-вниз
+      ctx.shadowColor = 'rgba(0,0,0,0.30)';
+      ctx.shadowBlur = Math.round(pw * 0.05);
+      ctx.shadowOffsetX = Math.round(pw * 0.02);
+      ctx.shadowOffsetY = Math.round(ph * 0.03);
+      ctx.fillStyle = '#000';
+      roundRectPath(ctx, px, py, pw, ph, radius);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 3) Виріб: фото зі скругленням
+  ctx.save();
+  roundRectPath(ctx, px, py, pw, ph, radius);
+  ctx.clip();
+  // яскравість через filter
+  ctx.filter = `brightness(${brightness})`;
+  ctx.drawImage(img, px, py, pw, ph);
+  ctx.filter = 'none';
+
+  if (material === 'brushed') {
+    // Шліфований метал: матовість + горизонтальні штрихи + слабкий глянець
+    ctx.globalAlpha = 0.10 + gloss * 0.06;
+    ctx.fillStyle = '#c8ccd2';
+    ctx.fillRect(px, py, pw, ph);
+    ctx.globalAlpha = 0.04 + gloss * 0.04;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
+    for (let y = py; y < py + ph; y += 3) { ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(px + pw, y); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  } else {
+    // Глянець (метал/акрил): діагональний блік + яскрава смуга-відблиск.
+    const a = gloss; // 0..1 — масштаб усіх відблисків
+    const g = ctx.createLinearGradient(px, py, px + pw, py + ph);
+    g.addColorStop(0,    `rgba(255,255,255,${0.45 * a})`);
+    g.addColorStop(0.2,  `rgba(255,255,255,${0.10 * a})`);
+    g.addColorStop(0.5,  'rgba(255,255,255,0)');
+    g.addColorStop(0.8,  `rgba(255,255,255,${0.10 * a})`);
+    g.addColorStop(1,    `rgba(255,255,255,${0.38 * a})`);
+    ctx.fillStyle = g; ctx.fillRect(px, py, pw, ph);
+
+    // Яскрава діагональна смуга-відблиск (як від лампи)
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const streak = ctx.createLinearGradient(px, py, px + pw * 0.7, py + ph);
+    streak.addColorStop(0.30, 'rgba(255,255,255,0)');
+    streak.addColorStop(0.46, `rgba(255,255,255,${0.55 * a})`);
+    streak.addColorStop(0.52, `rgba(255,255,255,${0.20 * a})`);
+    streak.addColorStop(0.62, 'rgba(255,255,255,0)');
+    ctx.fillStyle = streak; ctx.fillRect(px, py, pw, ph);
+    ctx.restore();
+
+    if (material === 'acrylic') {
+      // Акрил: блакитнувате свічення по краю
+      ctx.globalAlpha = 0.14 + gloss * 0.12;
+      const eg = ctx.createRadialGradient(px + pw / 2, py + ph / 2, Math.min(pw, ph) * 0.3, px + pw / 2, py + ph / 2, Math.max(pw, ph) * 0.72);
+      eg.addColorStop(0, 'rgba(255,255,255,0)');
+      eg.addColorStop(1, 'rgba(120,180,255,0.6)');
+      ctx.fillStyle = eg; ctx.fillRect(px, py, pw, ph);
+      ctx.globalAlpha = 1;
+    }
+  }
+  ctx.restore();
+
+  // 4) Світла кромка виробу
+  ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+  ctx.lineWidth = 2;
+  roundRectPath(ctx, px + 1, py + 1, pw - 2, ph - 2, radius);
+  ctx.stroke();
+
+  // 5) Підставка (для сцени stand)
+  if (scene === 'stand') {
+    ctx.fillStyle = 'rgba(120,130,145,0.55)';
+    const sw = pw * 0.5, sh = padBottom * 0.18;
+    ctx.beginPath();
+    ctx.moveTo(W / 2 - sw / 2, py + ph);
+    ctx.lineTo(W / 2 + sw / 2, py + ph);
+    ctx.lineTo(W / 2 + sw / 2 * 1.4, py + ph + sh);
+    ctx.lineTo(W / 2 - sw / 2 * 1.4, py + ph + sh);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+// Допоміжне: шлях зі скругленими кутами
+function roundRectPath(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
 (async () => {
   // Лічильник відвідувачів (fire-and-forget, не блокує завантаження сайту)
   fetch('/api/visit', { credentials: 'include' }).catch(() => {});
@@ -1004,6 +1383,14 @@ let currentImgIdx = 0;
 
   renderShop();
   renderCart();
+
+  // === PWA (встановлюваний застосунок) — керується тумблером shop.pwaEnabled з адмінки ===
+  setupPWA(shop.pwaEnabled === true).catch(() => {});
+
+  // === Відстеження замовлення — кнопка на вітрині (тумблери в адмінці) ===
+  if (shop.orderTrackingEnabled === true && shop.trackButtonEnabled !== false) {
+    setupOrderTracking();
+  }
 
   // Открыть товар по URL ?product=ID
   const url = new URL(location);
@@ -2164,6 +2551,11 @@ function openModal(p) {
         ${(() => { const si = stockInfo(p); return si.tracked ? `<div class="stock-line" style="margin:6px 0; font-size:14px; font-weight:600; color:${si.out ? '#dc2626' : '#16a34a'};">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>` : ''; })()}
         ${getProductPromoBadges(p, 'modal').length ? `<div class="product-badges" style="position:static; margin:6px 0; flex-direction:row; flex-wrap:wrap;">${promoBadgesHtml(p, 'modal')}</div>` : ''}
         ${p.description ? `<div class="desc">${linkifyText(p.description)}</div>` : ''}
+        ${shop.metalPreviewEnabled === true ? `
+          <button type="button" class="metal-preview-btn" onclick="openMetalPreview()"
+            style="margin:10px 0;padding:10px 14px;font-size:14px;font-weight:700;color:var(--accent);background:transparent;border:1.5px dashed var(--accent);border-radius:10px;cursor:pointer;width:100%;">
+            🖼 Приміряти своє фото на виріб
+          </button>` : ''}
         ${attrsHtml}
         ${optsHtml}
         <div class="qty-row">

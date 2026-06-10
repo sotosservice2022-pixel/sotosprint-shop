@@ -625,6 +625,89 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>📱 Застосунок (PWA)</h2>
+    <div class="hint" style="margin-bottom:12px">
+      Дозволяє відвідувачам «встановити» сайт як застосунок на телефон (іконка на робочому столі,
+      повноекранний режим, швидкий запуск, базова робота офлайн). Вмикається/вимикається тут —
+      після вимкнення фіча зникає у клієнтів автоматично.
+    </div>
+    <div class="checkbox-inline" style="margin-bottom:12px">
+      <input type="checkbox" id="pwaEnabled" />
+      <label for="pwaEnabled" style="margin:0"><b>Увімкнути встановлюваний застосунок</b></label>
+    </div>
+    <div class="grid grid-2">
+      <div><label>Повна назва застосунку</label><input type="text" id="pwaAppName" placeholder="AGPRNT — друк фото" />
+        <div class="hint">Показується на екрані встановлення</div></div>
+      <div><label>Коротка назва (під іконкою)</label><input type="text" id="pwaShortName" placeholder="AGPRNT" />
+        <div class="hint">До 12 символів — щоб вмістилось під іконкою</div></div>
+      <div><label>Колір панелі застосунку</label><input type="color" id="pwaThemeColor" value="#0b8aff" style="height:42px;padding:4px" /></div>
+      <div><label>Колір splash-екрану (запуск)</label><input type="color" id="pwaBackgroundColor" value="#0b8aff" style="height:42px;padding:4px" /></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>📦 Відстеження замовлення</h2>
+    <div class="hint" style="margin-bottom:12px">
+      Клієнт вводить номер замовлення + телефон і бачить статус (в обробці / готово) та,
+      якщо ви вписали ТТН Нова Пошта в замовленні — реальний статус посилки. Номер ТТН
+      вводиться в картці кожного замовлення на сторінці «Замовлення».
+    </div>
+    <div class="checkbox-inline" style="margin-bottom:10px">
+      <input type="checkbox" id="orderTrackingEnabled" />
+      <label for="orderTrackingEnabled" style="margin:0"><b>Увімкнути відстеження замовлень</b></label>
+    </div>
+    <div class="checkbox-inline" style="margin-bottom:10px">
+      <input type="checkbox" id="trackPageEnabled" />
+      <label for="trackPageEnabled" style="margin:0">Окрема сторінка <code>/track</code> (можна давати посилання)</label>
+    </div>
+    <div class="checkbox-inline" style="margin-bottom:12px">
+      <input type="checkbox" id="trackButtonEnabled" />
+      <label for="trackButtonEnabled" style="margin:0">Кнопка «Відстежити» на вітрині (внизу екрана)</label>
+    </div>
+    <div><label>Текст кнопки на вітрині</label><input type="text" id="trackButtonText" placeholder="📦 Відстежити замовлення" /></div>
+    <div class="grid grid-2" style="margin-top:10px">
+      <div><label>Заголовок форми</label><input type="text" id="trackTitle" placeholder="📦 Відстеження замовлення" /></div>
+      <div><label>Підзаголовок</label><input type="text" id="trackSubtitle" placeholder="Введіть номер замовлення і телефон" /></div>
+      <div><label>Підказка в полі «Номер замовлення»</label><input type="text" id="trackOrderPlaceholder" placeholder="напр. 1024" /></div>
+      <div><label>Підказка в полі «Телефон»</label><input type="text" id="trackPhonePlaceholder" placeholder="напр. 0991234567" /></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>🖼 Живий перегляд на металі</h2>
+    <div class="hint" style="margin-bottom:12px">
+      На картці товару клієнт може завантажити фото й одразу побачити, як воно виглядатиме
+      на виробі (ефект металу/глянцю накладається кодом, без потреби у фото-заготовці).
+      Зменшує страх «а як вийде» і кількість повернень.
+    </div>
+    <div class="checkbox-inline" style="margin-bottom:12px">
+      <input type="checkbox" id="metalPreviewEnabled" />
+      <label for="metalPreviewEnabled" style="margin:0"><b>Увімкнути живий перегляд на товарах</b></label>
+    </div>
+    <div class="hint" style="margin-bottom:8px">Стартові значення (клієнт може регулювати повзунками сам):</div>
+    <div class="grid grid-2">
+      <div><label>Матеріал за замовчуванням</label>
+        <select id="metalDefaultMaterial">
+          <option value="metal">Метал (глянець)</option>
+          <option value="brushed">Метал (шліфований)</option>
+          <option value="acrylic">Акрил (глянець)</option>
+        </select>
+      </div>
+      <div><label>Сцена за замовчуванням</label>
+        <select id="metalScene">
+          <option value="wall">🖼 На стіні</option>
+          <option value="stand">📐 На підставці</option>
+          <option value="plain">⬜ Без сцени</option>
+        </select>
+      </div>
+      <div><label>Глянець (0–1): <span id="metalGlossVal"></span></label>
+        <input type="range" id="metalGloss" min="0" max="1" step="0.05" style="width:100%" /></div>
+      <div><label>Яскравість (0.7–1.4): <span id="metalBrightVal"></span></label>
+        <input type="range" id="metalBrightness" min="0.7" max="1.4" step="0.02" style="width:100%" /></div>
+    </div>
+  </div>
+
   <div class="save-bar">
     <div class="left" id="status">Загрузка…</div>
     <button class="btn btn-secondary" onclick="loadAll()" data-i18n="common.cancel">Скасувати</button>
@@ -859,6 +942,35 @@ function render() {
   document.getElementById('smsSender').value = settings.smsSender || '';
   document.getElementById('smsTemplate').value = settings.smsTemplate || 'Замовлення #{orderId} прийнято. Сума: {total} грн. Дякуємо!';
 
+  // PWA
+  document.getElementById('pwaEnabled').checked = !!settings.pwaEnabled;
+  document.getElementById('pwaAppName').value = settings.pwaAppName || '';
+  document.getElementById('pwaShortName').value = settings.pwaShortName || '';
+  document.getElementById('pwaThemeColor').value = settings.pwaThemeColor || '#0b8aff';
+  document.getElementById('pwaBackgroundColor').value = settings.pwaBackgroundColor || '#0b8aff';
+
+  // Відстеження замовлення
+  document.getElementById('orderTrackingEnabled').checked = !!settings.orderTrackingEnabled;
+  document.getElementById('trackPageEnabled').checked = settings.trackPageEnabled !== false;
+  document.getElementById('trackButtonEnabled').checked = settings.trackButtonEnabled !== false;
+  document.getElementById('trackButtonText').value = settings.trackButtonText || '';
+  document.getElementById('trackTitle').value = settings.trackTitle || '';
+  document.getElementById('trackSubtitle').value = settings.trackSubtitle || '';
+  document.getElementById('trackOrderPlaceholder').value = settings.trackOrderPlaceholder || '';
+  document.getElementById('trackPhonePlaceholder').value = settings.trackPhonePlaceholder || '';
+  // Живий перегляд на металі
+  document.getElementById('metalPreviewEnabled').checked = !!settings.metalPreviewEnabled;
+  document.getElementById('metalDefaultMaterial').value = settings.metalDefaultMaterial || 'metal';
+  document.getElementById('metalScene').value = settings.metalScene || 'wall';
+  { const gv = (typeof settings.metalGloss === 'number') ? settings.metalGloss : 0.5;
+    const gi = document.getElementById('metalGloss'); gi.value = gv;
+    const gl = document.getElementById('metalGlossVal'); gl.textContent = gv;
+    gi.oninput = () => gl.textContent = gi.value; }
+  { const bv = (typeof settings.metalBrightness === 'number') ? settings.metalBrightness : 1.05;
+    const bi = document.getElementById('metalBrightness'); bi.value = bv;
+    const bl = document.getElementById('metalBrightVal'); bl.textContent = bv;
+    bi.oninput = () => bl.textContent = bi.value; }
+
   // Toast enabled
   document.getElementById('newOrderToastEnabled').checked = settings.newOrderToastEnabled !== false;
 
@@ -1050,6 +1162,27 @@ async function saveAll() {
   { const _t = document.getElementById('smsApiToken').value.trim(); if (_t) settings.smsApiToken = _t; }
   // Toast
   settings.newOrderToastEnabled = document.getElementById('newOrderToastEnabled').checked;
+  // PWA
+  settings.pwaEnabled = document.getElementById('pwaEnabled').checked;
+  settings.pwaAppName = document.getElementById('pwaAppName').value.trim();
+  settings.pwaShortName = document.getElementById('pwaShortName').value.trim();
+  settings.pwaThemeColor = document.getElementById('pwaThemeColor').value || '#0b8aff';
+  settings.pwaBackgroundColor = document.getElementById('pwaBackgroundColor').value || '#0b8aff';
+  // Відстеження замовлення
+  settings.orderTrackingEnabled = document.getElementById('orderTrackingEnabled').checked;
+  settings.trackPageEnabled = document.getElementById('trackPageEnabled').checked;
+  settings.trackButtonEnabled = document.getElementById('trackButtonEnabled').checked;
+  settings.trackButtonText = document.getElementById('trackButtonText').value.trim() || '📦 Відстежити замовлення';
+  settings.trackTitle = document.getElementById('trackTitle').value.trim() || '📦 Відстеження замовлення';
+  settings.trackSubtitle = document.getElementById('trackSubtitle').value.trim() || 'Введіть номер замовлення і телефон, на який оформляли';
+  settings.trackOrderPlaceholder = document.getElementById('trackOrderPlaceholder').value.trim() || 'напр. 1024';
+  settings.trackPhonePlaceholder = document.getElementById('trackPhonePlaceholder').value.trim() || 'напр. 0991234567';
+  // Живий перегляд на металі
+  settings.metalPreviewEnabled = document.getElementById('metalPreviewEnabled').checked;
+  settings.metalDefaultMaterial = document.getElementById('metalDefaultMaterial').value;
+  settings.metalScene = document.getElementById('metalScene').value;
+  { const g = parseFloat(document.getElementById('metalGloss').value); settings.metalGloss = (g >= 0 && g <= 1) ? g : 0.5; }
+  { const b = parseFloat(document.getElementById('metalBrightness').value); settings.metalBrightness = (b >= 0.7 && b <= 1.4) ? b : 1.05; }
 
   setStatus('Зберігаю…');
   if (await postJson('/api/admin/settings', settings)) {

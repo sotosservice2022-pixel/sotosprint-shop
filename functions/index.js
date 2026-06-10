@@ -1,10 +1,14 @@
-// functions/index.js — серверна підстановка SEO-полів з налаштувань (KV).
-// Навіщо: пошуковики (Google) та соцмережі (Telegram/Facebook/Viber) при індексації/генерації
-// прев'ю читають СИРИЙ HTML і НЕ виконують JavaScript. Тому SEO-поля з адмінки
-// (seoTitle / seoDescription / seoKeywords / seoOgImage) підставляємо тут, на рівні
-// Cloudflare Pages Function (HTMLRewriter), а не клієнтським JS — щоб працювало на 100%.
+// functions/index.js — серверна підстановка SEO-тегів (title / description / keywords /
+// og:* / twitter:*) та og:image з налаштувань (KV).
 //
-// Якщо відповідне поле порожнє — тег не чіпаємо, лишається статичне значення з index.html.
+// Навіщо: пошукові системи (Google/Bing) та соцмережі (Telegram/Facebook/Viber) при
+// індексації та генерації прев'ю читають СИРИЙ HTML і НЕ виконують JavaScript надійно.
+// Тому поля SEO з адмінки (seoTitle, seoDescription, seoKeywords, seoOgImage) підставляємо
+// тут, на рівні Cloudflare Pages Function (HTMLRewriter), а не клієнтським JS — щоб Google
+// бачив саме те, що задано в адмінці, а не статичні дефолти з index.html.
+//
+// Якщо відповідне поле порожнє — нічого не чіпаємо, лишається статичний тег з index.html
+// (за замовчуванням заголовок "AGPRNT — ..." та https://agprnt.com/og-image.jpg).
 import { getSettings } from './_utils/shop.js';
 
 export async function onRequest(context) {
@@ -17,35 +21,37 @@ export async function onRequest(context) {
   if (!ct.includes('text/html')) return res;
 
   let s = null;
-  try { s = await getSettings(env); } catch (_) {}
+  try {
+    s = await getSettings(env);
+  } catch (_) {}
   if (!s) return res;
 
-  const seoTitle    = s.seoTitle       ? String(s.seoTitle).trim()       : '';
-  const seoDesc     = s.seoDescription ? String(s.seoDescription).trim() : '';
-  const seoKeywords = s.seoKeywords    ? String(s.seoKeywords).trim()    : '';
-  const ogImage     = s.seoOgImage     ? String(s.seoOgImage).trim()     : '';
+  const title = s.seoTitle ? String(s.seoTitle).trim() : '';
+  const description = s.seoDescription ? String(s.seoDescription).trim() : '';
+  const keywords = s.seoKeywords ? String(s.seoKeywords).trim() : '';
+  const ogImage = s.seoOgImage ? String(s.seoOgImage).trim() : '';
 
-  // Нічого не задано — лишаємо статичні теги без змін
-  if (!seoTitle && !seoDesc && !seoKeywords && !ogImage) return res;
+  // Якщо жодне поле не задане — нічого не переписуємо
+  if (!title && !description && !keywords && !ogImage) return res;
 
   let rw = new HTMLRewriter();
 
-  if (seoTitle) {
+  if (title) {
     rw = rw
-      .on('title', { element(el) { el.setInnerContent(seoTitle); } })
-      .on('meta[property="og:title"]', { element(el) { el.setAttribute('content', seoTitle); } })
-      .on('meta[name="twitter:title"]', { element(el) { el.setAttribute('content', seoTitle); } });
+      .on('title', { element(el) { el.setInnerContent(title); } })
+      .on('meta[property="og:title"]', { element(el) { el.setAttribute('content', title); } })
+      .on('meta[name="twitter:title"]', { element(el) { el.setAttribute('content', title); } });
   }
 
-  if (seoDesc) {
+  if (description) {
     rw = rw
-      .on('meta[name="description"]', { element(el) { el.setAttribute('content', seoDesc); } })
-      .on('meta[property="og:description"]', { element(el) { el.setAttribute('content', seoDesc); } })
-      .on('meta[name="twitter:description"]', { element(el) { el.setAttribute('content', seoDesc); } });
+      .on('meta[name="description"]', { element(el) { el.setAttribute('content', description); } })
+      .on('meta[property="og:description"]', { element(el) { el.setAttribute('content', description); } })
+      .on('meta[name="twitter:description"]', { element(el) { el.setAttribute('content', description); } });
   }
 
-  if (seoKeywords) {
-    rw = rw.on('meta[name="keywords"]', { element(el) { el.setAttribute('content', seoKeywords); } });
+  if (keywords) {
+    rw = rw.on('meta[name="keywords"]', { element(el) { el.setAttribute('content', keywords); } });
   }
 
   if (ogImage) {

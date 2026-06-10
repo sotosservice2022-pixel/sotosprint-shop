@@ -31,6 +31,11 @@ export async function onRequestPost({ request, env, params }) {
   else if (action === 'unread') patch.isRead = false;
   else if (action === 'done') { patch.isDone = true; patch.doneAt = new Date().toISOString(); }
   else if (action === 'undone') { patch.isDone = false; patch.doneAt = null; }
+  else if (action === 'set-ttn') {
+    // Номер ТТН Нова Пошта (накладна) — лише цифри, 14 знаків. Порожнє = очистити.
+    const ttn = String(body.ttn || '').replace(/\D/g, '').slice(0, 14);
+    patch.ttn = ttn || null;
+  }
   else return jsonResp({ ok: false, error: 'Невідома дія' }, 400);
 
   const updated = await updateOrder(env, key, patch);

@@ -152,6 +152,40 @@ let stats = {};
 let currentFilter = 'all';
 let currentOrder = null;
 
+// === Оптимістичні патчі (проти затримки Cloudflare KV list ~до 60с) ===
+// Коли ми міняємо замовлення (прочитано/виконано/ТТН/видалення), KV.list() ще певний час
+// віддає старі дані й автооновлення «відкочувало» б зміну. Тому тримаємо зміни локально
+// PATCH_TTL і накладаємо їх поверх свіжого списку, поки KV не наздожене.
+const PATCH_TTL = 90 * 1000;
+const localPatches = new Map();      // kvKey -> { patch, ts }   (patch = {} означає видалення)
+function setLocalPatch(kvKey, patch) {
+  const cur = localPatches.get(kvKey);
+  localPatches.set(kvKey, { patch: { ...(cur?.patch || {}), ...patch }, ts: Date.now() });
+}
+function markLocalDeleted(kvKey) { localPatches.set(kvKey, { deleted: true, ts: Date.now() }); }
+function applyLocalPatches(list) {
+  const now = Date.now();
+  for (const [k, v] of [...localPatches.entries()]) if (now - v.ts > PATCH_TTL) localPatches.delete(k);
+  let out = list.map(o => {
+    const lp = localPatches.get(o.kvKey);
+    if (!lp) return o;
+    if (lp.deleted) return null;            // видалене — приберемо нижче
+    return { ...o, ...lp.patch };
+  }).filter(Boolean);
+  return out;
+}
+// Перерахунок статів з урахуванням патчів (щоб лічильники не «миготіли»)
+function recomputeStats(list) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    total: list.length,
+    unread: list.filter(o => !o.isRead).length,
+    today: list.filter(o => (o.createdAt || '').startsWith(today)).length,
+    done: list.filter(o => o.isDone).length,
+    pending: list.filter(o => !o.isDone).length,
+  };
+}
+
 async function logout() {
   if (!confirm('Вийти з адмінки?')) return;
   await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
@@ -171,8 +205,9 @@ async function loadOrders() {
     if (!r.ok) throw new Error('Замовлення: HTTP ' + r.status);
     const data = await safeJson(r);
     if (!data) throw new Error('Замовлення: невалідна відповідь сервера');
-    orders = data.orders || [];
-    stats = data.stats || {};
+    // Накладаємо локальні зміни поверх (поки KV list не наздожене)
+    orders = applyLocalPatches(data.orders || []);
+    stats = recomputeStats(orders);
     // Скрытие красного банера массовых операций
     if (sr.ok) {
       const settingsResp = await safeJson(sr);
@@ -349,6 +384,19 @@ function renderDetails(o) {
     ${o.delivery ? `<div class="order-row"><div class="l">Доставка</div><div class="v">${escapeHtml(o.delivery)}</div></div>` : ''}
     ${o.npCity ? `<div class="order-row"><div class="l">Місто (НП)</div><div class="v">${escapeHtml(o.npCity)}</div></div>` : ''}
     ${o.npWarehouse ? `<div class="order-row"><div class="l">Відділення</div><div class="v">${escapeHtml(o.npWarehouse)}</div></div>` : ''}
+    <div class="order-row"><div class="l">ТТН Нова Пошта</div>
+      <div class="v">
+        <input type="text" id="ttnInput" inputmode="numeric" maxlength="14" placeholder="14 цифр накладної"
+          value="${escapeAttr(o.ttn || '')}"
+          style="padding:7px 10px;border:1px solid #e5e7eb;border-radius:8px;font-size:14px;width:170px;" />
+        <button class="btn btn-primary" style="padding:7px 12px;font-size:13px;" onclick="saveTtn('${escapeAttr(o.kvKey)}')">Зберегти ТТН</button>
+        ${o.ttn ? `<div style="margin-top:6px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <a href="https://tracking.novaposhta.ua/#/uk/steps/${escapeAttr(o.ttn)}" target="_blank" rel="noopener" style="color:#0b8aff;font-size:13px;font-weight:600;text-decoration:none;">🔗 Відстежити на Новій Пошті</a>
+          ${copyBtn(o.ttn)}
+        </div>` : ''}
+        <div style="color:#6b7280;font-size:12px;margin-top:4px;">Клієнт побачить статус посилки у «Відстеженні замовлення».</div>
+      </div>
+    </div>
     ${o.payment || o.paymentProvider ? `<div class="order-row"><div class="l">Оплата</div><div class="v">${escapeHtml(o.payment || '')}${o.paymentStatus === 'paid' ? ' <span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">✅ Оплачено</span>' : (o.paymentStatus === 'pending' ? ' <span style="background:#fef9c3;color:#a16207;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">⏳ Очікує оплати</span>' : '')}${copyBtn(o.payment || '')}</div></div>` : ''}
     ${o.comment ? `<div class="order-row"><div class="l">Коментар</div><div class="v" style="white-space:pre-wrap">${escapeHtml(o.comment)}</div></div>` : ''}
     <div class="order-row">
@@ -399,6 +447,10 @@ async function markAction(kvKey, action, opts = {}) {
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
+    // Запам'ятовуємо зміну локально, щоб автооновлення зі stale-KV не відкотило її
+    const fields = { read: { isRead: true }, unread: { isRead: false },
+      done: { isDone: true }, undone: { isDone: false } }[action];
+    if (fields) setLocalPatch(kvKey, fields);
     // Обновляем локально
     const idx = orders.findIndex(o => o.kvKey === kvKey);
     if (idx >= 0) orders[idx] = data.order;
@@ -406,17 +458,32 @@ async function markAction(kvKey, action, opts = {}) {
       currentOrder = data.order;
       document.getElementById('panelActions').innerHTML = renderActions(data.order);
     }
-    // Пересчитаем статы
-    const today = new Date().toISOString().slice(0, 10);
-    stats = {
-      total: orders.length,
-      unread: orders.filter(o => !o.isRead).length,
-      today: orders.filter(o => (o.createdAt || '').startsWith(today)).length,
-      done: orders.filter(o => o.isDone).length,
-      pending: orders.filter(o => !o.isDone).length,
-    };
+    stats = recomputeStats(orders);
     render();
     if (!opts.silent) toast('✅ Збережено');
+  } catch (e) {
+    toast('Помилка: ' + e.message, 'error');
+  }
+}
+
+async function saveTtn(kvKey) {
+  const inp = document.getElementById('ttnInput');
+  if (!inp) return;
+  const ttn = inp.value.replace(/\D/g, '').slice(0, 14);
+  try {
+    const r = await fetch(`/api/admin/order/${encodeURIComponent(kvKey)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ action: 'set-ttn', ttn }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    setLocalPatch(kvKey, { ttn: ttn || null });
+    const idx = orders.findIndex(o => o.kvKey === kvKey);
+    if (idx >= 0) orders[idx] = data.order;
+    if (currentOrder && currentOrder.kvKey === kvKey) currentOrder = data.order;
+    toast(ttn ? '✅ ТТН збережено' : '✅ ТТН очищено');
   } catch (e) {
     toast('Помилка: ' + e.message, 'error');
   }
@@ -433,7 +500,9 @@ async function confirmDelete(kvKey) {
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
+    markLocalDeleted(kvKey);   // щоб автооновлення зі stale-KV не повернуло його
     orders = orders.filter(o => o.kvKey !== kvKey);
+    stats = recomputeStats(orders);
     closeDetails();
     render();
     toast('✅ Видалено');
@@ -485,6 +554,18 @@ function copyBtn(text) {
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetails(); });
 
 window.loadOrders = loadOrders;
+
+// Дозавантаження нового замовлення: KV.list() оновлюється із затримкою, тож після сигналу
+// про нове замовлення повторюємо запит з backoff, поки воно не з'явиться у списку.
+window.loadOrdersForNew = async function(expectedTotal) {
+  const delays = [0, 1500, 3000, 5000, 8000, 12000];
+  for (const d of delays) {
+    if (d) await new Promise(r => setTimeout(r, d));
+    if (document.visibilityState !== 'visible') return;
+    await loadOrders();
+    if (!expectedTotal || orders.length >= expectedTotal) return; // з'явилось — стоп
+  }
+};
 loadOrders();
 // Авто-обновление списка каждые 15 секунд
 // Авто-оновлення з settings (потрібно дочекатися loadOrders щоб взяти налаштування)
