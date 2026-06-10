@@ -135,14 +135,6 @@ const DEFAULT_SETTINGS = {
   trackOrderPlaceholder: 'напр. 1024',
   trackPhonePlaceholder: 'напр. 0991234567',
 
-  // === Живий перегляд на металі (canvas-ефект поверх фото клієнта) ===
-  metalPreviewEnabled: false,    // тумблер фічі на картці товару
-  // Дефолтні значення ефектів (клієнт може регулювати повзунками)
-  metalGloss: 0.5,               // сила глянцю 0..1
-  metalBrightness: 1.05,         // яскравість 0.7..1.4
-  metalDefaultMaterial: 'metal', // metal | brushed | acrylic
-  metalScene: 'wall',            // wall | stand | plain — як «стоїть» виріб
-
   // Раздел заказов
   newOrderToastText: '🛍 Нове замовлення #{orderId}',
   newOrderToastEnabled: true,
@@ -170,6 +162,7 @@ const DEFAULT_SETTINGS = {
   // Швидкість оновлення UI / продуктивність
   publicPollIntervalSec: 5,      // як часто публічний сайт перевіряє оновлення (1-60)
   adminPollIntervalSec: 60,      // як часто адмінка опитує нові замовлення (10-300)
+  adminEscBackEnabled: true,     // Escape = кнопка «← Назад» в адмінці
   ordersAutoRefreshSec: 15,      // авто-оновлення таблиці /admin/orders/ (5-120)
   shopVersionCacheSec: 2,        // CDN-кеш на /api/shop-version (1-30)
   shopFullCacheSec: 30,          // CDN-кеш на /api/shop (5-300)

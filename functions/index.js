@@ -30,9 +30,12 @@ export async function onRequest(context) {
   const description = s.seoDescription ? String(s.seoDescription).trim() : '';
   const keywords = s.seoKeywords ? String(s.seoKeywords).trim() : '';
   const ogImage = s.seoOgImage ? String(s.seoOgImage).trim() : '';
+  // Кастомний фавікон з адмінки (Зовнішній вигляд → Favicon). Підставляємо у сирий HTML,
+  // бо Google не виконує JS і не приймає data:-URI — лише реальні URL.
+  const favicon = (s.faviconImage && !String(s.faviconImage).startsWith('data:')) ? String(s.faviconImage).trim() : '';
 
   // Якщо жодне поле не задане — нічого не переписуємо
-  if (!title && !description && !keywords && !ogImage) return res;
+  if (!title && !description && !keywords && !ogImage && !favicon) return res;
 
   let rw = new HTMLRewriter();
 
@@ -58,6 +61,10 @@ export async function onRequest(context) {
     rw = rw
       .on('meta[property="og:image"]', { element(el) { el.setAttribute('content', ogImage); } })
       .on('meta[name="twitter:image"]', { element(el) { el.setAttribute('content', ogImage); } });
+  }
+
+  if (favicon) {
+    rw = rw.on('link[rel="icon"]', { element(el) { el.setAttribute('href', favicon); el.removeAttribute('type'); } });
   }
 
   return rw.transform(res);
