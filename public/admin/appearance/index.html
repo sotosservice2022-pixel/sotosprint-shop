@@ -1371,7 +1371,9 @@ async function onFaviconFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
   if (!file.type.startsWith('image/')) { toast('Це не картинка', 'error'); return; }
   try {
-    settings.faviconImage = await uploadToR2(file, { compress: true, maxSide: 64, quality: 0.9, prefix: 'favicon' });
+    // БЕЗ compress: він конвертує PNG у JPEG, а JPEG не має прозорості — фон ставав суцільним.
+    // Favicon і так маленький, стискати нема сенсу.
+    settings.faviconImage = await uploadToR2(file, { prefix: 'favicon' });
     document.getElementById('faviconPreview').src = settings.faviconImage;
     document.getElementById('faviconPreviewWrap').style.display = 'flex';
     toast('✅ Іконку завантажено (натисни «Зберегти все»)');
