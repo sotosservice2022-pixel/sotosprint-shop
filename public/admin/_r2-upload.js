@@ -67,8 +67,18 @@ async function compressR2Image(file, maxSide, quality, keepType) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(src, 0, 0, nw, nh);
   try { src.close?.(); } catch {}
-  // PNG → JPEG (мельче). keepType=true — зберігаємо PNG (потрібно для прозорості: логотип, іконки)
-  const outType = (keepType || file.type !== 'image/png') ? file.type : 'image/jpeg';
+  // PNG → JPEG (мельче), АЛЕ якщо в картинці є прозорість — лишаємо PNG,
+  // інакше прозорий фон стане суцільним (JPEG не має альфа-каналу).
+  let hasAlpha = false;
+  if (file.type === 'image/png' && !keepType) {
+    try {
+      const data = ctx.getImageData(0, 0, nw, nh).data;
+      for (let i = 3; i < data.length; i += 16) { // кожен 4-й піксель — швидко і достатньо
+        if (data[i] < 250) { hasAlpha = true; break; }
+      }
+    } catch { hasAlpha = true; } // не змогли перевірити — безпечніше лишити PNG
+  }
+  const outType = (keepType || hasAlpha || file.type !== 'image/png') ? file.type : 'image/jpeg';
   return new Promise(res =>
     canvas.toBlob(b => res(new File([b], file.name, { type: outType })), outType, quality)
   );

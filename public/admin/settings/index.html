@@ -655,6 +655,8 @@
           <img id="pwaIconPreview" alt="" style="width:48px;height:48px;border-radius:10px;border:1px solid #e5e7eb;object-fit:cover;" />
           <button type="button" class="btn" onclick="clearPwaIcon()" style="padding:6px 12px;font-size:13px;">Прибрати</button>
         </div>
+        <div id="pwaIconPresets" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"></div>
+        <div class="hint" id="pwaIconPresetsHint" style="display:none">Збережені іконки — натисни, щоб вибрати; ✕ — видалити з колекції.</div>
       </div>
     </div>
     <div class="checkbox-inline" style="margin-top:12px">
@@ -931,10 +933,7 @@ function render() {
   // PWA
   document.getElementById('pwaEnabled').checked = !!settings.pwaEnabled;
   document.getElementById('pwaInstallButtonEnabled').checked = settings.pwaInstallButtonEnabled !== false;
-  if (settings.pwaIconImage) {
-    document.getElementById('pwaIconPreview').src = settings.pwaIconImage;
-    document.getElementById('pwaIconPreviewWrap').style.display = 'flex';
-  }
+  showPwaIconPreview();
   document.getElementById('pwaAppName').value = settings.pwaAppName || '';
   document.getElementById('pwaShortName').value = settings.pwaShortName || '';
   document.getElementById('pwaThemeColor').value = settings.pwaThemeColor || '#0b8aff';
@@ -1267,8 +1266,8 @@ async function onPwaIconFile(e) {
       const maskFile = await makeMaskablePwaIcon(file, bg);
       settings.pwaIconMaskImage = await uploadToR2(maskFile, { prefix: 'pwaiconmask' });
     } catch (_) { settings.pwaIconMaskImage = ''; }
-    document.getElementById('pwaIconPreview').src = settings.pwaIconImage;
-    document.getElementById('pwaIconPreviewWrap').style.display = 'flex';
+    addPwaIconPreset(settings.pwaIconImage, settings.pwaIconMaskImage);
+    showPwaIconPreview();
     toast('✅ Іконку завантажено (не забудь «Зберегти»)');
   } catch (err) { toast('Помилка: ' + err.message, 'error'); }
 }
@@ -1278,6 +1277,46 @@ function clearPwaIcon() {
   settings.pwaIconMaskImage = '';
   const w = document.getElementById('pwaIconPreviewWrap'); if (w) w.style.display = 'none';
   const f = document.getElementById('pwaIconFile'); if (f) f.value = '';
+  renderPwaIconPresets();
+}
+function showPwaIconPreview() {
+  if (settings.pwaIconImage) {
+    document.getElementById('pwaIconPreview').src = settings.pwaIconImage;
+    document.getElementById('pwaIconPreviewWrap').style.display = 'flex';
+  }
+  renderPwaIconPresets();
+}
+// === Пресети іконок: колекція збережених, щоб не завантажувати щоразу ===
+function addPwaIconPreset(icon, mask) {
+  if (!icon) return;
+  if (!Array.isArray(settings.pwaIconPresets)) settings.pwaIconPresets = [];
+  if (settings.pwaIconPresets.some((p) => p && p.icon === icon)) return;
+  settings.pwaIconPresets.push({ icon, mask: mask || '' });
+  while (settings.pwaIconPresets.length > 8) settings.pwaIconPresets.shift();
+}
+function renderPwaIconPresets() {
+  const box = document.getElementById('pwaIconPresets'); if (!box) return;
+  const list = Array.isArray(settings.pwaIconPresets) ? settings.pwaIconPresets : [];
+  document.getElementById('pwaIconPresetsHint').style.display = list.length ? '' : 'none';
+  box.innerHTML = list.map((p, i) => `
+    <div style="position:relative">
+      <img src="${escapeAttr(p.icon)}" title="Вибрати цю іконку" onclick="pickPwaIconPreset(${i})"
+        style="width:46px;height:46px;border-radius:10px;cursor:pointer;object-fit:cover;border:2px solid ${settings.pwaIconImage === p.icon ? '#0b8aff' : '#e5e7eb'};background:#fff" />
+      <span onclick="removePwaIconPreset(${i})" title="Видалити з колекції"
+        style="position:absolute;top:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center;font-size:11px;cursor:pointer;user-select:none">✕</span>
+    </div>`).join('');
+}
+function pickPwaIconPreset(i) {
+  const p = (settings.pwaIconPresets || [])[i]; if (!p) return;
+  settings.pwaIconImage = p.icon;
+  settings.pwaIconMaskImage = p.mask || '';
+  showPwaIconPreview();
+  toast('Іконку вибрано (не забудь «Зберегти»)');
+}
+function removePwaIconPreset(i) {
+  if (!confirm('Видалити цю іконку з колекції?')) return;
+  (settings.pwaIconPresets || []).splice(i, 1);
+  renderPwaIconPresets();
 }
 document.getElementById('pwaIconFile')?.addEventListener('change', onPwaIconFile);
 
