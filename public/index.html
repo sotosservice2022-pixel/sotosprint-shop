@@ -1010,6 +1010,11 @@ async function setupPWA(enabled) {
     if (shop.pwaIconImage) {
       document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute('href', shop.pwaIconImage);
     }
+    // Встановлення з браузера вимкнено: прибираємо manifest — зникає і наша кнопка,
+    // і пункт «Встановити застосунок» у меню браузера. SW лишається (кеш/офлайн).
+    if (shop.pwaInstallButtonEnabled === false) {
+      document.querySelector('link[rel="manifest"]')?.remove();
+    }
     // реєстрація service worker
     try { await navigator.serviceWorker.register('/sw.js'); } catch (_) {}
 
