@@ -375,7 +375,7 @@
           <button class="btn btn-danger btn-icon" type="button" onclick="clearLogo()" style="margin-left: 8px;">Прибрати</button>
         </div>
         <div id="logoPresetsBox" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"></div>
-        <div class="hint" id="logoPresetsHint" style="display:none">Збережені логотипи — натисни, щоб вибрати; ✕ — видалити з колекції.</div>
+        <div class="hint" id="logoPresetsHint" style="display:none">Збережені логотипи — натисни, щоб вибрати; ✕ — видалити; 🔒 — захист від випадкового видалення.</div>
       </div>
 
       <!-- Зміщення лого по горизонталі -->
@@ -429,7 +429,7 @@
           <button class="btn btn-danger btn-icon" type="button" onclick="clearFavicon()">Прибрати</button>
         </div>
         <div id="faviconPresetsBox" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"></div>
-        <div class="hint" id="faviconPresetsHint" style="display:none">Збережені іконки — натисни, щоб вибрати; ✕ — видалити з колекції.</div>
+        <div class="hint" id="faviconPresetsHint" style="display:none">Збережені іконки — натисни, щоб вибрати; ✕ — видалити; 🔒 — захист від випадкового видалення.</div>
       </div>
     </div>
   </div>
@@ -1023,7 +1023,7 @@ async function onLogoFile(e) {
 function clearLogo() {
   if (!confirm('Прибрати логотип?')) return;
   // якщо лого збережене в пресетах — файл лишаємо (можна буде вибрати знову), інакше видаляємо зі сховища
-  if (!(settings.logoPresets || []).includes(settings.logoImage)) deleteFromR2(settings.logoImage);
+  if (!(settings.logoPresets || []).some((p) => normImgPreset(p).url === settings.logoImage)) deleteFromR2(settings.logoImage);
   settings.logoImage = '';
   document.getElementById('logoPreview').src = '';
   document.getElementById('logoPreviewWrap').style.display = 'none';
@@ -1382,29 +1382,50 @@ const IMG_PRESET_KINDS = {
   favicon: { list: 'faviconPresets', cur: 'faviconImage', box: 'faviconPresetsBox', hint: 'faviconPresetsHint', size: 'width:36px;height:36px;border-radius:8px;' },
   logo:    { list: 'logoPresets',    cur: 'logoImage',    box: 'logoPresetsBox',    hint: 'logoPresetsHint',    size: 'width:64px;height:48px;border-radius:8px;' },
 };
+// Елемент пресета: рядок-URL (старий формат) або {url, locked}. normImgPreset зводить до об'єкта.
+function normImgPreset(p) { return typeof p === 'string' ? { url: p, locked: false } : (p || { url: '', locked: false }); }
 function addImgPreset(kind, url) {
   const k = IMG_PRESET_KINDS[kind]; if (!k || !url) return;
   if (!Array.isArray(settings[k.list])) settings[k.list] = [];
-  if (settings[k.list].includes(url)) return;
-  settings[k.list].push(url);
-  while (settings[k.list].length > 8) settings[k.list].shift();
+  if (settings[k.list].some((p) => normImgPreset(p).url === url)) return;
+  settings[k.list].push({ url, locked: false });
+  // витісняємо найстаріший НЕзаблокований
+  while (settings[k.list].length > 8) {
+    const idx = settings[k.list].findIndex((p) => !normImgPreset(p).locked);
+    if (idx === -1) break;
+    settings[k.list].splice(idx, 1);
+  }
 }
 function renderImgPresets(kind) {
   const k = IMG_PRESET_KINDS[kind];
   const box = document.getElementById(k.box); if (!box) return;
   const list = Array.isArray(settings[k.list]) ? settings[k.list] : [];
   const hint = document.getElementById(k.hint); if (hint) hint.style.display = list.length ? '' : 'none';
-  box.innerHTML = list.map((url, i) => `
+  box.innerHTML = list.map((raw, i) => {
+    const p = normImgPreset(raw);
+    return `
     <div style="position:relative">
-      <img src="${escapeAttr(url)}" title="Вибрати" onclick="pickImgPreset('${kind}',${i})"
-        style="${k.size}cursor:pointer;object-fit:contain;background:#f3f4f6;padding:2px;border:2px solid ${settings[k.cur] === url ? '#0b8aff' : '#e5e7eb'}" />
-      <span onclick="removeImgPreset('${kind}',${i})" title="Видалити з колекції"
-        style="position:absolute;top:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center;font-size:11px;cursor:pointer;user-select:none">✕</span>
-    </div>`).join('');
+      <img src="${escapeAttr(p.url)}" title="Вибрати" onclick="pickImgPreset('${kind}',${i})"
+        style="${k.size}cursor:pointer;object-fit:contain;background:#f3f4f6;padding:2px;border:2px solid ${settings[k.cur] === p.url ? '#0b8aff' : '#e5e7eb'}" />
+      <span onclick="toggleImgPresetLock('${kind}',${i})" title="${p.locked ? 'Захищено від видалення — натисни, щоб розблокувати' : 'Захистити від випадкового видалення'}"
+        style="position:absolute;bottom:-7px;right:-7px;background:#fff;border:1px solid ${p.locked ? '#f59e0b' : '#e5e7eb'};border-radius:50%;width:18px;height:18px;line-height:15px;text-align:center;font-size:10px;cursor:pointer;user-select:none">${p.locked ? '🔒' : '🔓'}</span>
+      ${p.locked ? '' : `<span onclick="removeImgPreset('${kind}',${i})" title="Видалити з колекції"
+        style="position:absolute;top:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center;font-size:11px;cursor:pointer;user-select:none">✕</span>`}
+    </div>`;
+  }).join('');
+}
+function toggleImgPresetLock(kind, i) {
+  const k = IMG_PRESET_KINDS[kind];
+  const list = settings[k.list] || [];
+  const p = normImgPreset(list[i]); if (!p.url) return;
+  p.locked = !p.locked;
+  list[i] = p;
+  renderImgPresets(kind);
+  toast(p.locked ? '🔒 Захищено від видалення (натисни «Зберегти все»)' : '🔓 Розблоковано (натисни «Зберегти все»)');
 }
 function pickImgPreset(kind, i) {
   const k = IMG_PRESET_KINDS[kind];
-  const url = (settings[k.list] || [])[i]; if (!url) return;
+  const url = normImgPreset((settings[k.list] || [])[i]).url; if (!url) return;
   settings[k.cur] = url;
   if (kind === 'favicon') {
     document.getElementById('faviconPreview').src = url;
@@ -1417,10 +1438,12 @@ function pickImgPreset(kind, i) {
   toast('Вибрано (натисни «Зберегти все»)');
 }
 function removeImgPreset(kind, i) {
-  if (!confirm('Видалити з колекції? (файл також видалиться зі сховища, якщо не використовується)')) return;
   const k = IMG_PRESET_KINDS[kind];
-  const url = (settings[k.list] || []).splice(i, 1)[0];
-  if (url && url !== settings[k.cur]) deleteFromR2(url); // активну картинку не чіпаємо
+  const p = normImgPreset((settings[k.list] || [])[i]);
+  if (p.locked) { toast('🔒 Захищено від видалення — спочатку розблокуй', 'error'); return; }
+  if (!confirm('Видалити з колекції? (файл також видалиться зі сховища, якщо не використовується)')) return;
+  (settings[k.list] || []).splice(i, 1);
+  if (p.url && p.url !== settings[k.cur]) deleteFromR2(p.url); // активну картинку не чіпаємо
   renderImgPresets(kind);
 }
 
