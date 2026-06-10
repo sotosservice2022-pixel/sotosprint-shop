@@ -35,7 +35,8 @@ export async function onRequestGet({ env }) {
       ? [
           { src: String(s.pwaIconImage).trim(), sizes: '192x192', type: 'image/png', purpose: 'any' },
           { src: String(s.pwaIconImage).trim(), sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: String(s.pwaIconImage).trim(), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          // maskable: окремий варіант із залитим фоном (Android обрізає в коло — прозорі кути світилися б)
+          { src: String((s.pwaIconMaskImage || s.pwaIconImage)).trim(), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ]
       : [
           { src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },

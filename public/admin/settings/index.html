@@ -650,7 +650,7 @@
       <div style="grid-column:1/-1">
         <label>Іконка застосунку</label>
         <input type="file" id="pwaIconFile" accept="image/png" />
-        <div class="hint">PNG, квадратна, мінімум 512×512. Якщо не завантажено — стандартна синя «AG». Після зміни на встановлених пристроях іконка оновиться при перевстановленні.</div>
+        <div class="hint">PNG, квадратна, мінімум 512×512. Прозорий фон можна: для Android автоматично створюється варіант із фоном кольору splash-екрану (спочатку вибери колір, потім завантажуй іконку). Якщо не завантажено — стандартна синя «AG». На встановлених пристроях оновиться при перевстановленні.</div>
         <div id="pwaIconPreviewWrap" style="display:none;align-items:center;gap:10px;margin-top:8px;">
           <img id="pwaIconPreview" alt="" style="width:48px;height:48px;border-radius:10px;border:1px solid #e5e7eb;object-fit:cover;" />
           <button type="button" class="btn" onclick="clearPwaIcon()" style="padding:6px 12px;font-size:13px;">Прибрати</button>
@@ -1241,11 +1241,32 @@ function escapeAttr(s) { return escapeHtml(s); }
 
 // === Іконка PWA-застосунку ===
 // Завантажуємо в R2 БЕЗ стиснення: compress конвертує PNG у JPEG, а маніфесту потрібен PNG.
+// Додатково генеруємо maskable-варіант: Android обрізає іконку в коло/квадрат зі скругленням,
+// тому прозорий фон дав би «світлі кути». Підкладаємо колір splash-екрану і малюємо іконку
+// по центру на ~66% (безпечна зона маски).
+async function makeMaskablePwaIcon(file, bgColor) {
+  const img = await createImageBitmap(file);
+  const S = 512;
+  const c = document.createElement('canvas'); c.width = S; c.height = S;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = bgColor || '#ffffff';
+  ctx.fillRect(0, 0, S, S);
+  const scale = Math.min((S * 0.66) / img.width, (S * 0.66) / img.height);
+  const w = img.width * scale, h = img.height * scale;
+  ctx.drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+  const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+  return new File([blob], 'maskable.png', { type: 'image/png' });
+}
 async function onPwaIconFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
   if (file.type !== 'image/png') { toast('Потрібен PNG (квадратний, ≥512×512)', 'error'); return; }
   try {
     settings.pwaIconImage = await uploadToR2(file, { prefix: 'pwaicon' });
+    try {
+      const bg = document.getElementById('pwaBackgroundColor')?.value || '#ffffff';
+      const maskFile = await makeMaskablePwaIcon(file, bg);
+      settings.pwaIconMaskImage = await uploadToR2(maskFile, { prefix: 'pwaiconmask' });
+    } catch (_) { settings.pwaIconMaskImage = ''; }
     document.getElementById('pwaIconPreview').src = settings.pwaIconImage;
     document.getElementById('pwaIconPreviewWrap').style.display = 'flex';
     toast('✅ Іконку завантажено (не забудь «Зберегти»)');
@@ -1254,6 +1275,7 @@ async function onPwaIconFile(e) {
 function clearPwaIcon() {
   if (!confirm('Повернути стандартну іконку «AG»?')) return;
   settings.pwaIconImage = '';
+  settings.pwaIconMaskImage = '';
   const w = document.getElementById('pwaIconPreviewWrap'); if (w) w.style.display = 'none';
   const f = document.getElementById('pwaIconFile'); if (f) f.value = '';
 }
