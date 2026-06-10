@@ -420,9 +420,9 @@ function renderDetails(o) {
       <div class="v">
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
           <a href="${escapeAttr(trackLink)}" target="_blank" rel="noopener" style="color:#0b8aff;font-size:13px;font-weight:600;text-decoration:none;word-break:break-all;">${escapeHtml(trackLink)}</a>
-          ${copyBtn(trackLink)}
+          ${copyBtn('Відстеження замовлення №' + o.id + ': ' + trackLink)}
         </div>
-        <div style="color:#6b7280;font-size:12px;margin-top:4px;">${trackHint}</div>
+        <div style="color:#6b7280;font-size:12px;margin-top:4px;">${trackHint} Кнопка копіює одразу з підписом «Відстеження замовлення».</div>
       </div>
     </div>`;
     })()}
