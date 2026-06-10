@@ -77,6 +77,12 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','
   try {
     const r = await fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' });
     const shop = await r.json();
+    // Кастомний favicon з налаштувань (Зовнішній вигляд → Favicon)
+    if (shop.faviconImage) {
+      let icon = document.querySelector('link[rel="icon"]');
+      if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon); }
+      icon.href = shop.faviconImage;
+    }
     if (shop.pwaThemeColor) {
       document.documentElement.style.setProperty('--accent', shop.pwaThemeColor);
     }

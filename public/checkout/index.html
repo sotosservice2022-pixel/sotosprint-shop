@@ -141,6 +141,12 @@ let shop = null, cart = [], filesPerItem = []; // [[File, ...], ...]
 (async () => {
   try {
     shop = await fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+    // Кастомний favicon з налаштувань (Зовнішній вигляд → Favicon)
+    if (shop.faviconImage) {
+      let icon = document.querySelector('link[rel="icon"]');
+      if (!icon) { icon = document.createElement('link'); icon.rel = 'icon'; document.head.appendChild(icon); }
+      icon.href = shop.faviconImage;
+    }
   } catch {
     document.getElementById('app').innerHTML = '<div class="empty">Не удалось загрузить магазин. <a href="/">Вернуться</a></div>';
     return;
