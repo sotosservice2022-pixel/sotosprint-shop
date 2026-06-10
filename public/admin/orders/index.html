@@ -302,6 +302,17 @@ async function bulkAction(action) {
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
+    // Локальні патчі + миттєва корекція бейджа «Непрочитані»
+    const selected = orders.filter(o => keys.includes(o.kvKey));
+    const unreadAffected = selected.filter(o => !o.isRead).length;
+    if (action === 'delete') {
+      keys.forEach(k => markLocalDeleted(k));
+      if (window.adjustUnreadBadge && unreadAffected) window.adjustUnreadBadge(-unreadAffected);
+    } else {
+      const fields = { read: { isRead: true }, done: { isDone: true } }[action];
+      if (fields) keys.forEach(k => setLocalPatch(k, fields));
+      if (action === 'read' && window.adjustUnreadBadge && unreadAffected) window.adjustUnreadBadge(-unreadAffected);
+    }
     toast(`✅ Оброблено: ${data.processed}`);
     await loadOrders();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
@@ -317,6 +328,9 @@ async function deleteAll() {
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
+    orders.forEach(o => markLocalDeleted(o.kvKey));
+    const unreadAll = orders.filter(o => !o.isRead).length;
+    if (window.adjustUnreadBadge && unreadAll) window.adjustUnreadBadge(-unreadAll);
     toast(`✅ Видалено: ${data.deleted}`);
     await loadOrders();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
@@ -397,6 +411,18 @@ function renderDetails(o) {
         <div style="color:#6b7280;font-size:12px;margin-top:4px;">Клієнт побачить статус посилки у «Відстеженні замовлення».</div>
       </div>
     </div>
+    ${(() => {
+      const trackLink = location.origin + '/track?order=' + encodeURIComponent(o.id);
+      return `<div class="order-row"><div class="l">Посилання для клієнта</div>
+      <div class="v">
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+          <a href="${escapeAttr(trackLink)}" target="_blank" rel="noopener" style="color:#0b8aff;font-size:13px;font-weight:600;text-decoration:none;word-break:break-all;">${escapeHtml(trackLink)}</a>
+          ${copyBtn(trackLink)}
+        </div>
+        <div style="color:#6b7280;font-size:12px;margin-top:4px;">Надішліть клієнту — номер замовлення підставиться сам, йому лишиться ввести телефон.</div>
+      </div>
+    </div>`;
+    })()}
     ${o.payment || o.paymentProvider ? `<div class="order-row"><div class="l">Оплата</div><div class="v">${escapeHtml(o.payment || '')}${o.paymentStatus === 'paid' ? ' <span style="background:#dcfce7;color:#16a34a;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">✅ Оплачено</span>' : (o.paymentStatus === 'pending' ? ' <span style="background:#fef9c3;color:#a16207;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600;">⏳ Очікує оплати</span>' : '')}${copyBtn(o.payment || '')}</div></div>` : ''}
     ${o.comment ? `<div class="order-row"><div class="l">Коментар</div><div class="v" style="white-space:pre-wrap">${escapeHtml(o.comment)}</div></div>` : ''}
     <div class="order-row">
@@ -438,6 +464,7 @@ function renderActions(o) {
 }
 
 async function markAction(kvKey, action, opts = {}) {
+  const prev = orders.find(o => o.kvKey === kvKey);
   try {
     const r = await fetch(`/api/admin/order/${encodeURIComponent(kvKey)}`, {
       method: 'POST',
@@ -451,6 +478,11 @@ async function markAction(kvKey, action, opts = {}) {
     const fields = { read: { isRead: true }, unread: { isRead: false },
       done: { isDone: true }, undone: { isDone: false } }[action];
     if (fields) setLocalPatch(kvKey, fields);
+    // Миттєво коригуємо бейдж «Непрочитані» (сервер відстає до хвилини)
+    if (window.adjustUnreadBadge && prev) {
+      if (action === 'read' && !prev.isRead) window.adjustUnreadBadge(-1);
+      else if (action === 'unread' && prev.isRead) window.adjustUnreadBadge(1);
+    }
     // Обновляем локально
     const idx = orders.findIndex(o => o.kvKey === kvKey);
     if (idx >= 0) orders[idx] = data.order;
@@ -491,6 +523,7 @@ async function saveTtn(kvKey) {
 
 async function confirmDelete(kvKey) {
   if (!confirm('Видалити замовлення?')) return;
+  const prev = orders.find(o => o.kvKey === kvKey);
   try {
     const r = await fetch(`/api/admin/order/${encodeURIComponent(kvKey)}`, {
       method: 'POST',
@@ -501,6 +534,7 @@ async function confirmDelete(kvKey) {
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
     markLocalDeleted(kvKey);   // щоб автооновлення зі stale-KV не повернуло його
+    if (window.adjustUnreadBadge && prev && !prev.isRead) window.adjustUnreadBadge(-1);
     orders = orders.filter(o => o.kvKey !== kvKey);
     stats = recomputeStats(orders);
     closeDetails();

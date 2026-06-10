@@ -622,6 +622,10 @@
         <input type="checkbox" id="newOrderToastEnabled" />
         <label for="newOrderToastEnabled" style="margin:0">Показувати спливаюче вікно про нове замовлення</label>
       </div>
+      <div class="checkbox-inline">
+        <input type="checkbox" id="adminEscBackEnabled" />
+        <label for="adminEscBackEnabled" style="margin:0">Клавіша Esc = кнопка «← Назад» в адмінці</label>
+      </div>
     </div>
   </div>
 
@@ -671,40 +675,6 @@
       <div><label>Підзаголовок</label><input type="text" id="trackSubtitle" placeholder="Введіть номер замовлення і телефон" /></div>
       <div><label>Підказка в полі «Номер замовлення»</label><input type="text" id="trackOrderPlaceholder" placeholder="напр. 1024" /></div>
       <div><label>Підказка в полі «Телефон»</label><input type="text" id="trackPhonePlaceholder" placeholder="напр. 0991234567" /></div>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>🖼 Живий перегляд на металі</h2>
-    <div class="hint" style="margin-bottom:12px">
-      На картці товару клієнт може завантажити фото й одразу побачити, як воно виглядатиме
-      на виробі (ефект металу/глянцю накладається кодом, без потреби у фото-заготовці).
-      Зменшує страх «а як вийде» і кількість повернень.
-    </div>
-    <div class="checkbox-inline" style="margin-bottom:12px">
-      <input type="checkbox" id="metalPreviewEnabled" />
-      <label for="metalPreviewEnabled" style="margin:0"><b>Увімкнути живий перегляд на товарах</b></label>
-    </div>
-    <div class="hint" style="margin-bottom:8px">Стартові значення (клієнт може регулювати повзунками сам):</div>
-    <div class="grid grid-2">
-      <div><label>Матеріал за замовчуванням</label>
-        <select id="metalDefaultMaterial">
-          <option value="metal">Метал (глянець)</option>
-          <option value="brushed">Метал (шліфований)</option>
-          <option value="acrylic">Акрил (глянець)</option>
-        </select>
-      </div>
-      <div><label>Сцена за замовчуванням</label>
-        <select id="metalScene">
-          <option value="wall">🖼 На стіні</option>
-          <option value="stand">📐 На підставці</option>
-          <option value="plain">⬜ Без сцени</option>
-        </select>
-      </div>
-      <div><label>Глянець (0–1): <span id="metalGlossVal"></span></label>
-        <input type="range" id="metalGloss" min="0" max="1" step="0.05" style="width:100%" /></div>
-      <div><label>Яскравість (0.7–1.4): <span id="metalBrightVal"></span></label>
-        <input type="range" id="metalBrightness" min="0.7" max="1.4" step="0.02" style="width:100%" /></div>
     </div>
   </div>
 
@@ -958,21 +928,9 @@ function render() {
   document.getElementById('trackSubtitle').value = settings.trackSubtitle || '';
   document.getElementById('trackOrderPlaceholder').value = settings.trackOrderPlaceholder || '';
   document.getElementById('trackPhonePlaceholder').value = settings.trackPhonePlaceholder || '';
-  // Живий перегляд на металі
-  document.getElementById('metalPreviewEnabled').checked = !!settings.metalPreviewEnabled;
-  document.getElementById('metalDefaultMaterial').value = settings.metalDefaultMaterial || 'metal';
-  document.getElementById('metalScene').value = settings.metalScene || 'wall';
-  { const gv = (typeof settings.metalGloss === 'number') ? settings.metalGloss : 0.5;
-    const gi = document.getElementById('metalGloss'); gi.value = gv;
-    const gl = document.getElementById('metalGlossVal'); gl.textContent = gv;
-    gi.oninput = () => gl.textContent = gi.value; }
-  { const bv = (typeof settings.metalBrightness === 'number') ? settings.metalBrightness : 1.05;
-    const bi = document.getElementById('metalBrightness'); bi.value = bv;
-    const bl = document.getElementById('metalBrightVal'); bl.textContent = bv;
-    bi.oninput = () => bl.textContent = bi.value; }
-
   // Toast enabled
   document.getElementById('newOrderToastEnabled').checked = settings.newOrderToastEnabled !== false;
+  document.getElementById('adminEscBackEnabled').checked = settings.adminEscBackEnabled !== false;
 
   // Contacts lists
   document.getElementById('topbarContactsEnabled').checked = settings.topbarContactsEnabled !== false;
@@ -1162,6 +1120,7 @@ async function saveAll() {
   { const _t = document.getElementById('smsApiToken').value.trim(); if (_t) settings.smsApiToken = _t; }
   // Toast
   settings.newOrderToastEnabled = document.getElementById('newOrderToastEnabled').checked;
+  settings.adminEscBackEnabled = document.getElementById('adminEscBackEnabled').checked;
   // PWA
   settings.pwaEnabled = document.getElementById('pwaEnabled').checked;
   settings.pwaAppName = document.getElementById('pwaAppName').value.trim();
@@ -1177,12 +1136,6 @@ async function saveAll() {
   settings.trackSubtitle = document.getElementById('trackSubtitle').value.trim() || 'Введіть номер замовлення і телефон, на який оформляли';
   settings.trackOrderPlaceholder = document.getElementById('trackOrderPlaceholder').value.trim() || 'напр. 1024';
   settings.trackPhonePlaceholder = document.getElementById('trackPhonePlaceholder').value.trim() || 'напр. 0991234567';
-  // Живий перегляд на металі
-  settings.metalPreviewEnabled = document.getElementById('metalPreviewEnabled').checked;
-  settings.metalDefaultMaterial = document.getElementById('metalDefaultMaterial').value;
-  settings.metalScene = document.getElementById('metalScene').value;
-  { const g = parseFloat(document.getElementById('metalGloss').value); settings.metalGloss = (g >= 0 && g <= 1) ? g : 0.5; }
-  { const b = parseFloat(document.getElementById('metalBrightness').value); settings.metalBrightness = (b >= 0.7 && b <= 1.4) ? b : 1.05; }
 
   setStatus('Зберігаю…');
   if (await postJson('/api/admin/settings', settings)) {

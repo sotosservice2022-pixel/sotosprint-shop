@@ -7,6 +7,39 @@
   let POLL_INTERVAL = 60000; // буде перезавантажено з settings нижче
   const LS_KEY = 'admin_lastUnreadCount';
   let lastUnread = parseInt(localStorage.getItem(LS_KEY) || '0', 10);
+
+  // === Оптимістичний лічильник «Непрочитані» ===
+  // Сервер (order_meta в KV + інтервал опитування) відстає до хвилини. Тому коли адмін
+  // читає/повертає/видаляє замовлення — миттєво коригуємо бейдж локально (override),
+  // а коли сервер «наздожене» (поверне інше значення, ніж було) — override знімається.
+  const OV_KEY = 'admin_unreadOverride';
+  const OV_TTL = 120 * 1000;
+  function getUnreadOverride() {
+    try {
+      const o = JSON.parse(localStorage.getItem(OV_KEY) || 'null');
+      if (o && typeof o.expected === 'number' && Date.now() - o.ts < OV_TTL) return o;
+    } catch {}
+    localStorage.removeItem(OV_KEY);
+    return null;
+  }
+  function applyUnreadBadge(v) {
+    document.querySelectorAll('[data-orders-unread]').forEach(el => {
+      el.textContent = v;
+      el.style.display = v > 0 ? '' : 'none';
+    });
+  }
+  // delta: -1 прочитано / +1 непрочитано / -N bulk. Викликається зі сторінки замовлень.
+  window.adjustUnreadBadge = function(delta) {
+    let o = getUnreadOverride();
+    if (o) {
+      o.expected = Math.max(0, o.expected + delta);
+      o.ts = Date.now();
+    } else {
+      o = { baseline: lastUnread, expected: Math.max(0, lastUnread + delta), ts: Date.now() };
+    }
+    localStorage.setItem(OV_KEY, JSON.stringify(o));
+    applyUnreadBadge(o.expected);
+  };
   let toastText = '🛍 Нове замовлення #{orderId}';
   let toastEnabled = true;
 
@@ -87,11 +120,16 @@
       }
       lastUnread = cur;
       localStorage.setItem(LS_KEY, String(cur));
-      // Обновляем индикатор на странице (если есть)
-      document.querySelectorAll('[data-orders-unread]').forEach(el => {
-        el.textContent = cur;
-        el.style.display = cur > 0 ? '' : 'none';
-      });
+      // Обновляем индикатор на странице (если есть).
+      // Якщо є локальний override (щойно читали/видаляли) і сервер ще віддає старе
+      // значення (baseline) — показуємо очікуване, поки KV не наздожене.
+      let shown = cur;
+      const ov = getUnreadOverride();
+      if (ov) {
+        if (cur !== ov.baseline) localStorage.removeItem(OV_KEY); // сервер оновився
+        else shown = ov.expected;
+      }
+      applyUnreadBadge(shown);
     } catch {}
   }
 
@@ -100,6 +138,7 @@
   fetch('/api/admin/settings', { credentials: 'include' }).then(r => r.ok ? r.json() : null).then(d => {
     if (d?.settings?.newOrderToastText) toastText = d.settings.newOrderToastText;
     if (d?.settings?.newOrderToastEnabled === false) toastEnabled = false;
+    if (d?.settings?.adminEscBackEnabled === false) escBackEnabled = false;
     // Cross-device sync блокування переміщення
     if (d?.settings && typeof window.syncLockReorder === 'function') {
       window.syncLockReorder(d.settings);
@@ -115,4 +154,23 @@
   pollTimer = setInterval(pollOrders, POLL_INTERVAL);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pollOrders(); });
   pollOrders();
+
+  // === Esc = «← Назад» (вмикається чекбоксом у Налаштуваннях) ===
+  // Якщо на сторінці відкрита панель/модалка — не втручаємось (вона має власний Escape).
+  let escBackEnabled = true;
+  function isTypingTarget(el) {
+    return el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+  }
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !escBackEnabled) return;
+    if (isTypingTarget(document.activeElement)) return;
+    if (document.querySelector('#overlay.show, .overlay.show, #panel.show, .modal.show, dialog[open]')) return;
+    // 1) видима кнопка «← Назад…» (напр., редактор товару)
+    const backBtn = Array.from(document.querySelectorAll('button'))
+      .find(b => b.offsetParent !== null && /^←/.test((b.textContent || '').trim()));
+    if (backBtn) { e.preventDefault(); backBtn.click(); return; }
+    // 2) хлібні крихти «← Адмінка» на підсторінках
+    const crumb = document.querySelector('.crumbs a[href]');
+    if (crumb) { e.preventDefault(); location.href = crumb.getAttribute('href'); }
+  });
 })();
