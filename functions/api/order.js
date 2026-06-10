@@ -50,7 +50,8 @@ async function tgFetch(url, options, maxRetries = 4) {
 // Между сообщениями к одному и тому же чату делаем небольшую паузу — превентивно
 async function tgPace() { await new Promise(r => setTimeout(r, 250)); }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost(context) {
+  const { request, env } = context;
   const t0 = Date.now();
   const reqId = Math.random().toString(36).slice(2, 8);
   console.log(`[${reqId}] /order start`);
@@ -334,6 +335,10 @@ export async function onRequestPost({ request, env }) {
 
       // Шлём фото — группируем по позициям корзины, каждая позиция → подзаголовок + альбом документов
       if (photoFiles.length > 0) {
+        // ВАЖЛИВО: фото шлемо у ФОНІ (waitUntil) — клієнт НЕ чекає, поки вони заллються
+        // в Telegram. Раніше відповідь поверталась лише після всіх sendDocument/sendMediaGroup
+        // (з паузами tgPace та retry при 429) — форма «Відправляємо замовлення…» висіла довго.
+        const sendPhotosBg = async () => {
         const t2 = Date.now();
         // Группируем фото по itemIndex
         const byItem = new Map();
@@ -385,6 +390,13 @@ export async function onRequestPost({ request, env }) {
           }
         }
         console.log(`[${reqId}] photos in ${Date.now() - t2}ms`);
+        };
+        context.waitUntil(sendPhotosBg().catch(async (e) => {
+          console.log(`[${reqId}] background photos failed: ${e.message}`);
+          // Фото існують лише в пам'яті цього запиту — якщо не дійшли до Telegram,
+          // попереджаємо адміна в чат, щоб зв'язався з клієнтом.
+          try { await tgSendMessage(TG, CHAT, `⚠️ Не вдалося надіслати фото до замовлення #${orderId}: ${escapeMd(e.message || '')}`); } catch {}
+        }));
       }
     } else {
       console.log(`[${reqId}] Bot not configured — skipping Telegram, saving to KV only`);

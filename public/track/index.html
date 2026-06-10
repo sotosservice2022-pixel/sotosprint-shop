@@ -102,6 +102,29 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','
   if (params.get('order')) document.getElementById('orderId').value = params.get('order');
   if (params.get('phone')) document.getElementById('phone').value = params.get('phone');
 
+  // Секретне посилання (?t=...) — показуємо статус одразу, без жодного вводу.
+  // Якщо токен невалідний — повертаємо форму ручного вводу як запасний варіант.
+  const tkn = (params.get('t') || '').trim();
+  if (tkn) {
+    form.style.display = 'none';
+    try {
+      const r = await fetch('/api/track', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tkn }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        renderResult(data.order);
+      } else {
+        form.style.display = '';
+        errBox.textContent = 'Посилання недійсне або застаріле. Введіть номер замовлення і телефон вручну.';
+        errBox.classList.remove('hidden');
+      }
+    } catch (_) {
+      form.style.display = '';
+    }
+  }
+
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errBox.classList.add('hidden');

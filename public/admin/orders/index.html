@@ -412,14 +412,17 @@ function renderDetails(o) {
       </div>
     </div>
     ${(() => {
-      const trackLink = location.origin + '/track?order=' + encodeURIComponent(o.id);
+      const trackLink = location.origin + (o.trackToken ? '/track?t=' + o.trackToken : '/track?order=' + encodeURIComponent(o.id));
+      const trackHint = o.trackToken
+        ? 'Надішліть клієнту — він одразу побачить статус, нічого вводити не треба.'
+        : 'Надішліть клієнту — номер замовлення підставиться сам, йому лишиться ввести телефон.';
       return `<div class="order-row"><div class="l">Посилання для клієнта</div>
       <div class="v">
         <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
           <a href="${escapeAttr(trackLink)}" target="_blank" rel="noopener" style="color:#0b8aff;font-size:13px;font-weight:600;text-decoration:none;word-break:break-all;">${escapeHtml(trackLink)}</a>
           ${copyBtn(trackLink)}
         </div>
-        <div style="color:#6b7280;font-size:12px;margin-top:4px;">Надішліть клієнту — номер замовлення підставиться сам, йому лишиться ввести телефон.</div>
+        <div style="color:#6b7280;font-size:12px;margin-top:4px;">${trackHint}</div>
       </div>
     </div>`;
     })()}
