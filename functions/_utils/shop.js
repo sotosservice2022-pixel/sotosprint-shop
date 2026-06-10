@@ -243,6 +243,9 @@ const DEFAULT_SETTINGS = {
   faviconImage: '',
   faviconPresets: [],   // збережені іконки на вибір (до 8) — щоб не завантажувати щоразу
   logoPresets: [],      // збережені логотипи на вибір (до 8)
+  faviconPresetsLocked: false, // 🔒 захист колекції від випадкового видалення
+  logoPresetsLocked: false,
+  pwaIconPresetsLocked: false,
   // Масові операції в адмінці (червоний банер у /orders/ і /products/)
   showBulkOperations: true,
   // Стиснення картинок товарів (в адмінці)
