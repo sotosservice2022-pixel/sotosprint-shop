@@ -374,6 +374,8 @@
           <img id="logoPreview" style="max-height: 80px; max-width: 200px; border-radius: 6px; background: #f3f4f6; padding: 4px;" />
           <button class="btn btn-danger btn-icon" type="button" onclick="clearLogo()" style="margin-left: 8px;">Прибрати</button>
         </div>
+        <div id="logoPresetsBox" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"></div>
+        <div class="hint" id="logoPresetsHint" style="display:none">Збережені логотипи — натисни, щоб вибрати; ✕ — видалити з колекції.</div>
       </div>
 
       <!-- Зміщення лого по горизонталі -->
@@ -426,6 +428,8 @@
           <span style="font-size: 13px; color: #6b7280;">Поточна іконка</span>
           <button class="btn btn-danger btn-icon" type="button" onclick="clearFavicon()">Прибрати</button>
         </div>
+        <div id="faviconPresetsBox" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;"></div>
+        <div class="hint" id="faviconPresetsHint" style="display:none">Збережені іконки — натисни, щоб вибрати; ✕ — видалити з колекції.</div>
       </div>
     </div>
   </div>
@@ -780,6 +784,8 @@ function render() {
     document.getElementById('faviconPreview').src = settings.faviconImage;
     if (fwrap) fwrap.style.display = 'flex';
   } else if (fwrap) { fwrap.style.display = 'none'; }
+  renderImgPresets('favicon');
+  renderImgPresets('logo');
   // Баннеры (новий формат — 3 слоти ліво/право + hero)
   const bw = (parseInt(settings.bannerWidth, 10) >= 140 && parseInt(settings.bannerWidth, 10) <= 280) ? parseInt(settings.bannerWidth, 10) : 180;
   document.getElementById('bannerWidth').value = bw;
@@ -1007,18 +1013,22 @@ async function onLogoFile(e) {
   try {
     // keepType: PNG-логотип лишається PNG — інакше прозорий фон ставав суцільним (JPEG без альфи)
     settings.logoImage = await uploadToR2(file, { compress: true, maxSide: 256, quality: 0.9, prefix: 'logo', keepType: true });
+    addImgPreset('logo', settings.logoImage);
     document.getElementById('logoPreview').src = settings.logoImage;
     document.getElementById('logoPreviewWrap').style.display = '';
+    renderImgPresets('logo');
     toast('✅ Логотип завантажено (натисни «Зберегти все»)');
   } catch (err) { toast('Помилка: ' + err.message, 'error'); }
 }
 function clearLogo() {
-  if (!confirm('Прибрати логотип? (файл також видалиться зі сховища)')) return;
-  deleteFromR2(settings.logoImage);
+  if (!confirm('Прибрати логотип?')) return;
+  // якщо лого збережене в пресетах — файл лишаємо (можна буде вибрати знову), інакше видаляємо зі сховища
+  if (!(settings.logoPresets || []).includes(settings.logoImage)) deleteFromR2(settings.logoImage);
   settings.logoImage = '';
   document.getElementById('logoPreview').src = '';
   document.getElementById('logoPreviewWrap').style.display = 'none';
   document.getElementById('logoFile').value = '';
+  renderImgPresets('logo');
 }
 
 function resetLogoOffset() {
@@ -1367,6 +1377,53 @@ async function loadProductsForBannerLink() {
 document.getElementById('logoFile').addEventListener('change', onLogoFile);
 document.getElementById('topbarBgImageFile').addEventListener('change', onTopbarBgFile);
 
+// === Пресети картинок (favicon / логотип): збережена колекція на вибір, щоб не завантажувати щоразу ===
+const IMG_PRESET_KINDS = {
+  favicon: { list: 'faviconPresets', cur: 'faviconImage', box: 'faviconPresetsBox', hint: 'faviconPresetsHint', size: 'width:36px;height:36px;border-radius:8px;' },
+  logo:    { list: 'logoPresets',    cur: 'logoImage',    box: 'logoPresetsBox',    hint: 'logoPresetsHint',    size: 'width:64px;height:48px;border-radius:8px;' },
+};
+function addImgPreset(kind, url) {
+  const k = IMG_PRESET_KINDS[kind]; if (!k || !url) return;
+  if (!Array.isArray(settings[k.list])) settings[k.list] = [];
+  if (settings[k.list].includes(url)) return;
+  settings[k.list].push(url);
+  while (settings[k.list].length > 8) settings[k.list].shift();
+}
+function renderImgPresets(kind) {
+  const k = IMG_PRESET_KINDS[kind];
+  const box = document.getElementById(k.box); if (!box) return;
+  const list = Array.isArray(settings[k.list]) ? settings[k.list] : [];
+  const hint = document.getElementById(k.hint); if (hint) hint.style.display = list.length ? '' : 'none';
+  box.innerHTML = list.map((url, i) => `
+    <div style="position:relative">
+      <img src="${escapeAttr(url)}" title="Вибрати" onclick="pickImgPreset('${kind}',${i})"
+        style="${k.size}cursor:pointer;object-fit:contain;background:#f3f4f6;padding:2px;border:2px solid ${settings[k.cur] === url ? '#0b8aff' : '#e5e7eb'}" />
+      <span onclick="removeImgPreset('${kind}',${i})" title="Видалити з колекції"
+        style="position:absolute;top:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;border-radius:50%;width:18px;height:18px;line-height:16px;text-align:center;font-size:11px;cursor:pointer;user-select:none">✕</span>
+    </div>`).join('');
+}
+function pickImgPreset(kind, i) {
+  const k = IMG_PRESET_KINDS[kind];
+  const url = (settings[k.list] || [])[i]; if (!url) return;
+  settings[k.cur] = url;
+  if (kind === 'favicon') {
+    document.getElementById('faviconPreview').src = url;
+    document.getElementById('faviconPreviewWrap').style.display = 'flex';
+  } else {
+    document.getElementById('logoPreview').src = url;
+    document.getElementById('logoPreviewWrap').style.display = '';
+  }
+  renderImgPresets(kind);
+  toast('Вибрано (натисни «Зберегти все»)');
+}
+function removeImgPreset(kind, i) {
+  if (!confirm('Видалити з колекції? (файл також видалиться зі сховища, якщо не використовується)')) return;
+  const k = IMG_PRESET_KINDS[kind];
+  const url = (settings[k.list] || []).splice(i, 1)[0];
+  if (url && url !== settings[k.cur]) deleteFromR2(url); // активну картинку не чіпаємо
+  renderImgPresets(kind);
+}
+
 // === Favicon ===
 async function onFaviconFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
@@ -1375,16 +1432,19 @@ async function onFaviconFile(e) {
     // БЕЗ compress: він конвертує PNG у JPEG, а JPEG не має прозорості — фон ставав суцільним.
     // Favicon і так маленький, стискати нема сенсу.
     settings.faviconImage = await uploadToR2(file, { prefix: 'favicon' });
+    addImgPreset('favicon', settings.faviconImage);
     document.getElementById('faviconPreview').src = settings.faviconImage;
     document.getElementById('faviconPreviewWrap').style.display = 'flex';
+    renderImgPresets('favicon');
     toast('✅ Іконку завантажено (натисни «Зберегти все»)');
   } catch (err) { toast('Помилка: ' + err.message, 'error'); }
 }
 function clearFavicon() {
   if (!confirm('Прибрати іконку?')) return;
-  settings.faviconImage = '';
+  settings.faviconImage = ''; // файл лишається в колекції пресетів
   const w = document.getElementById('faviconPreviewWrap'); if (w) w.style.display = 'none';
   const f = document.getElementById('faviconFile'); if (f) f.value = '';
+  renderImgPresets('favicon');
 }
 document.getElementById('faviconFile')?.addEventListener('change', onFaviconFile);
 
