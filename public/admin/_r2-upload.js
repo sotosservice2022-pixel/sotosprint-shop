@@ -27,7 +27,7 @@ window.uploadToR2 = async function(file, opts = {}) {  if (!file) throw new Erro
     try {
       const maxSide = opts.maxSide || 1200;
       const quality = opts.quality || 0.85;
-      toUpload = await compressR2Image(file, maxSide, quality);
+      toUpload = await compressR2Image(file, maxSide, quality, opts.keepType === true);
     } catch (e) {
       console.warn('Compress failed, uploading original:', e.message);
       toUpload = file;
@@ -47,7 +47,7 @@ window.uploadToR2 = async function(file, opts = {}) {  if (!file) throw new Erro
   return data.url; // /api/storage/<key>
 };
 
-async function compressR2Image(file, maxSide, quality) {
+async function compressR2Image(file, maxSide, quality, keepType) {
   let src;
   try { src = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch {
@@ -67,8 +67,8 @@ async function compressR2Image(file, maxSide, quality) {
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(src, 0, 0, nw, nh);
   try { src.close?.(); } catch {}
-  // PNG → JPEG (мельче), якщо є альфа — залишаємо PNG
-  const outType = file.type === 'image/png' ? 'image/jpeg' : file.type;
+  // PNG → JPEG (мельче). keepType=true — зберігаємо PNG (потрібно для прозорості: логотип, іконки)
+  const outType = (keepType || file.type !== 'image/png') ? file.type : 'image/jpeg';
   return new Promise(res =>
     canvas.toBlob(b => res(new File([b], file.name, { type: outType })), outType, quality)
   );

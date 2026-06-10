@@ -1005,7 +1005,8 @@ async function onLogoFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
   if (!file.type.startsWith('image/')) { toast('Це не картинка', 'error'); return; }
   try {
-    settings.logoImage = await uploadToR2(file, { compress: true, maxSide: 256, quality: 0.9, prefix: 'logo' });
+    // keepType: PNG-логотип лишається PNG — інакше прозорий фон ставав суцільним (JPEG без альфи)
+    settings.logoImage = await uploadToR2(file, { compress: true, maxSide: 256, quality: 0.9, prefix: 'logo', keepType: true });
     document.getElementById('logoPreview').src = settings.logoImage;
     document.getElementById('logoPreviewWrap').style.display = '';
     toast('✅ Логотип завантажено (натисни «Зберегти все»)');
