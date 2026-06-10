@@ -1006,6 +1006,10 @@ async function setupPWA(enabled) {
     if (shop.pwaThemeColor) {
       document.querySelector('meta[name="theme-color"]')?.setAttribute('content', shop.pwaThemeColor);
     }
+    // Власна іконка застосунку — також для iOS (додавання на головний екран)
+    if (shop.pwaIconImage) {
+      document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute('href', shop.pwaIconImage);
+    }
     // реєстрація service worker
     try { await navigator.serviceWorker.register('/sw.js'); } catch (_) {}
 
@@ -1014,8 +1018,9 @@ async function setupPWA(enabled) {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       _deferredInstallPrompt = e;
-      // Якщо вже встановлено як застосунок — кнопку не показуємо
-      if (!window.matchMedia('(display-mode: standalone)').matches) showInstallButton();
+      // Якщо вже встановлено як застосунок — кнопку не показуємо.
+      // Окремий тумблер pwaInstallButtonEnabled: можна сховати кнопку, лишивши установку через меню браузера.
+      if (shop.pwaInstallButtonEnabled !== false && !window.matchMedia('(display-mode: standalone)').matches) showInstallButton();
     });
     window.addEventListener('appinstalled', () => {
       _deferredInstallPrompt = null;

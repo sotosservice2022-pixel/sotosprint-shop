@@ -647,7 +647,21 @@
         <div class="hint">До 12 символів — щоб вмістилось під іконкою</div></div>
       <div><label>Колір панелі застосунку</label><input type="color" id="pwaThemeColor" value="#0b8aff" style="height:42px;padding:4px" /></div>
       <div><label>Колір splash-екрану (запуск)</label><input type="color" id="pwaBackgroundColor" value="#0b8aff" style="height:42px;padding:4px" /></div>
+      <div style="grid-column:1/-1">
+        <label>Іконка застосунку</label>
+        <input type="file" id="pwaIconFile" accept="image/png" />
+        <div class="hint">PNG, квадратна, мінімум 512×512. Якщо не завантажено — стандартна синя «AG». Після зміни на встановлених пристроях іконка оновиться при перевстановленні.</div>
+        <div id="pwaIconPreviewWrap" style="display:none;align-items:center;gap:10px;margin-top:8px;">
+          <img id="pwaIconPreview" alt="" style="width:48px;height:48px;border-radius:10px;border:1px solid #e5e7eb;object-fit:cover;" />
+          <button type="button" class="btn" onclick="clearPwaIcon()" style="padding:6px 12px;font-size:13px;">Прибрати</button>
+        </div>
+      </div>
     </div>
+    <div class="checkbox-inline" style="margin-top:12px">
+      <input type="checkbox" id="pwaInstallButtonEnabled" />
+      <label for="pwaInstallButtonEnabled" style="margin:0">Показувати кнопку «Встановити застосунок» на сайті</label>
+    </div>
+    <div class="hint">Якщо вимкнено — сайт лишається встановлюваним через меню браузера (⋮ → «Додати на головний екран»), але плаваюча кнопка клієнтам не показується.</div>
   </div>
 
   <div class="card">
@@ -690,6 +704,7 @@
 
 <script src="/admin/_admin-ui.js"></script>
 <script src="/admin/_admin.js"></script>
+<script src="/admin/_r2-upload.js"></script>
 <script>
 let settings = {};
 
@@ -915,6 +930,11 @@ function render() {
 
   // PWA
   document.getElementById('pwaEnabled').checked = !!settings.pwaEnabled;
+  document.getElementById('pwaInstallButtonEnabled').checked = settings.pwaInstallButtonEnabled !== false;
+  if (settings.pwaIconImage) {
+    document.getElementById('pwaIconPreview').src = settings.pwaIconImage;
+    document.getElementById('pwaIconPreviewWrap').style.display = 'flex';
+  }
   document.getElementById('pwaAppName').value = settings.pwaAppName || '';
   document.getElementById('pwaShortName').value = settings.pwaShortName || '';
   document.getElementById('pwaThemeColor').value = settings.pwaThemeColor || '#0b8aff';
@@ -1125,6 +1145,7 @@ async function saveAll() {
   settings.adminEscBackEnabled = document.getElementById('adminEscBackEnabled').checked;
   // PWA
   settings.pwaEnabled = document.getElementById('pwaEnabled').checked;
+  settings.pwaInstallButtonEnabled = document.getElementById('pwaInstallButtonEnabled').checked;
   settings.pwaAppName = document.getElementById('pwaAppName').value.trim();
   settings.pwaShortName = document.getElementById('pwaShortName').value.trim();
   settings.pwaThemeColor = document.getElementById('pwaThemeColor').value || '#0b8aff';
@@ -1217,6 +1238,26 @@ async function postJson(url, body) {
 
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
+
+// === Іконка PWA-застосунку ===
+// Завантажуємо в R2 БЕЗ стиснення: compress конвертує PNG у JPEG, а маніфесту потрібен PNG.
+async function onPwaIconFile(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  if (file.type !== 'image/png') { toast('Потрібен PNG (квадратний, ≥512×512)', 'error'); return; }
+  try {
+    settings.pwaIconImage = await uploadToR2(file, { prefix: 'pwaicon' });
+    document.getElementById('pwaIconPreview').src = settings.pwaIconImage;
+    document.getElementById('pwaIconPreviewWrap').style.display = 'flex';
+    toast('✅ Іконку завантажено (не забудь «Зберегти»)');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+function clearPwaIcon() {
+  if (!confirm('Повернути стандартну іконку «AG»?')) return;
+  settings.pwaIconImage = '';
+  const w = document.getElementById('pwaIconPreviewWrap'); if (w) w.style.display = 'none';
+  const f = document.getElementById('pwaIconFile'); if (f) f.value = '';
+}
+document.getElementById('pwaIconFile')?.addEventListener('change', onPwaIconFile);
 
 loadAll();
 </script>

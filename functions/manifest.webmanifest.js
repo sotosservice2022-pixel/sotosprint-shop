@@ -30,11 +30,18 @@ export async function onRequestGet({ env }) {
     lang: 'uk',
     // ВАЖЛИВО: Chrome на Android вимагає PNG 192 та 512 для критерію «встановлюваності»
     // (кнопка «Встановити застосунок»). SVG він показує, але не зараховує. Тому PNG — головні.
-    icons: [
-      { src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/pwa-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/pwa-icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-    ],
+    // Якщо в адмінці завантажено власну іконку (pwaIconImage, PNG ≥512) — використовуємо її.
+    icons: (s.pwaIconImage && String(s.pwaIconImage).trim())
+      ? [
+          { src: String(s.pwaIconImage).trim(), sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: String(s.pwaIconImage).trim(), sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: String(s.pwaIconImage).trim(), sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ]
+      : [
+          { src: '/pwa-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/pwa-icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
   };
 
   return new Response(JSON.stringify(manifest), {

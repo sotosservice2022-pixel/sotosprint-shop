@@ -123,6 +123,8 @@ const DEFAULT_SETTINGS = {
   pwaShortName: 'AGPRNT',            // коротка назва (під іконкою на робочому столі)
   pwaThemeColor: '#0b8aff',          // колір системної панелі застосунку
   pwaBackgroundColor: '#0b8aff',     // колір splash-екрану під час запуску
+  pwaIconImage: '',                  // власна іконка застосунку (URL з R2, PNG квадратна ≥512px); '' = стандартна «AG»
+  pwaInstallButtonEnabled: true,     // показувати кнопку «Встановити застосунок» на сайті (коли PWA увімкнено)
 
   // === Відстеження замовлення (клієнт вводить № замовлення + телефон) ===
   orderTrackingEnabled: false,   // головний тумблер фічі (вимкнено = /api/track віддає 404)
