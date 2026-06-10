@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.agprnt.app",
+    "sha256_cert_fingerprints": ["0A:23:58:BF:D1:97:76:EC:CE:E9:4B:BF:1C:25:84:6E:C0:F3:80:12:0F:F2:B4:DA:63:54:7A:A3:54:9E:5E:41"]
+  }
+}]
