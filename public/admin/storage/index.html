@@ -625,6 +625,19 @@ function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'
 function escapeAttr(s) { return escapeHtml(s); }
 
 loadFiles();
+
+// Авто-оновлення списку, коли повертаємось на вкладку (напр. після видалення товару
+// на іншій сторінці). Тротлимо, щоб не смикати сервер при частих перемиканнях.
+let _lastAutoReload = 0;
+function autoReloadIfStale() {
+  if (document.hidden) return;
+  const now = Date.now();
+  if (now - _lastAutoReload < 5000) return; // не частіше разу на 5 с
+  _lastAutoReload = now;
+  loadFiles();
+}
+document.addEventListener('visibilitychange', autoReloadIfStale);
+window.addEventListener('focus', autoReloadIfStale);
 </script>
 </body>
 </html>
