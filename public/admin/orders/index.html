@@ -466,9 +466,15 @@ function renderDetails(o) {
       <div class="l">Фото клієнта (${o.photos.length})</div>
       <div class="v">
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${o.photos.map(ph => `<a href="/api/storage/${encodeURIComponent(ph.key)}" target="_blank" rel="noopener" title="${escapeAttr(ph.name || '')}"><img src="/api/storage/${encodeURIComponent(ph.key)}" loading="lazy" alt="" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;" /></a>`).join('')}
+          ${o.photos.map(ph => `<span style="position:relative;display:inline-block;">
+            <a href="/api/storage/${encodeURIComponent(ph.key)}" target="_blank" rel="noopener" title="${escapeAttr(ph.name || '')}"><img src="/api/storage/${encodeURIComponent(ph.key)}" loading="lazy" alt="" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;display:block;" /></a>
+            <a href="/api/storage/${encodeURIComponent(ph.key)}" download="${escapeAttr(ph.name || 'photo.jpg')}" title="Скачати ${escapeAttr(ph.name || '')}" style="position:absolute;right:3px;bottom:3px;background:rgba(17,24,39,.75);color:#fff;border-radius:7px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;text-decoration:none;">⬇</a>
+          </span>`).join('')}
         </div>
-        <div style="color:#6b7280;font-size:12px;margin-top:6px;">Клік по фото — відкрити оригінал. Копії також надіслані в Telegram.</div>
+        <div style="color:#6b7280;font-size:12px;margin-top:6px;">
+          Клік по фото — відкрити оригінал, ⬇ — скачати. Копії також надіслані в Telegram.
+          ${o.photos.length > 1 ? ` <a href="javascript:void(0)" onclick="downloadAllPhotos()" style="color:#0b8aff;font-weight:600;">⬇ Скачати всі (${o.photos.length})</a>` : ''}
+        </div>
       </div>
     </div>` : `
     <div class="order-row" style="border:none;">
@@ -673,6 +679,22 @@ async function openItemProduct(idx) {
   body.innerHTML = html;
 }
 function closeItemProduct() { document.getElementById('itemProductOverlay')?.remove(); }
+
+// Скачати всі фото клієнта з поточного замовлення (по черзі, з невеликою паузою)
+async function downloadAllPhotos() {
+  const photos = currentOrder && currentOrder.photos;
+  if (!photos || !photos.length) return;
+  for (let i = 0; i < photos.length; i++) {
+    const ph = photos[i];
+    const a = document.createElement('a');
+    a.href = '/api/storage/' + encodeURIComponent(ph.key);
+    a.download = ph.name || `photo_${i + 1}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    await new Promise(r => setTimeout(r, 400)); // пауза, щоб браузер не загубив частину завантажень
+  }
+}
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.getElementById('itemProductOverlay')) { e.stopPropagation(); closeItemProduct(); } }, true);
 
 // Копіює текст у буфер обміну (з fallback для старих браузерів) і показує toast.
