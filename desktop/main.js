@@ -44,7 +44,7 @@ function createWindow() {
     },
   });
 
-  win.loadURL(ADMIN_URL);
+  win.loadURL(ORDERS_URL); // одразу на замовлення — додаток для обробки замовлень
 
   // Зовнішні посилання (вітрина «Відкрити сайт», файли) — у системний браузер
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -106,7 +106,6 @@ function rebuildTrayMenu(unread) {
   const auto = app.getLoginItemSettings().openAtLogin;
   const menu = Menu.buildFromTemplate([
     { label: unread > 0 ? `📋 Замовлення (${unread} нових)` : '📋 Замовлення', click: () => showWindow(ORDERS_URL) },
-    { label: '🏠 Адмінка', click: () => showWindow(ADMIN_URL) },
     { label: '🌐 Відкрити сайт', click: () => shell.openExternal(BASE + '/') },
     { type: 'separator' },
     { label: 'Запускати з Windows', type: 'checkbox', checked: auto, click: (item) => {
