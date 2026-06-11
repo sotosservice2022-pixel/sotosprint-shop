@@ -271,6 +271,7 @@ function renderFolders() {
     return `
       <div class="folder-card" onclick="enterFolder('${escapeAttr(path)}')">
         <div class="fc-top">
+          <input type="checkbox" class="folder-check" data-path="${escapeAttr(path)}" onclick="event.stopPropagation()" onchange="updateBulkBar()" title="Виділити папку" />
           <span class="fc-icon">📁</span>
           <span class="fc-name">${escapeHtml(folderLabel(path))}</span>
         </div>
@@ -281,6 +282,19 @@ function renderFolders() {
         </div>`}
       </div>`;
   }).join('');
+}
+
+// Вибрані папки (шляхи) — окремо від файлів
+function getSelectedFolders() {
+  return Array.from(document.querySelectorAll('.folder-check:checked')).map(c => c.dataset.path);
+}
+// Усі ключі файлів усередині вибраних папок (рекурсивно)
+function keysInsideSelectedFolders() {
+  const folders = getSelectedFolders();
+  if (!folders.length) return [];
+  return files
+    .filter(f => folders.some(fl => f.folder === fl || f.folder.startsWith(fl + '/')))
+    .map(f => f.key);
 }
 
 async function newFolder() {
@@ -352,7 +366,7 @@ async function deleteFolder(path) {
 
 // Перемістити вибрані файли в іншу папку
 async function bulkMove() {
-  const keys = getSelectedKeys();
+  const keys = getAllSelectedKeys(); // файли + вміст вибраних папок
   if (keys.length === 0) return;
   const choices = ['', ...allFolders].map(f => f === '' ? '(корінь)' : f);
   const dest = prompt('Перемістити ' + keys.length + ' файл(ів) у папку.\nВведіть шлях (порожньо = корінь). Доступні:\n' + choices.join('\n'), currentFolder);
@@ -373,33 +387,59 @@ async function bulkMove() {
 function getSelectedKeys() {
   return Array.from(document.querySelectorAll('.file-check:checked')).map(c => c.dataset.key);
 }
+// Усі ключі для bulk-дії: файли поточного рівня + вміст вибраних папок (без дублів)
+function getAllSelectedKeys() {
+  return Array.from(new Set([...getSelectedKeys(), ...keysInsideSelectedFolders()]));
+}
 function updateBulkBar() {
-  const sel = getSelectedKeys();
+  const selFiles = getSelectedKeys();
+  const selFolders = getSelectedFolders();
+  const total = selFiles.length + selFolders.length;
   const bar = document.getElementById('bulkBar');
-  bar.style.display = sel.length > 0 ? 'flex' : 'none';
-  document.getElementById('bulkCount').textContent = sel.length;
-  const all = document.querySelectorAll('.file-check').length;
-  document.getElementById('selectAll').checked = sel.length > 0 && sel.length === all;
+  bar.style.display = total > 0 ? 'flex' : 'none';
+  document.getElementById('bulkCount').textContent = total;
+  // «Виділити все» активне, коли вибрано всі файли І всі папки рівня
+  const allFiles = document.querySelectorAll('.file-check').length;
+  const allFolders = document.querySelectorAll('.folder-check').length;
+  const allBoxes = allFiles + allFolders;
+  document.getElementById('selectAll').checked = allBoxes > 0 && total === allBoxes;
 }
 function toggleAll(checked) {
   document.querySelectorAll('.file-check').forEach(c => c.checked = checked);
+  document.querySelectorAll('.folder-check').forEach(c => c.checked = checked);
   updateBulkBar();
 }
 function clearSel() { toggleAll(false); }
 
 async function bulkDelete() {
-  const keys = getSelectedKeys();
-  if (keys.length === 0) return;
-  if (!confirm(`Видалити ${keys.length} файлів? Незворотньо.`)) return;
+  const keys = getAllSelectedKeys(); // файли + вміст вибраних папок
+  const folders = getSelectedFolders();
+  if (keys.length === 0 && folders.length === 0) return;
+  const msg = folders.length
+    ? `Видалити ${keys.length} файл(ів) із ${folders.length} вибраних папок? Незворотньо.`
+    : `Видалити ${keys.length} файлів? Незворотньо.`;
+  if (!confirm(msg)) return;
   try {
-    const r = await fetch('/api/admin/storage/delete', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys }),
-    });
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error);
-    toast(`✅ Видалено: ${data.deleted}`);
+    if (keys.length) {
+      const r = await fetch('/api/admin/storage/delete', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error);
+    }
+    // Прибираємо записи порожніх власних папок (системні лишаємо)
+    for (const path of folders) {
+      if (isSystemFolder(path)) continue;
+      try {
+        await fetch('/api/admin/storage/folders', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', path }),
+        });
+      } catch {}
+    }
+    toast(`✅ Видалено: ${keys.length}`);
     await loadFiles();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
