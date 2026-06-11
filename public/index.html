@@ -1055,7 +1055,10 @@ function setupOrderTracking() {
   fab.id = 'trackFab';
   fab.type = 'button';
   fab.textContent = shop.trackButtonText || '📦 Відстежити замовлення';
-  fab.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:5500;background:var(--card,#fff);' +
+  // z-index 80: нижче за кошик (90/100), модалку товару (200/210), лайтбокс (300),
+  // меню (500) і відео (1000) — коли відкрита модалка, кнопка ховається під затемнення
+  // і не налазить на контент (скарга з мобільної версії).
+  fab.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:80;background:var(--card,#fff);' +
     'color:var(--accent,#0b8aff);border:1.5px solid var(--accent,#0b8aff);border-radius:22px;padding:10px 16px;' +
     'font-size:14px;font-weight:700;box-shadow:0 4px 14px rgba(0,0,0,.15);cursor:pointer;';
   fab.onclick = openTrackModal;
