@@ -989,6 +989,82 @@ export function keyFromStorageUrl(url) {
   return m[1].split('/').map(decodeURIComponent).join('/');
 }
 
+// Рекурсивно замінити рядок oldUrl→newUrl у будь-якій JSON-структурі. Повертає [нова_структура, лічильник].
+function replaceUrlInTree(node, oldUrl, newUrl) {
+  let n = 0;
+  if (typeof node === 'string') {
+    if (node === oldUrl) return [newUrl, 1];
+    if (node.includes(oldUrl)) return [node.split(oldUrl).join(newUrl), 1];
+    return [node, 0];
+  }
+  if (Array.isArray(node)) {
+    const out = node.map(v => { const [nv, c] = replaceUrlInTree(v, oldUrl, newUrl); n += c; return nv; });
+    return [out, n];
+  }
+  if (node && typeof node === 'object') {
+    const out = {};
+    for (const k of Object.keys(node)) { const [nv, c] = replaceUrlInTree(node[k], oldUrl, newUrl); n += c; out[k] = nv; }
+    return [out, n];
+  }
+  return [node, 0];
+}
+
+// Перенести файли в R2 між ключами з перезаписом усіх посилань (products/settings/orders).
+// renamesInput: [{oldKey, newKey}]. R2 не має move — лише put+delete. Best-effort.
+// Повертає { moved, refsUpdated, errors }.
+export async function moveStorageKeys(env, renamesInput) {
+  const errors = [];
+  const renames = [];
+  for (const { oldKey, newKey } of renamesInput) {
+    if (!oldKey || !newKey || newKey === oldKey) continue;
+    try {
+      const obj = await env.STORAGE.get(oldKey);
+      if (!obj) { errors.push(`${oldKey}: не знайдено`); continue; }
+      await env.STORAGE.put(newKey, obj.body, { httpMetadata: obj.httpMetadata, customMetadata: obj.customMetadata });
+      await env.STORAGE.delete(oldKey);
+      renames.push({ oldKey, newKey });
+    } catch (e) { errors.push(`${oldKey}: ${e.message}`); }
+  }
+  if (renames.length === 0) return { moved: 0, refsUpdated: 0, errors };
+
+  let refsUpdated = 0;
+  // products: поля image/images[].url містять storageUrl
+  try {
+    let products = await getProducts(env);
+    let changed = 0;
+    for (const { oldKey, newKey } of renames) { const [np, c] = replaceUrlInTree(products, storageUrl(oldKey), storageUrl(newKey)); products = np; changed += c; }
+    if (changed) { await saveProducts(env, products); refsUpdated += changed; }
+  } catch (e) { errors.push('products: ' + e.message); }
+  // settings: logo/favicon/banner/hero/og/pwa …
+  try {
+    let settings = await getSettings(env);
+    let changed = 0;
+    for (const { oldKey, newKey } of renames) { const [ns, c] = replaceUrlInTree(settings, storageUrl(oldKey), storageUrl(newKey)); settings = ns; changed += c; }
+    if (changed) { await saveSettings(env, settings); refsUpdated += changed; }
+  } catch (e) { errors.push('settings: ' + e.message); }
+  // orders: order.photos[].key — сирий ключ, не URL
+  try {
+    const oldToNew = new Map(renames.map(r => [r.oldKey, r.newKey]));
+    let cursor;
+    do {
+      const list = await env.SHOP_KV.list({ prefix: 'order_', cursor, limit: 1000 });
+      for (const k of list.keys) {
+        if (!/^order_\d/.test(k.name)) continue;
+        let order;
+        try { order = await env.SHOP_KV.get(k.name, 'json'); } catch { continue; }
+        if (!order || !Array.isArray(order.photos) || !order.photos.length) continue;
+        let touched = false;
+        for (const ph of order.photos) { if (ph && ph.key && oldToNew.has(ph.key)) { ph.key = oldToNew.get(ph.key); touched = true; refsUpdated++; } }
+        if (touched) { try { await env.SHOP_KV.put(k.name, JSON.stringify(order), { expirationTtl: 365 * 24 * 60 * 60 }); } catch (e) { errors.push('order ' + k.name + ': ' + e.message); } }
+      }
+      cursor = list.list_complete ? undefined : list.cursor;
+    } while (cursor);
+    await invalidateOrdersCache();
+  } catch (e) { errors.push('orders: ' + e.message); }
+
+  return { moved: renames.length, refsUpdated, errors };
+}
+
 // Інвалідація кешу /api/admin/orders після мутацій (delete/update)
 export async function invalidateOrdersCache() {
   try {
