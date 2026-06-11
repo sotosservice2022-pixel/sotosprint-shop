@@ -137,8 +137,8 @@ async function pollOrders() {
     if (lastUnread >= 0 && unread > lastUnread) {
       const fresh = unread - lastUnread;
       const n = new Notification({
-        title: fresh === 1 ? '🛒 Нове замовлення!' : `🛒 Нові замовлення: ${fresh}`,
-        body: unread === 1 ? '1 непрочитане замовлення — натисни, щоб відкрити' : `Непрочитаних: ${unread} — натисни, щоб відкрити`,
+        title: fresh === 1 ? 'Нове замовлення 🛒' : `Нових замовлень: ${fresh} 🛒`,
+        body: unread === 1 ? 'Натисни, щоб відкрити' : `Усього непрочитаних: ${unread}. Натисни, щоб відкрити`,
         icon: path.join(__dirname, 'assets', 'icon.png'),
       });
       n.on('click', () => showWindow(ORDERS_URL));
@@ -147,6 +147,28 @@ async function pollOrders() {
     lastUnread = unread;
     updateTray(unread);
   } catch {}
+}
+
+// Прописуємо AppUserModelId у ярлики (Пуск + робочий стіл) — тоді в шапці
+// сповіщення Windows показує назву додатка, а не "com.agprnt.desktop"
+function fixShortcuts() {
+  if (process.platform !== 'win32') return;
+  const fs = require('fs');
+  const links = [
+    path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'AGPRNT Замовлення.lnk'),
+    path.join(app.getPath('desktop'), 'AGPRNT Замовлення.lnk'),
+  ];
+  for (const lnk of links) {
+    try {
+      if (!fs.existsSync(lnk)) continue;
+      shell.writeShortcutLink(lnk, 'update', {
+        target: process.execPath,
+        appUserModelId: 'com.agprnt.desktop',
+        icon: process.execPath,
+        iconIndex: 0,
+      });
+    } catch {}
+  }
 }
 
 // ---- Запуск ----
@@ -159,6 +181,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     cfg = loadSettings();
     app.setAppUserModelId('com.agprnt.desktop'); // щоб сповіщення мали назву й іконку додатка
+    fixShortcuts();
     createWindow();
     createTray();
     pollOrders();
