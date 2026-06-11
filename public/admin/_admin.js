@@ -19,34 +19,36 @@
 
   // === Плаваюча кнопка «Відкрити сайт» (нова вкладка) ===
   // Увімкнення і перелік сторінок — у Налаштуваннях (adminSiteBtnEnabled / adminSiteBtnPages).
-  // Позиція і замочок зберігаються СЕРВЕРНО (/api/admin/ui-layout, kind 'siteBtn') —
-  // однакові на всіх сторінках і всіх компʼютерах. localStorage — лише миттєвий кеш.
-  // Позиція — у долях вікна (fx/fy 0..1), тож на іншому моніторі кнопка стає у те саме місце.
+  // Позиція зберігається СЕРВЕРНО (/api/admin/ui-layout, kind 'siteBtn') ОКРЕМО ДЛЯ КОЖНОЇ
+  // СТОРІНКИ (path = ключ сторінки) і синхронізується між компʼютерами. Замочок — один на всі
+  // сторінки (path 'lock'). localStorage — лише миттєвий кеш. Позиція — у долях вікна (fx/fy 0..1).
   const SB_CFG_KEY = 'admin_siteBtnCfg';
-  const SB_POS_KEY = 'admin_siteBtnPos';
-  let sbState = { fx: null, fy: null, locked: false }; // null = типове місце (угорі праворуч)
-  try {
-    const c = JSON.parse(localStorage.getItem(SB_POS_KEY) || 'null');
-    if (c && typeof c === 'object') sbState = { fx: (typeof c.fx === 'number' ? c.fx : null), fy: (typeof c.fy === 'number' ? c.fy : null), locked: !!c.locked };
-  } catch {}
   function sbPageKey() {
     const m = location.pathname.match(/^\/admin\/?([^/]*)/);
     return (m && m[1] && m[1] !== 'index.html') ? m[1] : 'index';
   }
+  const SB_POS_KEY = 'admin_siteBtnPos_' + sbPageKey();
+  const SB_LOCK_KEY = 'admin_siteBtnLock';
+  let sbPos = null;            // {fx,fy} цієї сторінки; null = типове місце (угорі праворуч)
+  let sbLocked = false;
+  try {
+    const c = JSON.parse(localStorage.getItem(SB_POS_KEY) || 'null');
+    if (c && typeof c.fx === 'number' && typeof c.fy === 'number') sbPos = { fx: c.fx, fy: c.fy };
+  } catch {}
+  try { sbLocked = localStorage.getItem(SB_LOCK_KEY) === '1'; } catch {}
   function sbApplyPos(box) {
-    if (typeof sbState.fx !== 'number' || typeof sbState.fy !== 'number') return; // типове top/right із CSS
+    if (!sbPos) return; // типове top/right із CSS
     const w = box.offsetWidth || 140, h = box.offsetHeight || 40;
-    const x = Math.max(4, Math.min(sbState.fx * (window.innerWidth - w), window.innerWidth - w - 4));
-    const y = Math.max(4, Math.min(sbState.fy * (window.innerHeight - h), window.innerHeight - h - 4));
+    const x = Math.max(4, Math.min(sbPos.fx * (window.innerWidth - w), window.innerWidth - w - 4));
+    const y = Math.max(4, Math.min(sbPos.fy * (window.innerHeight - h), window.innerHeight - h - 4));
     box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
   }
-  function sbPersist() {
-    try { localStorage.setItem(SB_POS_KEY, JSON.stringify(sbState)); } catch {}
+  function sbServerSave(path, value) {
     try {
       fetch('/api/admin/ui-layout', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kind: 'siteBtn', path: 'global', value: sbState }),
+        body: JSON.stringify({ kind: 'siteBtn', path, value }),
       }).catch(() => {});
     } catch {}
   }
@@ -71,26 +73,27 @@
     const link = box.querySelector('a');
     const lockEl = box.querySelector('[data-sb-lock]');
     function paintLock() {
-      lockEl.textContent = sbState.locked ? '🔒' : '🔓';
-      lockEl.style.borderColor = sbState.locked ? '#f59e0b' : '#e5e7eb';
-      lockEl.title = sbState.locked ? 'Перетягування заблоковано — натисни, щоб розблокувати' : 'Заблокувати перетягування';
-      link.style.cursor = sbState.locked ? 'pointer' : 'grab';
+      lockEl.textContent = sbLocked ? '🔒' : '🔓';
+      lockEl.style.borderColor = sbLocked ? '#f59e0b' : '#e5e7eb';
+      lockEl.title = sbLocked ? 'Перетягування заблоковано — натисни, щоб розблокувати' : 'Заблокувати перетягування';
+      link.style.cursor = sbLocked ? 'pointer' : 'grab';
     }
     paintLock();
     box.__sync = () => { sbApplyPos(box); paintLock(); }; // виклик після відповіді сервера
     sbApplyPos(box);
     lockEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      sbState.locked = !sbState.locked;
+      sbLocked = !sbLocked;
       paintLock();
-      sbPersist();
+      try { localStorage.setItem(SB_LOCK_KEY, sbLocked ? '1' : '0'); } catch {}
+      sbServerSave('lock', { locked: sbLocked });
     });
     window.addEventListener('resize', () => sbApplyPos(box));
 
     // Перетягування (pointer events: миша + тач). Якщо тягнули — клік по лінку гасимо.
     let drag = null;
     box.addEventListener('pointerdown', (e) => {
-      if (sbState.locked || e.target === lockEl) return;
+      if (sbLocked || e.target === lockEl) return;
       const r = box.getBoundingClientRect();
       drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
       try { box.setPointerCapture(e.pointerId); } catch {}
@@ -107,9 +110,12 @@
     box.addEventListener('pointerup', () => {
       if (drag && drag.moved) {
         const w = box.offsetWidth || 140, h = box.offsetHeight || 40;
-        sbState.fx = Math.max(0, Math.min(1, parseFloat(box.style.left) / Math.max(1, window.innerWidth - w)));
-        sbState.fy = Math.max(0, Math.min(1, parseFloat(box.style.top) / Math.max(1, window.innerHeight - h)));
-        sbPersist();
+        sbPos = {
+          fx: Math.max(0, Math.min(1, parseFloat(box.style.left) / Math.max(1, window.innerWidth - w))),
+          fy: Math.max(0, Math.min(1, parseFloat(box.style.top) / Math.max(1, window.innerHeight - h))),
+        };
+        try { localStorage.setItem(SB_POS_KEY, JSON.stringify(sbPos)); } catch {}
+        sbServerSave(sbPageKey(), sbPos); // позиція цієї сторінки
         box.__suppressClick = true;
         setTimeout(() => { box.__suppressClick = false; }, 0);
       }
@@ -120,14 +126,22 @@
   // Миттєвий показ з кешу, потім оновлення зі свіжих налаштувань
   try { applySiteBtn(JSON.parse(localStorage.getItem(SB_CFG_KEY) || 'null') || { enabled: true }); } catch {}
 
-  // Серверна позиція/замочок — підтягуємо і застосовуємо (сервер головніший за локальний кеш)
+  // Серверна позиція цієї сторінки + замочок — підтягуємо (сервер головніший за локальний кеш)
   fetch('/api/admin/ui-layout', { credentials: 'include' })
     .then(r => (r.ok ? r.json() : null))
     .then(d => {
-      const v = d && d.ok && d.layout && d.layout.siteBtn && d.layout.siteBtn.global;
-      if (!v || typeof v !== 'object') return;
-      sbState = { fx: (typeof v.fx === 'number' ? v.fx : null), fy: (typeof v.fy === 'number' ? v.fy : null), locked: !!v.locked };
-      try { localStorage.setItem(SB_POS_KEY, JSON.stringify(sbState)); } catch {}
+      const sb = d && d.ok && d.layout && d.layout.siteBtn;
+      if (!sb || typeof sb !== 'object') return;
+      const v = sb[sbPageKey()];
+      if (v && typeof v.fx === 'number' && typeof v.fy === 'number') {
+        sbPos = { fx: v.fx, fy: v.fy };
+        try { localStorage.setItem(SB_POS_KEY, JSON.stringify(sbPos)); } catch {}
+      }
+      const l = sb.lock;
+      if (l && typeof l === 'object') {
+        sbLocked = !!l.locked;
+        try { localStorage.setItem(SB_LOCK_KEY, sbLocked ? '1' : '0'); } catch {}
+      }
       const box = document.getElementById('adminSiteBtn');
       if (box && box.__sync) box.__sync();
     })
