@@ -7,14 +7,15 @@
 //
 // GET                                  -> { ok, layout:{ tiles:{}, cards:{}, collapse:{} } }
 // POST { kind, path, value }           -> { ok, layout }   // value=[] або {} порожнє видаляє запис
-//   kind: 'tiles' | 'cards' | 'collapse'
+//   kind: 'tiles' | 'cards' | 'collapse' | 'siteBtn'
+//   siteBtn (path 'global') -> позиція плаваючої кнопки «Відкрити сайт» {fx, fy, locked}
 import { checkAuthAsync, jsonResp } from '../../_utils/shop.js';
 
 const KV_KEY = 'admin_ui_layout';
-const KINDS = ['tiles', 'cards', 'collapse'];
+const KINDS = ['tiles', 'cards', 'collapse', 'siteBtn'];
 
 function emptyLayout() {
-  return { tiles: {}, cards: {}, collapse: {} };
+  return { tiles: {}, cards: {}, collapse: {}, siteBtn: {} };
 }
 
 async function loadLayout(env) {

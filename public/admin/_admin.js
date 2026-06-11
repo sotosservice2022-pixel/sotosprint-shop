@@ -19,18 +19,36 @@
 
   // === Плаваюча кнопка «Відкрити сайт» (нова вкладка) ===
   // Увімкнення і перелік сторінок — у Налаштуваннях (adminSiteBtnEnabled / adminSiteBtnPages).
-  // Позиція (перетягування) і замочок — локальні для пристрою (localStorage).
+  // Позиція і замочок зберігаються СЕРВЕРНО (/api/admin/ui-layout, kind 'siteBtn') —
+  // однакові на всіх сторінках і всіх компʼютерах. localStorage — лише миттєвий кеш.
+  // Позиція — у долях вікна (fx/fy 0..1), тож на іншому моніторі кнопка стає у те саме місце.
   const SB_CFG_KEY = 'admin_siteBtnCfg';
   const SB_POS_KEY = 'admin_siteBtnPos';
-  const SB_LOCK_KEY = 'admin_siteBtnLocked';
+  let sbState = { fx: null, fy: null, locked: false }; // null = типове місце (угорі праворуч)
+  try {
+    const c = JSON.parse(localStorage.getItem(SB_POS_KEY) || 'null');
+    if (c && typeof c === 'object') sbState = { fx: (typeof c.fx === 'number' ? c.fx : null), fy: (typeof c.fy === 'number' ? c.fy : null), locked: !!c.locked };
+  } catch {}
   function sbPageKey() {
     const m = location.pathname.match(/^\/admin\/?([^/]*)/);
     return (m && m[1] && m[1] !== 'index.html') ? m[1] : 'index';
   }
-  function sbClamp(x, y, el) {
-    const w = el.offsetWidth || 140, h = el.offsetHeight || 40;
-    return [Math.max(4, Math.min(x, window.innerWidth - w - 4)),
-            Math.max(4, Math.min(y, window.innerHeight - h - 4))];
+  function sbApplyPos(box) {
+    if (typeof sbState.fx !== 'number' || typeof sbState.fy !== 'number') return; // типове top/right із CSS
+    const w = box.offsetWidth || 140, h = box.offsetHeight || 40;
+    const x = Math.max(4, Math.min(sbState.fx * (window.innerWidth - w), window.innerWidth - w - 4));
+    const y = Math.max(4, Math.min(sbState.fy * (window.innerHeight - h), window.innerHeight - h - 4));
+    box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
+  }
+  function sbPersist() {
+    try { localStorage.setItem(SB_POS_KEY, JSON.stringify(sbState)); } catch {}
+    try {
+      fetch('/api/admin/ui-layout', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'siteBtn', path: 'global', value: sbState }),
+      }).catch(() => {});
+    } catch {}
   }
   function applySiteBtn(cfg) {
     const show = cfg && cfg.enabled !== false && !(cfg.pages && cfg.pages[sbPageKey()] === false);
@@ -41,12 +59,11 @@
     box = document.createElement('div');
     box.id = 'adminSiteBtn';
     box.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;touch-action:none;user-select:none;';
-    const locked = () => { try { return localStorage.getItem(SB_LOCK_KEY) === '1'; } catch { return false; } };
     box.innerHTML = `
       <a href="/" target="_blank" rel="noopener" title="Відкрити сайт у новій вкладці" draggable="false"
         style="display:inline-flex;align-items:center;gap:7px;padding:9px 14px;background:#0b8aff;color:#fff;
         font:600 14px 'Segoe UI',-apple-system,Arial,sans-serif;border-radius:10px;text-decoration:none;
-        box-shadow:0 2px 10px rgba(11,138,255,.35);cursor:${locked() ? 'pointer' : 'grab'}">🌐 Відкрити сайт</a>
+        box-shadow:0 2px 10px rgba(11,138,255,.35);cursor:grab">🌐 Відкрити сайт</a>
       <span data-sb-lock style="position:absolute;bottom:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;
         border-radius:50%;width:18px;height:18px;line-height:15px;text-align:center;font-size:10px;cursor:pointer;"></span>`;
     document.body.appendChild(box);
@@ -54,38 +71,26 @@
     const link = box.querySelector('a');
     const lockEl = box.querySelector('[data-sb-lock]');
     function paintLock() {
-      const on = locked();
-      lockEl.textContent = on ? '🔒' : '🔓';
-      lockEl.style.borderColor = on ? '#f59e0b' : '#e5e7eb';
-      lockEl.title = on ? 'Перетягування заблоковано — натисни, щоб розблокувати' : 'Заблокувати перетягування';
-      link.style.cursor = on ? 'pointer' : 'grab';
+      lockEl.textContent = sbState.locked ? '🔒' : '🔓';
+      lockEl.style.borderColor = sbState.locked ? '#f59e0b' : '#e5e7eb';
+      lockEl.title = sbState.locked ? 'Перетягування заблоковано — натисни, щоб розблокувати' : 'Заблокувати перетягування';
+      link.style.cursor = sbState.locked ? 'pointer' : 'grab';
     }
     paintLock();
+    box.__sync = () => { sbApplyPos(box); paintLock(); }; // виклик після відповіді сервера
+    sbApplyPos(box);
     lockEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      try { localStorage.setItem(SB_LOCK_KEY, locked() ? '0' : '1'); } catch {}
+      sbState.locked = !sbState.locked;
       paintLock();
+      sbPersist();
     });
-
-    // Збережена позиція (на цьому пристрої)
-    try {
-      const p = JSON.parse(localStorage.getItem(SB_POS_KEY) || 'null');
-      if (p && typeof p.x === 'number') {
-        const [x, y] = sbClamp(p.x, p.y, box);
-        box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
-      }
-    } catch {}
-    window.addEventListener('resize', () => {
-      if (box.style.left) {
-        const [x, y] = sbClamp(parseFloat(box.style.left), parseFloat(box.style.top), box);
-        box.style.left = x + 'px'; box.style.top = y + 'px';
-      }
-    });
+    window.addEventListener('resize', () => sbApplyPos(box));
 
     // Перетягування (pointer events: миша + тач). Якщо тягнули — клік по лінку гасимо.
     let drag = null;
     box.addEventListener('pointerdown', (e) => {
-      if (locked() || e.target === lockEl) return;
+      if (sbState.locked || e.target === lockEl) return;
       const r = box.getBoundingClientRect();
       drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
       try { box.setPointerCapture(e.pointerId); } catch {}
@@ -94,12 +99,17 @@
       if (!drag) return;
       if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
       drag.moved = true;
-      const [x, y] = sbClamp(e.clientX - drag.dx, e.clientY - drag.dy, box);
+      const w = box.offsetWidth || 140, h = box.offsetHeight || 40;
+      const x = Math.max(4, Math.min(e.clientX - drag.dx, window.innerWidth - w - 4));
+      const y = Math.max(4, Math.min(e.clientY - drag.dy, window.innerHeight - h - 4));
       box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
     });
     box.addEventListener('pointerup', () => {
       if (drag && drag.moved) {
-        try { localStorage.setItem(SB_POS_KEY, JSON.stringify({ x: parseFloat(box.style.left), y: parseFloat(box.style.top) })); } catch {}
+        const w = box.offsetWidth || 140, h = box.offsetHeight || 40;
+        sbState.fx = Math.max(0, Math.min(1, parseFloat(box.style.left) / Math.max(1, window.innerWidth - w)));
+        sbState.fy = Math.max(0, Math.min(1, parseFloat(box.style.top) / Math.max(1, window.innerHeight - h)));
+        sbPersist();
         box.__suppressClick = true;
         setTimeout(() => { box.__suppressClick = false; }, 0);
       }
@@ -109,6 +119,19 @@
   }
   // Миттєвий показ з кешу, потім оновлення зі свіжих налаштувань
   try { applySiteBtn(JSON.parse(localStorage.getItem(SB_CFG_KEY) || 'null') || { enabled: true }); } catch {}
+
+  // Серверна позиція/замочок — підтягуємо і застосовуємо (сервер головніший за локальний кеш)
+  fetch('/api/admin/ui-layout', { credentials: 'include' })
+    .then(r => (r.ok ? r.json() : null))
+    .then(d => {
+      const v = d && d.ok && d.layout && d.layout.siteBtn && d.layout.siteBtn.global;
+      if (!v || typeof v !== 'object') return;
+      sbState = { fx: (typeof v.fx === 'number' ? v.fx : null), fy: (typeof v.fy === 'number' ? v.fy : null), locked: !!v.locked };
+      try { localStorage.setItem(SB_POS_KEY, JSON.stringify(sbState)); } catch {}
+      const box = document.getElementById('adminSiteBtn');
+      if (box && box.__sync) box.__sync();
+    })
+    .catch(() => {});
 
   fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
