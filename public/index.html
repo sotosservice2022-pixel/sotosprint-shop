@@ -1093,11 +1093,40 @@ function openTrackModal() {
   const result = document.getElementById('tmResult');
   const btn = document.getElementById('tmSubmit');
 
+  // Захист від неправильного номера телефону (як на сторінці /track):
+  // 0XXXXXXXXX (10 цифр) або +380XXXXXXXXX / 380XXXXXXXXX (12 цифр)
+  const tmPhone = document.getElementById('tmPhone');
+  const tmPhoneErr = document.createElement('div');
+  tmPhoneErr.style.cssText = 'display:none;color:#b91c1c;font-size:13px;margin:-8px 0 12px';
+  tmPhoneErr.textContent = 'Перевірте номер — має бути 0XXXXXXXXX (10 цифр) або +380XXXXXXXXX';
+  tmPhone.insertAdjacentElement('afterend', tmPhoneErr);
+  const tmPhoneValid = () => {
+    const d = tmPhone.value.replace(/\D/g, '');
+    return (d.length === 10 && d.startsWith('0')) || (d.length === 12 && d.startsWith('380'));
+  };
+  const tmSetPhoneErr = on => {
+    tmPhoneErr.style.display = on ? 'block' : 'none';
+    tmPhone.style.borderColor = on ? '#dc2626' : 'var(--border,#e5e7eb)';
+  };
+  tmPhone.addEventListener('keydown', e => {
+    if (e.key.length === 1 && !/[\d+\s()\-]/.test(e.key)) e.preventDefault();
+  });
+  tmPhone.addEventListener('input', () => {
+    const v = tmPhone.value.replace(/[^\d+\s()\-]/g, '').slice(0, 20);
+    if (tmPhone.value !== v) tmPhone.value = v;
+    if (tmPhoneValid()) tmSetPhoneErr(false);
+  });
+  tmPhone.addEventListener('blur', () => {
+    const d = tmPhone.value.replace(/\D/g, '');
+    tmSetPhoneErr(d.length > 0 && !tmPhoneValid());
+  });
+
   btn.onclick = async () => {
     errBox.style.display = 'none'; result.style.display = 'none';
     const orderId = document.getElementById('tmOrder').value.trim();
-    const phone = document.getElementById('tmPhone').value.trim();
+    const phone = tmPhone.value.trim();
     if (!orderId || !phone) { errBox.textContent = 'Заповніть обидва поля.'; errBox.style.display = 'block'; return; }
+    if (!tmPhoneValid()) { tmSetPhoneErr(true); tmPhone.focus(); return; }
     btn.disabled = true; btn.textContent = 'Перевіряю…';
     try {
       const r = await fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ orderId, phone }) });
