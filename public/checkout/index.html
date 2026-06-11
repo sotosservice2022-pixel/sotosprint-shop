@@ -509,7 +509,7 @@ function totalPhotosInCart() {
   return filesPerItem.reduce((sum, arr) => sum + (arr?.length || 0), 0);
 }
 
-function addFiles(idx, fileList) {
+async function addFiles(idx, fileList) {
   const maxPerItem = shop.limits.maxPhotosPerItem;
   const maxTotal = shop.limits.maxTotalPhotos;
   const maxSize = shop.limits.maxPhotoSizeMB * 1024 * 1024;
@@ -528,7 +528,19 @@ function addFiles(idx, fileList) {
       showItemError(idx, `«${f.name}» більше ${shop.limits.maxPhotoSizeMB} МБ — пропущено`);
       continue;
     }
-    filesPerItem[idx].push(f);
+    // ВАЖЛИВО (Android): одразу копіюємо файл у пам'ять. Інакше File — лише
+    // посилання на тимчасовий файл системи; до моменту відправлення Android може
+    // його прибрати, і запит падає миттєво (ERR_UPLOAD_FILE_CHANGED, status=0).
+    let stable = f;
+    try {
+      const buf = await f.arrayBuffer();
+      stable = new File([buf], f.name, { type: f.type, lastModified: f.lastModified });
+    } catch (e) {
+      // не вдалося прочитати — файл уже недоступний
+      showItemError(idx, `«${f.name}» не вдалося прочитати — виберіть фото ще раз`);
+      continue;
+    }
+    filesPerItem[idx].push(stable);
   }
   renderPreview(idx);
   updatePhotoCounter();
