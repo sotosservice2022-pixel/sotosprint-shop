@@ -989,7 +989,42 @@ export function keyFromStorageUrl(url) {
   return m[1].split('/').map(decodeURIComponent).join('/');
 }
 
-// Рекурсивно замінити рядок oldUrl→newUrl у будь-якій JSON-структурі. Повертає [нова_структура, лічильник].
+// Рекурсивно зібрати всі storage-ключі (зі слешами) з будь-якої JSON-структури:
+// беремо кожен рядок виду /api/storage/<key>. Повертає Set ключів.
+export function collectStorageKeys(node, acc = new Set()) {
+  if (typeof node === 'string') {
+    const k = keyFromStorageUrl(node);
+    if (k) acc.add(k);
+  } else if (Array.isArray(node)) {
+    for (const v of node) collectStorageKeys(v, acc);
+  } else if (node && typeof node === 'object') {
+    for (const k of Object.keys(node)) collectStorageKeys(node[k], acc);
+  }
+  return acc;
+}
+
+// Безпечно прибрати з R2 фото, що зникли з товарів (сироти).
+// Видаляємо ТІЛЬКИ ключі, які були у старому списку, але вже не зустрічаються
+// ні в новому списку товарів, ні в settings (щоб не зачепити лого/банери чи копії товарів).
+// Best-effort, помилки тихо ігноруємо.
+export async function cleanupOrphanProductPhotos(env, oldProducts, newProducts) {
+  if (!env.STORAGE) return { deleted: 0 };
+  try {
+    const oldKeys = collectStorageKeys(oldProducts);
+    if (oldKeys.size === 0) return { deleted: 0 };
+    const keep = collectStorageKeys(newProducts);
+    // Підстраховка: не чіпаємо нічого, на що ще посилаються налаштування
+    try { const s = await getSettings(env); collectStorageKeys(s, keep); } catch {}
+    const orphans = [...oldKeys].filter(k => !keep.has(k));
+    if (orphans.length === 0) return { deleted: 0 };
+    for (let i = 0; i < orphans.length; i += 1000) {
+      try { await env.STORAGE.delete(orphans.slice(i, i + 1000)); } catch {}
+    }
+    return { deleted: orphans.length };
+  } catch { return { deleted: 0 }; }
+}
+
+// Рекурсивно замінити рядок oldUrl→newUrl у будь-якій JSON-структурі. Повертає [нова_структура, лічільник].
 function replaceUrlInTree(node, oldUrl, newUrl) {
   let n = 0;
   if (typeof node === 'string') {
