@@ -975,6 +975,131 @@ export function jsonResp(body, status = 200, extraHeaders = {}) {
   });
 }
 
+// === R2 storage URL ↔ key ===
+// Ключі тепер можуть містити слеші (папки: products/..., orders/<id>/...). Публічний роут
+// /api/storage/[[path]] приймає кілька сегментів, тому URL будуємо з РЕАЛЬНИМИ слешами,
+// кодуючи лише вміст кожного сегмента (encodeURIComponent('/') === '%2F' зламав би папки).
+export function storageUrl(key) {
+  return '/api/storage/' + String(key).split('/').map(encodeURIComponent).join('/');
+}
+// Зворотне: дістати ключ (зі слешами) з URL виду /api/storage/<key>. null, якщо не наш URL.
+export function keyFromStorageUrl(url) {
+  const m = String(url || '').match(/\/api\/storage\/(.+)$/);
+  if (!m) return null;
+  return m[1].split('/').map(decodeURIComponent).join('/');
+}
+
+// Рекурсивно зібрати всі storage-ключі (зі слешами) з будь-якої JSON-структури:
+// беремо кожен рядок виду /api/storage/<key>. Повертає Set ключів.
+export function collectStorageKeys(node, acc = new Set()) {
+  if (typeof node === 'string') {
+    const k = keyFromStorageUrl(node);
+    if (k) acc.add(k);
+  } else if (Array.isArray(node)) {
+    for (const v of node) collectStorageKeys(v, acc);
+  } else if (node && typeof node === 'object') {
+    for (const k of Object.keys(node)) collectStorageKeys(node[k], acc);
+  }
+  return acc;
+}
+
+// Безпечно прибрати з R2 фото, що зникли з товарів (сироти).
+// Видаляємо ТІЛЬКИ ключі, які були у старому списку, але вже не зустрічаються
+// ні в новому списку товарів, ні в settings (щоб не зачепити лого/банери чи копії товарів).
+// Best-effort, помилки тихо ігноруємо.
+export async function cleanupOrphanProductPhotos(env, oldProducts, newProducts) {
+  if (!env.STORAGE) return { deleted: 0 };
+  try {
+    const oldKeys = collectStorageKeys(oldProducts);
+    if (oldKeys.size === 0) return { deleted: 0 };
+    const keep = collectStorageKeys(newProducts);
+    // Підстраховка: не чіпаємо нічого, на що ще посилаються налаштування
+    try { const s = await getSettings(env); collectStorageKeys(s, keep); } catch {}
+    const orphans = [...oldKeys].filter(k => !keep.has(k));
+    if (orphans.length === 0) return { deleted: 0 };
+    for (let i = 0; i < orphans.length; i += 1000) {
+      try { await env.STORAGE.delete(orphans.slice(i, i + 1000)); } catch {}
+    }
+    return { deleted: orphans.length };
+  } catch { return { deleted: 0 }; }
+}
+
+// Рекурсивно замінити рядок oldUrl→newUrl у будь-якій JSON-структурі. Повертає [нова_структура, лічільник].
+function replaceUrlInTree(node, oldUrl, newUrl) {
+  let n = 0;
+  if (typeof node === 'string') {
+    if (node === oldUrl) return [newUrl, 1];
+    if (node.includes(oldUrl)) return [node.split(oldUrl).join(newUrl), 1];
+    return [node, 0];
+  }
+  if (Array.isArray(node)) {
+    const out = node.map(v => { const [nv, c] = replaceUrlInTree(v, oldUrl, newUrl); n += c; return nv; });
+    return [out, n];
+  }
+  if (node && typeof node === 'object') {
+    const out = {};
+    for (const k of Object.keys(node)) { const [nv, c] = replaceUrlInTree(node[k], oldUrl, newUrl); n += c; out[k] = nv; }
+    return [out, n];
+  }
+  return [node, 0];
+}
+
+// Перенести файли в R2 між ключами з перезаписом усіх посилань (products/settings/orders).
+// renamesInput: [{oldKey, newKey}]. R2 не має move — лише put+delete. Best-effort.
+// Повертає { moved, refsUpdated, errors }.
+export async function moveStorageKeys(env, renamesInput) {
+  const errors = [];
+  const renames = [];
+  for (const { oldKey, newKey } of renamesInput) {
+    if (!oldKey || !newKey || newKey === oldKey) continue;
+    try {
+      const obj = await env.STORAGE.get(oldKey);
+      if (!obj) { errors.push(`${oldKey}: не знайдено`); continue; }
+      await env.STORAGE.put(newKey, obj.body, { httpMetadata: obj.httpMetadata, customMetadata: obj.customMetadata });
+      await env.STORAGE.delete(oldKey);
+      renames.push({ oldKey, newKey });
+    } catch (e) { errors.push(`${oldKey}: ${e.message}`); }
+  }
+  if (renames.length === 0) return { moved: 0, refsUpdated: 0, errors };
+
+  let refsUpdated = 0;
+  // products: поля image/images[].url містять storageUrl
+  try {
+    let products = await getProducts(env);
+    let changed = 0;
+    for (const { oldKey, newKey } of renames) { const [np, c] = replaceUrlInTree(products, storageUrl(oldKey), storageUrl(newKey)); products = np; changed += c; }
+    if (changed) { await saveProducts(env, products); refsUpdated += changed; }
+  } catch (e) { errors.push('products: ' + e.message); }
+  // settings: logo/favicon/banner/hero/og/pwa …
+  try {
+    let settings = await getSettings(env);
+    let changed = 0;
+    for (const { oldKey, newKey } of renames) { const [ns, c] = replaceUrlInTree(settings, storageUrl(oldKey), storageUrl(newKey)); settings = ns; changed += c; }
+    if (changed) { await saveSettings(env, settings); refsUpdated += changed; }
+  } catch (e) { errors.push('settings: ' + e.message); }
+  // orders: order.photos[].key — сирий ключ, не URL
+  try {
+    const oldToNew = new Map(renames.map(r => [r.oldKey, r.newKey]));
+    let cursor;
+    do {
+      const list = await env.SHOP_KV.list({ prefix: 'order_', cursor, limit: 1000 });
+      for (const k of list.keys) {
+        if (!/^order_\d/.test(k.name)) continue;
+        let order;
+        try { order = await env.SHOP_KV.get(k.name, 'json'); } catch { continue; }
+        if (!order || !Array.isArray(order.photos) || !order.photos.length) continue;
+        let touched = false;
+        for (const ph of order.photos) { if (ph && ph.key && oldToNew.has(ph.key)) { ph.key = oldToNew.get(ph.key); touched = true; refsUpdated++; } }
+        if (touched) { try { await env.SHOP_KV.put(k.name, JSON.stringify(order), { expirationTtl: 365 * 24 * 60 * 60 }); } catch (e) { errors.push('order ' + k.name + ': ' + e.message); } }
+      }
+      cursor = list.list_complete ? undefined : list.cursor;
+    } while (cursor);
+    await invalidateOrdersCache();
+  } catch (e) { errors.push('orders: ' + e.message); }
+
+  return { moved: renames.length, refsUpdated, errors };
+}
+
 // Інвалідація кешу /api/admin/orders після мутацій (delete/update)
 export async function invalidateOrdersCache() {
   try {

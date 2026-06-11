@@ -1,0 +1,13 @@
+# Адмінські скрипти/сторінки не кешуємо — інакше після деплою браузер може віддавати
+# стару версію JS (напр. _r2-upload.js без підтримки папок) і ламати завантаження.
+/admin/*
+  Cache-Control: no-cache, must-revalidate
+
+/admin/_admin.js
+  Cache-Control: no-cache, must-revalidate
+
+/admin/_admin-ui.js
+  Cache-Control: no-cache, must-revalidate
+
+/admin/_r2-upload.js
+  Cache-Control: no-cache, must-revalidate

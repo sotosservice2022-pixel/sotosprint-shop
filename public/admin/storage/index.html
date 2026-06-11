@@ -57,6 +57,19 @@
     .file-actions { display: flex; gap: 4px; }
     .file-actions button { flex: 1; padding: 4px 6px; font-size: 11px; }
 
+    /* Folder card */
+    .folder-card {
+      border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; background: #fff;
+      display: flex; flex-direction: column; gap: 6px; cursor: pointer; transition: background .12s, border-color .12s;
+    }
+    .folder-card:hover { background: #eff6ff; border-color: #0b8aff; }
+    .folder-card .fc-top { display: flex; align-items: center; gap: 8px; }
+    .folder-card .fc-icon { font-size: 30px; line-height: 1; }
+    .folder-card .fc-name { font-weight: 700; font-size: 14px; color: #1c2129; word-break: break-word; }
+    .folder-card .fc-meta { font-size: 11px; color: #6b7280; }
+    .folder-card .fc-actions { display: flex; gap: 4px; margin-top: 2px; }
+    .folder-card .fc-actions button { flex: 1; padding: 4px 6px; font-size: 11px; }
+
     .url-input {
       width: 100%; padding: 6px 8px; font-size: 11px; font-family: 'SF Mono', Menlo, monospace;
       border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; cursor: text;
@@ -132,15 +145,22 @@
     </h2>
     <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
       <span style="font-size:13px; font-weight:600;">Вибрано: <span id="bulkCount">0</span></span>
+      <button class="btn btn-secondary" onclick="bulkMove()">📂 Перемістити</button>
       <button class="btn btn-danger" onclick="bulkDelete()">🗑 Видалити вибрані</button>
       <button class="btn btn-secondary" onclick="clearSel()" style="margin-left:auto;">Скасувати</button>
+    </div>
+    <!-- Навігація папками -->
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+      <div id="crumbsNav" class="crumbs" style="margin:0; flex:1;"></div>
+      <button class="btn btn-secondary btn-icon" onclick="newFolder()">➕ Нова папка</button>
     </div>
     <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px;">
       <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
         <input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)" />
-        Виділити все
+        Виділити все в папці
       </label>
     </div>
+    <div id="foldersGrid" class="files-grid" style="margin-bottom:12px;"></div>
     <div id="filesGrid" class="files-grid"></div>
 
     <div id="bulkOpsBanner" style="display:none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
@@ -163,7 +183,24 @@ async function logout() {
 }
 
 let files = [];
+let allFolders = [];        // усі шляхи папок (із ключів + порожні з KV)
+let currentFolder = '';     // поточний шлях ('' = корінь)
 let stats = { count: 0, totalMB: 0, quotaMB: 200, usedPercent: 0 };
+
+// Системні папки: людська назва + іконка + незнищуваність
+const SYSTEM_FOLDERS = {
+  products: { label: '🛍 Товари', sys: true },
+  orders:   { label: '📦 Замовлення', sys: true },
+  branding: { label: '⚙️ Оформлення', sys: true },
+  ai:       { label: '🤖 AI-генерація', sys: true },
+  backups:  { label: '💾 Бекапи', sys: true },
+  misc:     { label: '📁 Інше', sys: true },
+};
+function folderLabel(path) {
+  const name = path.split('/').pop();
+  return SYSTEM_FOLDERS[path]?.label || ('📁 ' + name);
+}
+function isSystemFolder(path) { return !!SYSTEM_FOLDERS[path]?.sys; }
 
 async function loadFiles() {
   try {
@@ -175,7 +212,10 @@ async function loadFiles() {
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
     files = data.files;
+    allFolders = Array.isArray(data.folders) ? data.folders : [];
     stats = data.stats;
+    // Якщо поточна папка зникла (видалили) — повертаємось у корінь
+    if (currentFolder && !allFolders.includes(currentFolder)) currentFolder = '';
     // Скрытие banner масових операцій
     if (sr.ok) {
       const s = (await sr.json()).settings || {};
@@ -183,8 +223,150 @@ async function loadFiles() {
       if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
     }
     renderQuota();
+    renderCrumbs();
+    renderFolders();
     renderFiles();
     updateBulkBar();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// Прямі підпапки поточної папки (один рівень нижче).
+function subfoldersOf(parent) {
+  const prefix = parent ? parent + '/' : '';
+  const set = new Set();
+  for (const f of allFolders) {
+    if (parent ? f.startsWith(prefix) : true) {
+      const rest = f.slice(prefix.length);
+      if (!rest) continue;
+      set.add(prefix + rest.split('/')[0]);
+    }
+  }
+  return Array.from(set).sort();
+}
+// Кількість файлів усередині папки (рекурсивно).
+function fileCountIn(path) {
+  const prefix = path + '/';
+  return files.filter(f => f.folder === path || f.folder.startsWith(prefix)).length;
+}
+function enterFolder(path) { currentFolder = path; clearSel(); renderCrumbs(); renderFolders(); renderFiles(); updateBulkBar(); }
+
+function renderCrumbs() {
+  const nav = document.getElementById('crumbsNav');
+  const parts = currentFolder ? currentFolder.split('/') : [];
+  let html = `<a href="#" onclick="enterFolder('');return false;">🗂 Корінь</a>`;
+  let acc = '';
+  for (const p of parts) {
+    acc = acc ? acc + '/' + p : p;
+    html += ` → <a href="#" onclick="enterFolder('${escapeAttr(acc)}');return false;">${escapeHtml(folderLabel(acc).replace(/^[^\s]+\s/, '') || p)}</a>`;
+  }
+  nav.innerHTML = html;
+}
+
+function renderFolders() {
+  const wrap = document.getElementById('foldersGrid');
+  const subs = subfoldersOf(currentFolder);
+  if (subs.length === 0) { wrap.innerHTML = ''; return; }
+  wrap.innerHTML = subs.map(path => {
+    const sys = isSystemFolder(path);
+    return `
+      <div class="folder-card" onclick="enterFolder('${escapeAttr(path)}')">
+        <div class="fc-top">
+          <span class="fc-icon">📁</span>
+          <span class="fc-name">${escapeHtml(folderLabel(path))}</span>
+        </div>
+        <div class="fc-meta">${fileCountIn(path)} файл(ів)${sys ? ' · системна' : ''}</div>
+        ${sys ? '' : `<div class="fc-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-secondary btn-icon" onclick="renameFolder('${escapeAttr(path)}')">✏️ Перейм.</button>
+          <button class="btn btn-danger btn-icon" onclick="deleteFolder('${escapeAttr(path)}')">🗑</button>
+        </div>`}
+      </div>`;
+  }).join('');
+}
+
+async function newFolder() {
+  const name = prompt('Назва нової папки' + (currentFolder ? ` (всередині «${currentFolder}»)` : '') + ':');
+  if (!name || !name.trim()) return;
+  const path = currentFolder ? currentFolder + '/' + name.trim() : name.trim();
+  try {
+    const r = await fetch('/api/admin/storage/folders', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', path }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast('✅ Папку створено');
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function renameFolder(path) {
+  const cur = path.split('/').pop();
+  const name = prompt('Нова назва папки:', cur);
+  if (!name || !name.trim() || name.trim() === cur) return;
+  const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
+  const to = parent ? parent + '/' + name.trim() : name.trim();
+  // Переносимо і файли (move), і запис порожньої папки (folders rename)
+  try {
+    const inFolder = files.filter(f => f.folder === path || f.folder.startsWith(path + '/')).map(f => f.key);
+    // move кожного файлу в нову папку (зберігаючи відносний підшлях)
+    for (const key of inFolder) {
+      const rel = key.slice(path.length); // '/sub/name' або '/name'
+      const dest = (to + (rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '')).replace(/\/$/, '');
+      await fetch('/api/admin/storage/move', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys: [key], toFolder: dest }),
+      });
+    }
+    await fetch('/api/admin/storage/folders', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'rename', from: path, to }),
+    });
+    toast('✅ Папку перейменовано');
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+async function deleteFolder(path) {
+  const cnt = fileCountIn(path);
+  if (cnt > 0) {
+    if (!confirm(`У папці «${path}» ${cnt} файл(ів). Видалити папку РАЗОМ з файлами? Незворотньо.`)) return;
+    const keys = files.filter(f => f.folder === path || f.folder.startsWith(path + '/')).map(f => f.key);
+    try {
+      await fetch('/api/admin/storage/delete', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      });
+    } catch (e) { toast('❌ ' + e.message, 'error'); return; }
+  } else {
+    if (!confirm(`Видалити порожню папку «${path}»?`)) return;
+  }
+  try {
+    await fetch('/api/admin/storage/folders', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete', path }),
+    });
+    toast('✅ Папку видалено');
+    await loadFiles();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// Перемістити вибрані файли в іншу папку
+async function bulkMove() {
+  const keys = getSelectedKeys();
+  if (keys.length === 0) return;
+  const choices = ['', ...allFolders].map(f => f === '' ? '(корінь)' : f);
+  const dest = prompt('Перемістити ' + keys.length + ' файл(ів) у папку.\nВведіть шлях (порожньо = корінь). Доступні:\n' + choices.join('\n'), currentFolder);
+  if (dest === null) return;
+  try {
+    const r = await fetch('/api/admin/storage/move', {
+      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keys, toFolder: dest.trim() }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    toast(`✅ Переміщено: ${data.moved}, оновлено посилань: ${data.refsUpdated}`);
+    if (data.errors && data.errors.length) console.warn('move errors:', data.errors);
+    await loadFiles();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
@@ -262,11 +444,14 @@ function fileTypeIcon(contentType) {
 
 function renderFiles() {
   const wrap = document.getElementById('filesGrid');
-  if (files.length === 0) {
-    wrap.innerHTML = '<div style="grid-column: 1/-1; text-align: center; color: #6b7280; padding: 40px;">Сховище порожнє. Завантажте файли вище.</div>';
+  // Лише файли поточної папки (не з підпапок — ті доступні через картки папок)
+  const inFolder = files.filter(f => f.folder === currentFolder);
+  const hasSubs = subfoldersOf(currentFolder).length > 0;
+  if (inFolder.length === 0) {
+    wrap.innerHTML = hasSubs ? '' : '<div style="grid-column: 1/-1; text-align: center; color: #6b7280; padding: 40px;">Тут порожньо. Завантажте файли або зайдіть у папку.</div>';
     return;
   }
-  wrap.innerHTML = files.map(f => {
+  wrap.innerHTML = inFolder.map(f => {
     const isImage = (f.contentType || '').startsWith('image/');
     const isVideo = (f.contentType || '').startsWith('video/');
     const fullUrl = location.origin + f.url;
@@ -333,6 +518,7 @@ async function uploadFile(file) {
   try {
     const fd = new FormData();
     fd.append('file', toUpload, file.name);
+    if (currentFolder) fd.append('folder', currentFolder); // вантажимо в поточну папку
     const r = await fetch('/api/admin/storage/upload', {
       method: 'POST', credentials: 'include', body: fd,
     });
@@ -439,6 +625,19 @@ function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'
 function escapeAttr(s) { return escapeHtml(s); }
 
 loadFiles();
+
+// Авто-оновлення списку, коли повертаємось на вкладку (напр. після видалення товару
+// на іншій сторінці). Тротлимо, щоб не смикати сервер при частих перемиканнях.
+let _lastAutoReload = 0;
+function autoReloadIfStale() {
+  if (document.hidden) return;
+  const now = Date.now();
+  if (now - _lastAutoReload < 5000) return; // не частіше разу на 5 с
+  _lastAutoReload = now;
+  loadFiles();
+}
+document.addEventListener('visibilitychange', autoReloadIfStale);
+window.addEventListener('focus', autoReloadIfStale);
 </script>
 </body>
 </html>

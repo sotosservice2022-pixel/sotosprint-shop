@@ -1012,7 +1012,7 @@ async function onLogoFile(e) {
   if (!file.type.startsWith('image/')) { toast('Це не картинка', 'error'); return; }
   try {
     // keepType: PNG-логотип лишається PNG — інакше прозорий фон ставав суцільним (JPEG без альфи)
-    settings.logoImage = await uploadToR2(file, { compress: true, maxSide: 256, quality: 0.9, prefix: 'logo', keepType: true });
+    settings.logoImage = await uploadToR2(file, { compress: true, maxSide: 256, quality: 0.9, prefix: 'logo', keepType: true, folder: 'branding' });
     addImgPreset('logo', settings.logoImage);
     document.getElementById('logoPreview').src = settings.logoImage;
     document.getElementById('logoPreviewWrap').style.display = '';
@@ -1062,7 +1062,7 @@ function resetOffset(id) {
 async function onTopbarBgFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
   try {
-    settings.topbarBgImage = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'topbar-bg' });
+    settings.topbarBgImage = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'topbar-bg', folder: 'branding' });
     document.getElementById('topbarBgPreviewImg').src = settings.topbarBgImage;
     document.getElementById('topbarBgPreview').style.display = '';
     toast('✅ Фон завантажено (натисни «Зберегти все»)');
@@ -1131,7 +1131,7 @@ function collectBannerSlots(side) {
 async function onSlotFile(side, idx, fileInput) {
   const file = fileInput.files?.[0]; if (!file) return;
   try {
-    const url = await uploadToR2(file, { compress: true, maxSide: 800, quality: 0.85, prefix: `banner-${side}-${idx}` });
+    const url = await uploadToR2(file, { compress: true, maxSide: 800, quality: 0.85, prefix: `banner-${side}-${idx}`, folder: 'branding' });
     settings.sideBanners[side][idx].image = url;
     const img = document.getElementById(`b_${side}_${idx}_imagePreviewImg`);
     if (img) img.src = url;
@@ -1243,7 +1243,7 @@ function collectHeroBanner() {
 async function onHeroImage(e) {
   const file = e.target.files?.[0]; if (!file) return;
   try {
-    const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero' });
+    const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero', folder: 'branding' });
     curHeroObj().image = url;
     document.getElementById('heroImagePreviewImg').src = url;
     document.getElementById('heroImagePreview').style.display = '';
@@ -1299,7 +1299,7 @@ function renderHeroExtraImages() {
 async function onHeroExtraImage(e) {
   const file = e.target.files?.[0]; if (!file) return;
   try {
-    const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero-extra' });
+    const url = await uploadToR2(file, { compress: true, maxSide: 1600, quality: 0.85, prefix: 'hero-extra', folder: 'branding' });
     const hb = curHeroObj();
     if (!Array.isArray(hb.images)) hb.images = [];
     hb.images.push({ url, link: '', productId: '' });
@@ -1449,7 +1449,7 @@ async function onFaviconFile(e) {
   try {
     // БЕЗ compress: він конвертує PNG у JPEG, а JPEG не має прозорості — фон ставав суцільним.
     // Favicon і так маленький, стискати нема сенсу.
-    settings.faviconImage = await uploadToR2(file, { prefix: 'favicon' });
+    settings.faviconImage = await uploadToR2(file, { prefix: 'favicon', folder: 'branding' });
     addImgPreset('favicon', settings.faviconImage);
     document.getElementById('faviconPreview').src = settings.faviconImage;
     document.getElementById('faviconPreviewWrap').style.display = 'flex';

@@ -498,8 +498,8 @@ export async function onRequestPost(context) {
           const pf = photoFiles[n];
           const safe = String(pf.file.name || 'photo.jpg')
             .replace(/[^a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._-]/g, '_').replace(/_+/g, '_').slice(0, 80);
-          // Ключ БЕЗ слешів — роут /api/storage/[key] приймає один сегмент
-          const key = `order_${orderId}_${pf.itemIndex + 1}_${n + 1}_${safe}`;
+          // Фото клієнта складаємо в папку orders/<orderId>/ (роут /api/storage/[[path]] приймає слеші)
+          const key = `orders/${orderId}/${pf.itemIndex + 1}_${n + 1}_${safe}`;
           await env.STORAGE.put(key, pf.file, { httpMetadata: { contentType: pf.file.type || 'image/jpeg' } });
           saved.push({ key, name: safe, itemIndex: pf.itemIndex });
         }

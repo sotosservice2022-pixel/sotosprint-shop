@@ -1,6 +1,6 @@
 // POST /api/admin/storage/upload — завантаження файлу в R2
 // Form-data: { file: File, name?: string }
-import { checkAuthAsync, jsonResp, getSettings } from '../../../_utils/shop.js';
+import { checkAuthAsync, jsonResp, getSettings, storageUrl } from '../../../_utils/shop.js';
 
 function sanitizeName(name) {
   // Прибираємо спецсимволи, залишаємо латиницю/кирилицю/цифри/дефіси
@@ -8,6 +8,36 @@ function sanitizeName(name) {
     .replace(/[^a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._-]/g, '_')
     .replace(/_+/g, '_')
     .slice(0, 100);
+}
+
+// Санітизуємо шлях папки: кожен сегмент чистимо, прибираємо порожні й './..'.
+// '' → корінь (плоский ключ). 'misc/чашки' → 'misc/чашки'.
+// ВАЖЛИВО: НЕ використовуємо sanitizeName (у нього fallback 'file' для порожнього),
+// інакше відсутня папка перетворюється на 'file/'. Тут порожній сегмент → відкидається.
+function sanitizeFolderSegment(s) {
+  return String(s || '')
+    .replace(/[^a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 100);
+}
+function sanitizeFolder(folder) {
+  return String(folder || '')
+    .split('/')
+    .map(s => sanitizeFolderSegment(s.trim()))
+    .filter(s => s && s !== '_' && s !== '.' && s !== '..')
+    .slice(0, 4) // макс. глибина вкладеності
+    .join('/');
+}
+
+// Запасна класифікація: якщо клієнт не прислав folder (напр. старий закешований
+// _r2-upload.js), визначаємо папку за префіксом імені файлу, який ставить uploadToR2.
+// Так файли все одно лягають правильно, незалежно від кешу браузера.
+function folderFromName(name) {
+  const n = String(name || '');
+  if (/^product[_-]/i.test(n)) return 'products';
+  if (/^(logo|topbar-bg|banner|hero|hero-extra|favicon|pwaicon|pwaiconmask)[_-]/i.test(n)) return 'branding';
+  if (/^(regen|gen|gen-ref|restore|restore-src|restore-rgsrc|restore-out)[_-]/i.test(n)) return 'ai';
+  return '';
 }
 
 export async function onRequestPost({ request, env }) {
@@ -45,11 +75,13 @@ export async function onRequestPost({ request, env }) {
     }, 413);
   }
 
-  // Унікальне ім'я: timestamp + оригінальне ім'я
+  // Унікальне ім'я: timestamp + оригінальне ім'я; опційно в папці (folder)
   const customName = (form.get('name') || '').toString().trim();
   const baseName = sanitizeName(customName || file.name || 'file');
   const ts = Date.now().toString(36);
-  const key = `${ts}_${baseName}`;
+  // Папка: явно з форми, інакше — за префіксом імені файлу (запасний варіант для старого кешу клієнта)
+  const folder = sanitizeFolder(form.get('folder')) || folderFromName(file.name);
+  const key = folder ? `${folder}/${ts}_${baseName}` : `${ts}_${baseName}`;
 
   try {
     await env.STORAGE.put(key, file.stream(), {
@@ -59,7 +91,7 @@ export async function onRequestPost({ request, env }) {
     return jsonResp({
       ok: true,
       key,
-      url: '/api/storage/' + encodeURIComponent(key),
+      url: storageUrl(key),
       size: file.size,
       contentType: file.type,
     });

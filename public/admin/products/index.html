@@ -1156,7 +1156,7 @@ async function onImageSelect(e) {
     try {
       const maxSide = window.PRODUCT_IMG_MAX_SIDE || 1200;
       const quality = window.PRODUCT_IMG_QUALITY || 0.85;
-      const url = await uploadToR2(f, { compress: true, maxSide, quality, prefix: 'product' });
+      const url = await uploadToR2(f, { compress: true, maxSide, quality, prefix: 'product', folder: 'products' });
       p.images.push({ url, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' });
     } catch (err) { toast('Помилка завантаження: ' + err.message, 'error'); }
   }

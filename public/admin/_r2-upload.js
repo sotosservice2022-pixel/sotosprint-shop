@@ -38,6 +38,8 @@ window.uploadToR2 = async function(file, opts = {}) {  if (!file) throw new Erro
   const fd = new FormData();
   const prefix = opts.prefix ? `${opts.prefix}_` : '';
   fd.append('file', toUpload, prefix + (file.name || 'upload'));
+  // Папка призначення в R2 (products/, branding/, ai/, misc/чашки …). Порожньо → корінь.
+  if (opts.folder) fd.append('folder', opts.folder);
 
   const r = await fetch('/api/admin/storage/upload', {
     method: 'POST', credentials: 'include', body: fd,

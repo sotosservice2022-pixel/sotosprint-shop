@@ -7,7 +7,7 @@
 //   model?, quality?, size?            // для GPT
 // }
 // Повертає: { ok, url: '/api/storage/<newKey>', engine }
-import { checkAuthAsync, jsonResp } from '../../_utils/shop.js';
+import { checkAuthAsync, jsonResp, storageUrl } from '../../_utils/shop.js';
 
 function b64ToBytes(b64) {
   const bin = atob(b64);
@@ -30,12 +30,12 @@ async function putToR2(env, bytes, contentType, prefix) {
   const ts = Date.now().toString(36);
   const rnd = Math.random().toString(36).slice(2, 7);
   const ext = contentType.includes('png') ? 'png' : (contentType.includes('webp') ? 'webp' : 'jpg');
-  const key = `${ts}_${prefix}_${rnd}.${ext}`;
+  const key = `ai/${ts}_${prefix}_${rnd}.${ext}`;
   await env.STORAGE.put(key, bytes, {
     httpMetadata: { contentType },
     customMetadata: { generatedBy: 'photo-generate', createdAt: new Date().toISOString() },
   });
-  return '/api/storage/' + encodeURIComponent(key);
+  return storageUrl(key);
 }
 
 // Дістаємо референсне фото з R2 за url виду /api/storage/<key>

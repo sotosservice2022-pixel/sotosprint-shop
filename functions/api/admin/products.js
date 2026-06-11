@@ -1,5 +1,5 @@
 // GET/POST /api/admin/products
-import { getProducts, saveProducts, validateProduct, checkAuthAsync, unauthorized, jsonResp } from '../../_utils/shop.js';
+import { getProducts, saveProducts, validateProduct, checkAuthAsync, unauthorized, jsonResp, cleanupOrphanProductPhotos } from '../../_utils/shop.js';
 
 export async function onRequestGet({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return unauthorized();
@@ -21,6 +21,14 @@ export async function onRequestPost({ request, env }) {
     ids.add(p.id);
   }
 
+  // Старий список — щоб після збереження прибрати з R2 фото, які зникли (сироти)
+  const oldProducts = await getProducts(env);
+
   await saveProducts(env, arr);
-  return jsonResp({ ok: true, count: arr.length });
+
+  // Чистимо осиротілі фото (best-effort, не блокує відповідь критично)
+  let cleanup = { deleted: 0 };
+  try { cleanup = await cleanupOrphanProductPhotos(env, oldProducts, arr); } catch {}
+
+  return jsonResp({ ok: true, count: arr.length, photosDeleted: cleanup.deleted });
 }
