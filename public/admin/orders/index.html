@@ -461,10 +461,20 @@ function renderDetails(o) {
       <div class="l">Разом</div>
       <div class="v" style="font-size:20px;font-weight:700;">${o.totalPrice} ₴${o.totalPhotos ? ` · 📷 ${o.totalPhotos} фото` : ''}</div>
     </div>
+    ${(o.photos && o.photos.length) ? `
+    <div class="order-row" style="border:none;">
+      <div class="l">Фото клієнта (${o.photos.length})</div>
+      <div class="v">
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${o.photos.map(ph => `<a href="/api/storage/${encodeURIComponent(ph.key)}" target="_blank" rel="noopener" title="${escapeAttr(ph.name || '')}"><img src="/api/storage/${encodeURIComponent(ph.key)}" loading="lazy" alt="" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;" /></a>`).join('')}
+        </div>
+        <div style="color:#6b7280;font-size:12px;margin-top:6px;">Клік по фото — відкрити оригінал. Копії також надіслані в Telegram.</div>
+      </div>
+    </div>` : `
     <div class="order-row" style="border:none;">
       <div class="l">Фото в Telegram</div>
       <div class="v" style="color:#6b7280;font-size:13px;">Фото клієнта надіслані в Telegram-чат боту, не зберігаються тут.</div>
-    </div>
+    </div>`}
   `;
 }
 

@@ -696,6 +696,20 @@
   </div>
 
   <div class="card">
+    <h2>📷 Фото клієнта в замовленні</h2>
+    <div class="hint" style="margin-bottom:12px">
+      Зазвичай фото клієнта йдуть лише в Telegram. З цим тумблером вони додатково зберігаються
+      у файлове сховище і показуються мініатюрами прямо в картці замовлення.
+      Враховуй квоту сховища (📦 Файлове сховище): якщо місця не вистачає — фото підуть лише в Telegram.
+      При видаленні замовлення його фото видаляються зі сховища автоматично.
+    </div>
+    <div class="checkbox-inline">
+      <input type="checkbox" id="saveOrderPhotosToStorage" />
+      <label for="saveOrderPhotosToStorage" style="margin:0"><b>Зберігати фото клієнта в сховищі й показувати в замовленні</b></label>
+    </div>
+  </div>
+
+  <div class="card">
     <h2>🌐 Кнопка «Відкрити сайт» в адмінці</h2>
     <div class="hint" style="margin-bottom:12px">
       Плаваюча кнопка, що відкриває вітрину в новій вкладці. За замовчуванням — угорі праворуч.
@@ -969,6 +983,9 @@ function render() {
   // Кнопка «Відкрити сайт» в адмінці
   document.getElementById('adminSiteBtnEnabled').checked = settings.adminSiteBtnEnabled !== false;
   renderAdminSiteBtnPages();
+
+  // Фото клієнта в замовленні
+  document.getElementById('saveOrderPhotosToStorage').checked = settings.saveOrderPhotosToStorage === true;
   // Toast enabled
   document.getElementById('newOrderToastEnabled').checked = settings.newOrderToastEnabled !== false;
   document.getElementById('adminEscBackEnabled').checked = settings.adminEscBackEnabled !== false;
@@ -1179,6 +1196,8 @@ async function saveAll() {
   settings.trackOrderPlaceholder = document.getElementById('trackOrderPlaceholder').value.trim() || 'напр. 1024';
   settings.trackPhonePlaceholder = document.getElementById('trackPhonePlaceholder').value.trim() || 'напр. 0991234567';
   settings.trackMessageTemplate = document.getElementById('trackMessageTemplate').value.trim() || 'Ваше замовлення №{orderId} виконане ✅\nВідстежити: {link}';
+  // Фото клієнта в замовленні
+  settings.saveOrderPhotosToStorage = document.getElementById('saveOrderPhotosToStorage').checked;
   // Кнопка «Відкрити сайт» в адмінці
   settings.adminSiteBtnEnabled = document.getElementById('adminSiteBtnEnabled').checked;
   const sbPages = {};

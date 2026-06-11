@@ -248,6 +248,7 @@ const DEFAULT_SETTINGS = {
   pwaIconPresetsLocked: false,
   adminSiteBtnEnabled: true,   // плаваюча кнопка «Відкрити сайт» в адмінці (нова вкладка)
   adminSiteBtnPages: {},       // {pageKey:false} — сторінки, де кнопку сховано (порожньо = всюди)
+  saveOrderPhotosToStorage: false, // зберігати фото клієнта в R2 і показувати в картці замовлення (Telegram отримує їх завжди)
   // Масові операції в адмінці (червоний банер у /orders/ і /products/)
   showBulkOperations: true,
   // Стиснення картинок товарів (в адмінці)
@@ -655,6 +656,12 @@ export async function deleteOrder(env, kvKey) {
     await env.SHOP_KV.delete(kvKey);
     if (cur) {
       await bumpOrderMeta(env, { deleted: true, markedRead: !cur.isRead });
+      // Прибираємо фото клієнта з R2, щоб не засмічували сховище
+      if (env.STORAGE && Array.isArray(cur.photos)) {
+        for (const ph of cur.photos) {
+          if (ph && ph.key) { try { await env.STORAGE.delete(ph.key); } catch {} }
+        }
+      }
     }
   } catch {}
 }

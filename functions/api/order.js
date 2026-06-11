@@ -451,6 +451,45 @@ export async function onRequestPost(context) {
       if (limitKind) await notifyLimitHit(env, limitKind, e.message);
     }
 
+    // === Фото клієнта в файлове сховище (R2) — опційно, тумблер saveOrderPhotosToStorage ===
+    // Зберігаємо у ФОНІ (waitUntil), клієнт не чекає. Ключі фото пишемо в замовлення (photos:[]),
+    // адмінка показує мініатюри в картці. При видаленні замовлення фото чистяться (deleteOrder).
+    if (settings.saveOrderPhotosToStorage === true && photoFiles.length > 0 && env.STORAGE && savedOrderKvKey) {
+      const kvKeyForPhotos = savedOrderKvKey;
+      const savePhotosToR2 = async () => {
+        // Поважаємо квоту сховища — якщо вся пачка не влазить, не зберігаємо (Telegram все одно отримує фото)
+        const quotaBytes = (settings.storageQuotaMB || 200) * 1024 * 1024;
+        let totalBytes = 0;
+        let cursor;
+        do {
+          const list = await env.STORAGE.list({ cursor, limit: 1000 });
+          for (const obj of list.objects) totalBytes += obj.size;
+          cursor = list.truncated ? list.cursor : undefined;
+        } while (cursor);
+        const batchBytes = photoFiles.reduce((s, pf) => s + (pf.file.size || 0), 0);
+        if (totalBytes + batchBytes > quotaBytes) {
+          console.log(`[${reqId}] order photos skip: quota exceeded (${((totalBytes + batchBytes) / 1048576).toFixed(1)}MB > ${settings.storageQuotaMB || 200}MB)`);
+          return;
+        }
+        const saved = [];
+        for (let n = 0; n < photoFiles.length; n++) {
+          const pf = photoFiles[n];
+          const safe = String(pf.file.name || 'photo.jpg')
+            .replace(/[^a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._-]/g, '_').replace(/_+/g, '_').slice(0, 80);
+          // Ключ БЕЗ слешів — роут /api/storage/[key] приймає один сегмент
+          const key = `order_${orderId}_${pf.itemIndex + 1}_${n + 1}_${safe}`;
+          await env.STORAGE.put(key, pf.file, { httpMetadata: { contentType: pf.file.type || 'image/jpeg' } });
+          saved.push({ key, name: safe, itemIndex: pf.itemIndex });
+        }
+        if (saved.length) {
+          await updateOrder(env, kvKeyForPhotos, { photos: saved });
+          await invalidateOrdersCache();
+          console.log(`[${reqId}] order photos saved to R2: ${saved.length}`);
+        }
+      };
+      context.waitUntil(savePhotosToR2().catch(e => console.log(`[${reqId}] order photos to R2 failed: ${e.message}`)));
+    }
+
     // === Email клієнту (Resend) — надсилається коли увімкнено + клієнт вказав email ===
     if (settings.customerEmailEnabled && customerEmail && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
       try {
