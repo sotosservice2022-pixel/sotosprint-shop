@@ -10,12 +10,20 @@ function sanitizeName(name) {
     .slice(0, 100);
 }
 
-// Санітизуємо шлях папки: кожен сегмент чистимо як ім'я, прибираємо порожні й './..'.
+// Санітизуємо шлях папки: кожен сегмент чистимо, прибираємо порожні й './..'.
 // '' → корінь (плоский ключ). 'misc/чашки' → 'misc/чашки'.
+// ВАЖЛИВО: НЕ використовуємо sanitizeName (у нього fallback 'file' для порожнього),
+// інакше відсутня папка перетворюється на 'file/'. Тут порожній сегмент → відкидається.
+function sanitizeFolderSegment(s) {
+  return String(s || '')
+    .replace(/[^a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._-]/g, '_')
+    .replace(/_+/g, '_')
+    .slice(0, 100);
+}
 function sanitizeFolder(folder) {
   return String(folder || '')
     .split('/')
-    .map(s => sanitizeName(s.trim()))
+    .map(s => sanitizeFolderSegment(s.trim()))
     .filter(s => s && s !== '_' && s !== '.' && s !== '..')
     .slice(0, 4) // макс. глибина вкладеності
     .join('/');
