@@ -835,7 +835,10 @@ async function submitOrder() {
       }
     }
   }
-  if (lastErr) showStatus(`❌ ${lastErr.message}`, 'error');
+  if (lastErr) {
+    showStatus(`❌ ${lastErr.message}`, 'error');
+    reportUploadFailure(lastErr.message);
+  }
 
   submitBtn.disabled = false;
   // Восстанавливаем сумму на кнопке
@@ -845,28 +848,57 @@ async function submitOrder() {
   setTimeout(() => progress.classList.remove('show'), 600);
 }
 
+// Останні збої відправлення — для діагностики (шлються на сервер при повному провалі)
+const _uploadFailLog = [];
+
 function uploadOrder(formData, onProgress) {
-  return new Promise(async (resolve, reject) => {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort('timeout'), 5 * 60 * 1000);
-    onProgress(50);
-    try {
-      const url = '/api/order?t=' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
-      const res = await fetch(url, {
-        method: 'POST', body: formData, signal: ctrl.signal,
-        cache: 'no-store', credentials: 'omit', keepalive: false,
-      });
-      clearTimeout(tid);
+  // XMLHttpRequest замість fetch: дає чесний прогрес завантаження тіла запиту
+  // (fetch цього не вміє) і точніше розрізняє причини збою — timeout / обрив / статус.
+  return new Promise((resolve, reject) => {
+    const url = '/api/order?t=' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', url);
+    xhr.timeout = 5 * 60 * 1000;
+    xhr.responseType = 'text';
+    const fail = (kind, msg) => {
+      _uploadFailLog.push(`${new Date().toISOString().slice(11, 19)} ${kind} sent=${xhr.upload._sentPct || 0}% status=${xhr.status || 0}`);
+      reject(new Error(msg));
+    };
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        xhr.upload._sentPct = pct;
+        onProgress(pct);
+      }
+    };
+    xhr.onload = () => {
       onProgress(100);
-      if (res.status === 413) return reject(new Error('Файли занадто великі. Зменшіть кількість.'));
-      if (res.status >= 500) return reject(new Error(`Ошибка сервера (${res.status})`));
-      try { resolve(await res.json()); } catch { reject(new Error('Невірна відповідь сервера')); }
-    } catch (err) {
-      clearTimeout(tid);
-      if (err.name === 'AbortError' || ctrl.signal.aborted) reject(new Error('Слишком долгая загрузка'));
-      else reject(new Error(shop.networkErrorText || 'Сеть недоступна'));
-    }
+      if (xhr.status === 413) return fail('413', 'Файли занадто великі. Зменшіть кількість.');
+      if (xhr.status >= 500) return fail('5xx', `Помилка сервера (${xhr.status})`);
+      try { resolve(JSON.parse(xhr.responseText)); }
+      catch { fail('badjson', 'Невірна відповідь сервера'); }
+    };
+    xhr.ontimeout = () => fail('timeout', 'Занадто довге завантаження. Спробуйте з меншою кількістю фото.');
+    xhr.onerror = () => fail('neterr', shop.networkErrorText || 'Мережа недоступна. Спробуйте ще раз.');
+    xhr.onabort = () => fail('abort', 'Завантаження перервано');
+    xhr.send(formData);
   });
+}
+
+// Якщо всі спроби провалились — шлемо короткий звіт адміну (без фото, лише факти),
+// щоб було видно, на чому саме обривається відправлення у клієнтів.
+function reportUploadFailure(extra) {
+  try {
+    const body = JSON.stringify({
+      log: _uploadFailLog.slice(-6),
+      ua: navigator.userAgent.slice(0, 160),
+      online: navigator.onLine,
+      conn: (navigator.connection && navigator.connection.effectiveType) || '?',
+      extra: String(extra || '').slice(0, 200),
+    });
+    if (navigator.sendBeacon) navigator.sendBeacon('/api/client-error', body);
+    else fetch('/api/client-error', { method: 'POST', body, keepalive: true }).catch(() => {});
+  } catch {}
 }
 
 async function compressImage(file, maxSide, quality) {
