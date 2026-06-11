@@ -139,9 +139,12 @@
 
   <!-- СПИСОК -->
   <div class="card">
-    <h2 style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 style="display: flex; justify-content: space-between; align-items: center; gap:8px; flex-wrap:wrap;">
       <span>📁 Файли в сховищі</span>
-      <button class="btn btn-secondary btn-icon" onclick="loadFiles()">↻ Оновити</button>
+      <span style="display:flex; gap:8px; align-items:center;">
+        <button id="deleteLockBtn" type="button" class="btn btn-secondary btn-icon" onclick="toggleDeleteLock()" title="Захист від випадкового видалення">🔒 Видалення заблоковане</button>
+        <button class="btn btn-secondary btn-icon" onclick="loadFiles()">↻ Оновити</button>
+      </span>
     </h2>
     <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
       <span style="font-size:13px; font-weight:600;">Вибрано: <span id="bulkCount">0</span></span>
@@ -186,6 +189,36 @@ let files = [];
 let allFolders = [];        // усі шляхи папок (із ключів + порожні з KV)
 let currentFolder = '';     // поточний шлях ('' = корінь)
 let stats = { count: 0, totalMB: 0, quotaMB: 200, usedPercent: 0 };
+
+// 🔒 Захист від видалення. За замовчуванням ЗАБЛОКОВАНО (безпечно).
+// Стан памʼятаємо в localStorage; будь-яка дія видалення спершу перевіряє deleteGuard().
+let deleteLocked = localStorage.getItem('storageDeleteLocked') !== '0';
+function renderDeleteLock() {
+  const b = document.getElementById('deleteLockBtn');
+  if (!b) return;
+  b.textContent = deleteLocked ? '🔒 Видалення заблоковане' : '🔓 Видалення дозволене';
+  b.className = 'btn btn-icon ' + (deleteLocked ? 'btn-secondary' : 'btn-danger');
+}
+function toggleDeleteLock() {
+  // Зняти замок — лише з підтвердженням; поставити назад — без зайвих питань
+  if (deleteLocked) {
+    if (!confirm('Розблокувати видалення файлів і папок?\nБудь обережний — видалення незворотнє.')) return;
+    deleteLocked = false;
+  } else {
+    deleteLocked = true;
+  }
+  localStorage.setItem('storageDeleteLocked', deleteLocked ? '1' : '0');
+  renderDeleteLock();
+  toast(deleteLocked ? '🔒 Видалення заблоковано' : '🔓 Видалення розблоковано');
+}
+// Повертає true, якщо видаляти НЕ можна (і показує підказку). Викликати на старті кожної дії видалення.
+function deleteGuard() {
+  if (deleteLocked) {
+    toast('🔒 Видалення заблоковане. Натисни замок угорі, щоб дозволити.', 'error');
+    return true;
+  }
+  return false;
+}
 
 // Системні папки: людська назва + іконка + незнищуваність
 const SYSTEM_FOLDERS = {
@@ -341,6 +374,7 @@ async function renameFolder(path) {
 }
 
 async function deleteFolder(path) {
+  if (deleteGuard()) return;
   const cnt = fileCountIn(path);
   if (cnt > 0) {
     if (!confirm(`У папці «${path}» ${cnt} файл(ів). Видалити папку РАЗОМ з файлами? Незворотньо.`)) return;
@@ -412,6 +446,7 @@ function toggleAll(checked) {
 function clearSel() { toggleAll(false); }
 
 async function bulkDelete() {
+  if (deleteGuard()) return;
   const keys = getAllSelectedKeys(); // файли + вміст вибраних папок
   const folders = getSelectedFolders();
   if (keys.length === 0 && folders.length === 0) return;
@@ -445,6 +480,7 @@ async function bulkDelete() {
 }
 
 async function wipeAll() {
+  if (deleteGuard()) return;
   const word = prompt('УВАГА! Видалити ВСІ файли зі сховища?\nВведіть слово ВИДАЛИТИ-ВСЕ для підтвердження:');
   if (word !== 'ВИДАЛИТИ-ВСЕ') { toast('Скасовано', 'error'); return; }
   try {
@@ -523,6 +559,7 @@ function copyUrl(url) {
 }
 
 async function deleteFile(key) {
+  if (deleteGuard()) return;
   if (!confirm('Видалити файл?\n' + key)) return;
   try {
     const r = await fetch('/api/admin/storage/delete', {
@@ -664,6 +701,7 @@ function toast(msg, kind) {
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
 
+renderDeleteLock();
 loadFiles();
 
 // Авто-оновлення списку, коли повертаємось на вкладку (напр. після видалення товару
