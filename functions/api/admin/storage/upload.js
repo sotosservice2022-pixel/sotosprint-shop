@@ -1,6 +1,6 @@
 // POST /api/admin/storage/upload — завантаження файлу в R2
 // Form-data: { file: File, name?: string }
-import { checkAuthAsync, jsonResp, getSettings } from '../../../_utils/shop.js';
+import { checkAuthAsync, jsonResp, getSettings, storageUrl } from '../../../_utils/shop.js';
 
 function sanitizeName(name) {
   // Прибираємо спецсимволи, залишаємо латиницю/кирилицю/цифри/дефіси
@@ -8,6 +8,17 @@ function sanitizeName(name) {
     .replace(/[^a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._-]/g, '_')
     .replace(/_+/g, '_')
     .slice(0, 100);
+}
+
+// Санітизуємо шлях папки: кожен сегмент чистимо як ім'я, прибираємо порожні й './..'.
+// '' → корінь (плоский ключ). 'misc/чашки' → 'misc/чашки'.
+function sanitizeFolder(folder) {
+  return String(folder || '')
+    .split('/')
+    .map(s => sanitizeName(s.trim()))
+    .filter(s => s && s !== '_' && s !== '.' && s !== '..')
+    .slice(0, 4) // макс. глибина вкладеності
+    .join('/');
 }
 
 export async function onRequestPost({ request, env }) {
@@ -45,11 +56,12 @@ export async function onRequestPost({ request, env }) {
     }, 413);
   }
 
-  // Унікальне ім'я: timestamp + оригінальне ім'я
+  // Унікальне ім'я: timestamp + оригінальне ім'я; опційно в папці (folder)
   const customName = (form.get('name') || '').toString().trim();
   const baseName = sanitizeName(customName || file.name || 'file');
   const ts = Date.now().toString(36);
-  const key = `${ts}_${baseName}`;
+  const folder = sanitizeFolder(form.get('folder'));
+  const key = folder ? `${folder}/${ts}_${baseName}` : `${ts}_${baseName}`;
 
   try {
     await env.STORAGE.put(key, file.stream(), {
@@ -59,7 +71,7 @@ export async function onRequestPost({ request, env }) {
     return jsonResp({
       ok: true,
       key,
-      url: '/api/storage/' + encodeURIComponent(key),
+      url: storageUrl(key),
       size: file.size,
       contentType: file.type,
     });

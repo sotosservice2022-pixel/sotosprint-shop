@@ -975,6 +975,20 @@ export function jsonResp(body, status = 200, extraHeaders = {}) {
   });
 }
 
+// === R2 storage URL ↔ key ===
+// Ключі тепер можуть містити слеші (папки: products/..., orders/<id>/...). Публічний роут
+// /api/storage/[[path]] приймає кілька сегментів, тому URL будуємо з РЕАЛЬНИМИ слешами,
+// кодуючи лише вміст кожного сегмента (encodeURIComponent('/') === '%2F' зламав би папки).
+export function storageUrl(key) {
+  return '/api/storage/' + String(key).split('/').map(encodeURIComponent).join('/');
+}
+// Зворотне: дістати ключ (зі слешами) з URL виду /api/storage/<key>. null, якщо не наш URL.
+export function keyFromStorageUrl(url) {
+  const m = String(url || '').match(/\/api\/storage\/(.+)$/);
+  if (!m) return null;
+  return m[1].split('/').map(decodeURIComponent).join('/');
+}
+
 // Інвалідація кешу /api/admin/orders після мутацій (delete/update)
 export async function invalidateOrdersCache() {
   try {

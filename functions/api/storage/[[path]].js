@@ -1,9 +1,13 @@
-// GET /api/storage/[key] — публічна віддача файлу з R2
-// URL шарінг: https://agprnt.com/api/storage/abc123_logo.png
+// GET /api/storage/<key> — публічна віддача файлу з R2.
+// Catch-all ([[path]]): ключ може містити слеші (папки products/..., orders/<id>/...).
+// Старі плоскі ключі (один сегмент, без слешів) працюють так само.
+// URL шарінг: https://agprnt.com/api/storage/products/abc123_logo.png
 export async function onRequestGet({ request, env, params }) {
   if (!env.STORAGE) return new Response('Storage not configured', { status: 500 });
 
-  const key = decodeURIComponent(params.key || '');
+  // params.path — масив сегментів (catch-all). Реконструюємо ключ зі слешами.
+  const segs = Array.isArray(params.path) ? params.path : (params.path ? [params.path] : []);
+  const key = segs.map(decodeURIComponent).join('/');
   if (!key) return new Response('Not found', { status: 404 });
 
   try {

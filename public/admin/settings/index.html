@@ -1304,11 +1304,11 @@ async function onPwaIconFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
   if (file.type !== 'image/png') { toast('Потрібен PNG (квадратний, ≥512×512)', 'error'); return; }
   try {
-    settings.pwaIconImage = await uploadToR2(file, { prefix: 'pwaicon' });
+    settings.pwaIconImage = await uploadToR2(file, { prefix: 'pwaicon', folder: 'branding' });
     try {
       const bg = document.getElementById('pwaBackgroundColor')?.value || '#ffffff';
       const maskFile = await makeMaskablePwaIcon(file, bg);
-      settings.pwaIconMaskImage = await uploadToR2(maskFile, { prefix: 'pwaiconmask' });
+      settings.pwaIconMaskImage = await uploadToR2(maskFile, { prefix: 'pwaiconmask', folder: 'branding' });
     } catch (_) { settings.pwaIconMaskImage = ''; }
     addPwaIconPreset(settings.pwaIconImage, settings.pwaIconMaskImage);
     showPwaIconPreview();

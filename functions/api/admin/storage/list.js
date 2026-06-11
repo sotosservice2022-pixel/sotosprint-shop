@@ -1,5 +1,11 @@
 // GET /api/admin/storage/list — список файлів у R2
-import { checkAuthAsync, jsonResp, getSettings } from '../../../_utils/shop.js';
+import { checkAuthAsync, jsonResp, getSettings, storageUrl } from '../../../_utils/shop.js';
+
+// Папка ключа = усе до останнього '/', або '' для кореня.
+function folderOf(key) {
+  const i = key.lastIndexOf('/');
+  return i === -1 ? '' : key.slice(0, i);
+}
 
 function guessContentType(key) {
   const ext = (key.split('.').pop() || '').toLowerCase();
@@ -25,20 +31,38 @@ export async function onRequestGet({ request, env }) {
     let cursor;
     const files = [];
     let totalBytes = 0;
+    // Усі папки, що випливають із ключів (включно з проміжними рівнями).
+    const folderSet = new Set();
     do {
       const list = await env.STORAGE.list({ cursor, limit: 1000, include: ['httpMetadata', 'customMetadata'] });
       for (const obj of list.objects) {
+        const folder = folderOf(obj.key);
         files.push({
           key: obj.key,
+          folder,
           size: obj.size,
           uploaded: obj.uploaded,
           contentType: obj.httpMetadata?.contentType || guessContentType(obj.key),
-          url: '/api/storage/' + encodeURIComponent(obj.key),
+          url: storageUrl(obj.key),
         });
         totalBytes += obj.size;
+        // Додаємо папку й усі її батьківські рівні (a/b/c → a, a/b, a/b/c)
+        if (folder) {
+          const parts = folder.split('/');
+          for (let i = 1; i <= parts.length; i++) folderSet.add(parts.slice(0, i).join('/'));
+        }
       }
       cursor = list.truncated ? list.cursor : undefined;
     } while (cursor);
+
+    // Порожні власні папки з KV (щоб не зникали, поки в них немає файлів)
+    try {
+      const raw = await env.SHOP_KV.get('storage_folders');
+      if (raw) {
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) for (const f of arr) if (typeof f === 'string' && f) folderSet.add(f);
+      }
+    } catch {}
 
     // Сортуємо за датою (новіші першими)
     files.sort((a, b) => new Date(b.uploaded) - new Date(a.uploaded));
@@ -46,6 +70,7 @@ export async function onRequestGet({ request, env }) {
     return jsonResp({
       ok: true,
       files,
+      folders: Array.from(folderSet).sort(),
       stats: {
         count: files.length,
         totalBytes,

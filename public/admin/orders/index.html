@@ -466,10 +466,10 @@ function renderDetails(o) {
       <div class="l">Фото клієнта (${o.photos.length})</div>
       <div class="v">
         <div style="display:flex;flex-wrap:wrap;gap:8px;">
-          ${o.photos.map(ph => `<span style="position:relative;display:inline-block;">
-            <a href="/api/storage/${encodeURIComponent(ph.key)}" target="_blank" rel="noopener" title="${escapeAttr(ph.name || '')}"><img src="/api/storage/${encodeURIComponent(ph.key)}" loading="lazy" alt="" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;display:block;" /></a>
-            <a href="/api/storage/${encodeURIComponent(ph.key)}" download="${escapeAttr(ph.name || 'photo.jpg')}" title="Скачати ${escapeAttr(ph.name || '')}" style="position:absolute;right:3px;bottom:3px;background:rgba(17,24,39,.75);color:#fff;border-radius:7px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;text-decoration:none;">⬇</a>
-          </span>`).join('')}
+          ${o.photos.map(ph => { const href = storageHref(ph.key); return `<span style="position:relative;display:inline-block;">
+            <a href="${href}" target="_blank" rel="noopener" title="${escapeAttr(ph.name || '')}"><img src="${href}" loading="lazy" alt="" style="width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #e5e7eb;background:#f8fafc;display:block;" /></a>
+            <a href="${href}" download="${escapeAttr(ph.name || 'photo.jpg')}" title="Скачати ${escapeAttr(ph.name || '')}" style="position:absolute;right:3px;bottom:3px;background:rgba(17,24,39,.75);color:#fff;border-radius:7px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:13px;text-decoration:none;">⬇</a>
+          </span>`; }).join('')}
         </div>
         <div style="color:#6b7280;font-size:12px;margin-top:6px;">
           Клік по фото — відкрити оригінал, ⬇ — скачати. Копії також надіслані в Telegram.
@@ -618,6 +618,9 @@ function toast(msg, kind) {
 
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
+// URL файлу в R2: ключ може містити слеші (папки orders/<id>/..) — кодуємо лише сегменти,
+// інакше encodeURIComponent зламав би '/' у '%2F' і catch-all роут не знайшов би файл.
+function storageHref(key) { return '/api/storage/' + String(key).split('/').map(encodeURIComponent).join('/'); }
 
 // === Модалка перегляду товару з картки замовлення ===
 // Клік по назві товару в «Складі замовлення» — показує, що саме купили:
@@ -687,7 +690,7 @@ async function downloadAllPhotos() {
   for (let i = 0; i < photos.length; i++) {
     const ph = photos[i];
     const a = document.createElement('a');
-    a.href = '/api/storage/' + encodeURIComponent(ph.key);
+    a.href = storageHref(ph.key);
     a.download = ph.name || `photo_${i + 1}.jpg`;
     document.body.appendChild(a);
     a.click();

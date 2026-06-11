@@ -6,7 +6,7 @@
 //   width?, height?: number            // розмір (за замовч. 1024)
 // }
 // Повертає: { ok, url: '/api/storage/<newKey>' }
-import { checkAuthAsync, jsonResp } from '../../_utils/shop.js';
+import { checkAuthAsync, jsonResp, storageUrl } from '../../_utils/shop.js';
 
 const DEFAULT_PROMPT =
   'Professional e-commerce product photograph of this exact item. ' +
@@ -37,12 +37,12 @@ async function putToR2(env, bytes, contentType, prefix) {
   const ts = Date.now().toString(36);
   const rnd = Math.random().toString(36).slice(2, 7);
   const ext = contentType.includes('png') ? 'png' : (contentType.includes('webp') ? 'webp' : 'jpg');
-  const key = `${ts}_${prefix}_${rnd}.${ext}`;
+  const key = `ai/${ts}_${prefix}_${rnd}.${ext}`;
   await env.STORAGE.put(key, bytes, {
     httpMetadata: { contentType },
     customMetadata: { generatedBy: 'photo-regen', createdAt: new Date().toISOString() },
   });
-  return '/api/storage/' + encodeURIComponent(key);
+  return storageUrl(key);
 }
 
 // Дістаємо вихідне фото з R2 за url виду /api/storage/<key>
