@@ -64,7 +64,12 @@ export async function onRequest(context) {
   }
 
   if (favicon) {
-    rw = rw.on('link[rel="icon"]', { element(el) { el.setAttribute('href', favicon); el.removeAttribute('type'); } });
+    // ВАЖЛИВО: для пошукових систем НЕ підставляємо пряме посилання на /api/storage/...,
+    // бо воно заблоковане в robots.txt (Disallow: /api/) — Googlebot не може його завантажити
+    // і показує стару закешовану іконку. Натомість віддаємо стабільний /favicon.ico
+    // (functions/favicon.ico.js динамічно віддає поточну іконку з налаштувань, цей шлях
+    // дозволений у robots.txt). Стабільний URL також кращий для кешу фавікона Google.
+    rw = rw.on('link[rel="icon"]', { element(el) { el.setAttribute('href', '/favicon.ico'); el.removeAttribute('type'); } });
   }
 
   return rw.transform(res);
