@@ -37,6 +37,9 @@
   .np-box h3 { margin:0 0 8px; font-size:15px; color:var(--accent-dark); }
   .err { margin-top:16px; padding:12px 14px; background:#fef2f2; border:1px solid #fecaca; color:#b91c1c;
     border-radius:10px; font-size:14px; }
+  input.invalid { border-color:#dc2626; }
+  .field-err { display:none; color:#b91c1c; font-size:13px; margin:-8px 0 14px; }
+  .field-err.show { display:block; }
   .muted { color:var(--muted); font-size:13px; }
   .hidden { display:none; }
 </style>
@@ -53,6 +56,7 @@
         <input id="orderId" type="text" inputmode="numeric" placeholder="напр. 1024" autocomplete="off" />
         <label for="phone">Телефон</label>
         <input id="phone" type="tel" inputmode="tel" placeholder="напр. 0991234567" autocomplete="tel" />
+        <div class="field-err" id="phoneErr">Перевірте номер — має бути 0XXXXXXXXX (10 цифр) або +380XXXXXXXXX</div>
         <button type="submit" id="submitBtn">Перевірити статус</button>
       </form>
       <div id="errBox" class="err hidden"></div>
@@ -103,6 +107,32 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','
   const errBox = document.getElementById('errBox');
   const result = document.getElementById('result');
 
+  // === Захист від неправильного номера телефону ===
+  // Приймаємо українські формати: 0XXXXXXXXX (10 цифр) або +380XXXXXXXXX / 380XXXXXXXXX (12 цифр)
+  const phoneEl = document.getElementById('phone');
+  const phoneErr = document.getElementById('phoneErr');
+  function phoneValid() {
+    const d = phoneEl.value.replace(/\D/g, '');
+    return (d.length === 10 && d.startsWith('0')) || (d.length === 12 && d.startsWith('380'));
+  }
+  function setPhoneErr(on) {
+    phoneErr.classList.toggle('show', on);
+    phoneEl.classList.toggle('invalid', on);
+  }
+  // Пускаємо лише цифри та службові символи (+, пробіл, дужки, дефіс)
+  phoneEl.addEventListener('keydown', (e) => {
+    if (e.key.length === 1 && !/[\d+\s()\-]/.test(e.key)) e.preventDefault();
+  });
+  phoneEl.addEventListener('input', () => {
+    const v = phoneEl.value.replace(/[^\d+\s()\-]/g, '').slice(0, 20);
+    if (phoneEl.value !== v) phoneEl.value = v;
+    if (phoneValid()) setPhoneErr(false); // помилка зникає, щойно номер став коректним
+  });
+  phoneEl.addEventListener('blur', () => {
+    const d = phoneEl.value.replace(/\D/g, '');
+    setPhoneErr(d.length > 0 && !phoneValid());
+  });
+
   // Передзаповнення з URL ?order=123&phone=...
   const params = new URLSearchParams(location.search);
   if (params.get('order')) document.getElementById('orderId').value = params.get('order');
@@ -136,8 +166,9 @@ function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','
     errBox.classList.add('hidden');
     result.classList.add('hidden');
     const orderId = document.getElementById('orderId').value.trim();
-    const phone = document.getElementById('phone').value.trim();
+    const phone = phoneEl.value.trim();
     if (!orderId || !phone) { errBox.textContent = 'Заповніть обидва поля.'; errBox.classList.remove('hidden'); return; }
+    if (!phoneValid()) { setPhoneErr(true); phoneEl.focus(); return; }
 
     btn.disabled = true; btn.textContent = 'Перевіряю…';
     try {

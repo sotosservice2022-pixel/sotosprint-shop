@@ -695,6 +695,21 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>🌐 Кнопка «Відкрити сайт» в адмінці</h2>
+    <div class="hint" style="margin-bottom:12px">
+      Плаваюча кнопка, що відкриває вітрину в новій вкладці. За замовчуванням — угорі праворуч.
+      Її можна перетягнути в будь-яке місце (позиція запам'ятовується на цьому пристрої),
+      а замочок 🔒 на кнопці блокує перетягування, щоб не зрушити випадково.
+    </div>
+    <div class="checkbox-inline" style="margin-bottom:12px">
+      <input type="checkbox" id="adminSiteBtnEnabled" />
+      <label for="adminSiteBtnEnabled" style="margin:0"><b>Показувати кнопку</b></label>
+    </div>
+    <label>На яких сторінках адмінки показувати</label>
+    <div id="adminSiteBtnPages" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:6px 14px;margin-top:6px"></div>
+  </div>
+
   <div class="save-bar">
     <div class="left" id="status">Загрузка…</div>
     <button class="btn btn-secondary" onclick="loadAll()" data-i18n="common.cancel">Скасувати</button>
@@ -949,6 +964,10 @@ function render() {
   document.getElementById('trackOrderPlaceholder').value = settings.trackOrderPlaceholder || '';
   document.getElementById('trackPhonePlaceholder').value = settings.trackPhonePlaceholder || '';
   document.getElementById('trackMessageTemplate').value = settings.trackMessageTemplate || '';
+
+  // Кнопка «Відкрити сайт» в адмінці
+  document.getElementById('adminSiteBtnEnabled').checked = settings.adminSiteBtnEnabled !== false;
+  renderAdminSiteBtnPages();
   // Toast enabled
   document.getElementById('newOrderToastEnabled').checked = settings.newOrderToastEnabled !== false;
   document.getElementById('adminEscBackEnabled').checked = settings.adminEscBackEnabled !== false;
@@ -1159,6 +1178,11 @@ async function saveAll() {
   settings.trackOrderPlaceholder = document.getElementById('trackOrderPlaceholder').value.trim() || 'напр. 1024';
   settings.trackPhonePlaceholder = document.getElementById('trackPhonePlaceholder').value.trim() || 'напр. 0991234567';
   settings.trackMessageTemplate = document.getElementById('trackMessageTemplate').value.trim() || 'Ваше замовлення №{orderId} виконане ✅\nВідстежити: {link}';
+  // Кнопка «Відкрити сайт» в адмінці
+  settings.adminSiteBtnEnabled = document.getElementById('adminSiteBtnEnabled').checked;
+  const sbPages = {};
+  document.querySelectorAll('[data-sitebtn-page]').forEach((cb) => { if (!cb.checked) sbPages[cb.dataset.sitebtnPage] = false; });
+  settings.adminSiteBtnPages = sbPages;
 
   setStatus('Зберігаю…');
   if (await postJson('/api/admin/settings', settings)) {
@@ -1328,6 +1352,22 @@ function removePwaIconPreset(i) {
   if (!confirm('Видалити цю іконку з колекції?')) return;
   (settings.pwaIconPresets || []).splice(i, 1);
   renderPwaIconPresets();
+}
+
+// === Кнопка «Відкрити сайт» в адмінці: чекбокси сторінок ===
+const ADMIN_SITEBTN_PAGES = [
+  ['index', '🏠 Головна'], ['orders', '📋 Замовлення'], ['products', '🛍️ Товари'],
+  ['customers', '👥 Клієнти'], ['stats', '📊 Статистика'], ['promo', '🎟️ Промокоди'],
+  ['promote', '✨ AI-пост'], ['settings', '⚙️ Налаштування'], ['appearance', '🎨 Оформлення'],
+  ['integrations', '🔌 Інтеграції'], ['bot', '🛡️ Безпека'], ['domain', '🌍 Домен'],
+  ['storage', '🗄️ Сховище'], ['backup', '💾 Резервні копії'], ['restore', '🪄 AI-обробка фото'],
+];
+function renderAdminSiteBtnPages() {
+  const box = document.getElementById('adminSiteBtnPages'); if (!box) return;
+  const pages = settings.adminSiteBtnPages || {};
+  box.innerHTML = ADMIN_SITEBTN_PAGES.map(([k, label]) => `
+    <label style="display:flex;align-items:center;gap:7px;margin:0;font-weight:400;font-size:14px;cursor:pointer">
+      <input type="checkbox" data-sitebtn-page="${k}" ${pages[k] === false ? '' : 'checked'} /> ${label}</label>`).join('');
 }
 document.getElementById('pwaIconFile')?.addEventListener('change', onPwaIconFile);
 

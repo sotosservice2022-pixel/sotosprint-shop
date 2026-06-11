@@ -16,12 +16,109 @@
     if (l.getAttribute('href') !== url) l.setAttribute('href', url);
   }
   try { applyFavicon(localStorage.getItem(FAV_KEY) || ''); } catch {}
+
+  // === Плаваюча кнопка «Відкрити сайт» (нова вкладка) ===
+  // Увімкнення і перелік сторінок — у Налаштуваннях (adminSiteBtnEnabled / adminSiteBtnPages).
+  // Позиція (перетягування) і замочок — локальні для пристрою (localStorage).
+  const SB_CFG_KEY = 'admin_siteBtnCfg';
+  const SB_POS_KEY = 'admin_siteBtnPos';
+  const SB_LOCK_KEY = 'admin_siteBtnLocked';
+  function sbPageKey() {
+    const m = location.pathname.match(/^\/admin\/?([^/]*)/);
+    return (m && m[1] && m[1] !== 'index.html') ? m[1] : 'index';
+  }
+  function sbClamp(x, y, el) {
+    const w = el.offsetWidth || 140, h = el.offsetHeight || 40;
+    return [Math.max(4, Math.min(x, window.innerWidth - w - 4)),
+            Math.max(4, Math.min(y, window.innerHeight - h - 4))];
+  }
+  function applySiteBtn(cfg) {
+    const show = cfg && cfg.enabled !== false && !(cfg.pages && cfg.pages[sbPageKey()] === false);
+    let box = document.getElementById('adminSiteBtn');
+    if (!show) { if (box) box.remove(); return; }
+    if (box || !document.body) return;
+
+    box = document.createElement('div');
+    box.id = 'adminSiteBtn';
+    box.style.cssText = 'position:fixed;top:14px;right:14px;z-index:9999;touch-action:none;user-select:none;';
+    const locked = () => { try { return localStorage.getItem(SB_LOCK_KEY) === '1'; } catch { return false; } };
+    box.innerHTML = `
+      <a href="/" target="_blank" rel="noopener" title="Відкрити сайт у новій вкладці" draggable="false"
+        style="display:inline-flex;align-items:center;gap:7px;padding:9px 14px;background:#0b8aff;color:#fff;
+        font:600 14px 'Segoe UI',-apple-system,Arial,sans-serif;border-radius:10px;text-decoration:none;
+        box-shadow:0 2px 10px rgba(11,138,255,.35);cursor:${locked() ? 'pointer' : 'grab'}">🌐 Відкрити сайт</a>
+      <span data-sb-lock style="position:absolute;bottom:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;
+        border-radius:50%;width:18px;height:18px;line-height:15px;text-align:center;font-size:10px;cursor:pointer;"></span>`;
+    document.body.appendChild(box);
+
+    const link = box.querySelector('a');
+    const lockEl = box.querySelector('[data-sb-lock]');
+    function paintLock() {
+      const on = locked();
+      lockEl.textContent = on ? '🔒' : '🔓';
+      lockEl.style.borderColor = on ? '#f59e0b' : '#e5e7eb';
+      lockEl.title = on ? 'Перетягування заблоковано — натисни, щоб розблокувати' : 'Заблокувати перетягування';
+      link.style.cursor = on ? 'pointer' : 'grab';
+    }
+    paintLock();
+    lockEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      try { localStorage.setItem(SB_LOCK_KEY, locked() ? '0' : '1'); } catch {}
+      paintLock();
+    });
+
+    // Збережена позиція (на цьому пристрої)
+    try {
+      const p = JSON.parse(localStorage.getItem(SB_POS_KEY) || 'null');
+      if (p && typeof p.x === 'number') {
+        const [x, y] = sbClamp(p.x, p.y, box);
+        box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
+      }
+    } catch {}
+    window.addEventListener('resize', () => {
+      if (box.style.left) {
+        const [x, y] = sbClamp(parseFloat(box.style.left), parseFloat(box.style.top), box);
+        box.style.left = x + 'px'; box.style.top = y + 'px';
+      }
+    });
+
+    // Перетягування (pointer events: миша + тач). Якщо тягнули — клік по лінку гасимо.
+    let drag = null;
+    box.addEventListener('pointerdown', (e) => {
+      if (locked() || e.target === lockEl) return;
+      const r = box.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+      try { box.setPointerCapture(e.pointerId); } catch {}
+    });
+    box.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+      drag.moved = true;
+      const [x, y] = sbClamp(e.clientX - drag.dx, e.clientY - drag.dy, box);
+      box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto';
+    });
+    box.addEventListener('pointerup', () => {
+      if (drag && drag.moved) {
+        try { localStorage.setItem(SB_POS_KEY, JSON.stringify({ x: parseFloat(box.style.left), y: parseFloat(box.style.top) })); } catch {}
+        box.__suppressClick = true;
+        setTimeout(() => { box.__suppressClick = false; }, 0);
+      }
+      drag = null;
+    });
+    link.addEventListener('click', (e) => { if (box.__suppressClick) e.preventDefault(); });
+  }
+  // Миттєвий показ з кешу, потім оновлення зі свіжих налаштувань
+  try { applySiteBtn(JSON.parse(localStorage.getItem(SB_CFG_KEY) || 'null') || { enabled: true }); } catch {}
+
   fetch('/api/shop?t=' + Date.now(), { cache: 'no-store' })
     .then(r => r.json())
     .then(s => {
       const u = (s && s.faviconImage) ? String(s.faviconImage) : '';
       if (u) { applyFavicon(u); try { localStorage.setItem(FAV_KEY, u); } catch {} }
       else { try { localStorage.removeItem(FAV_KEY); } catch {} }
+      const cfg = { enabled: s && s.adminSiteBtnEnabled !== false, pages: (s && s.adminSiteBtnPages) || {} };
+      try { localStorage.setItem(SB_CFG_KEY, JSON.stringify(cfg)); } catch {}
+      applySiteBtn(cfg);
     })
     .catch(() => {});
 

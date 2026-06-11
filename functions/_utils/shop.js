@@ -246,6 +246,8 @@ const DEFAULT_SETTINGS = {
   faviconPresetsLocked: false, // 🔒 захист колекції від випадкового видалення
   logoPresetsLocked: false,
   pwaIconPresetsLocked: false,
+  adminSiteBtnEnabled: true,   // плаваюча кнопка «Відкрити сайт» в адмінці (нова вкладка)
+  adminSiteBtnPages: {},       // {pageKey:false} — сторінки, де кнопку сховано (порожньо = всюди)
   // Масові операції в адмінці (червоний банер у /orders/ і /products/)
   showBulkOperations: true,
   // Стиснення картинок товарів (в адмінці)
