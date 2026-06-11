@@ -720,6 +720,10 @@ async function submitOrder() {
     { maxSide: 1024, quality: 0.7 },                         // последний — минимум
   ];
 
+  // Токен ідемпотентності: однаковий для всіх повторів цього оформлення —
+  // сервер не створить дубль замовлення, якщо перша спроба насправді дійшла
+  const submitToken = (crypto.randomUUID ? crypto.randomUUID() : Date.now() + '-' + Math.random().toString(36).slice(2));
+
   while (attempt < MAX) {
     attempt++;
     try {
@@ -738,6 +742,7 @@ async function submitOrder() {
         quantity: item.quantity, unitPrice: item.unitPrice,
       }));
       fd.append('cart', JSON.stringify(cartPayload));
+      fd.append('submitToken', submitToken);
       for (const f of (shop.fields || [])) {
         const el = document.getElementById('f_' + f.id);
         fd.append(f.id, el?.value?.trim() || '');

@@ -245,6 +245,21 @@ export async function onRequestPost(context) {
   const isOnline = !!onlineProvider;
   let savedOrderKvKey = null;
 
+  // === Захист від дублів ===
+  // Checkout генерує submitToken один раз на спробу оформлення і шле його при кожному
+  // повторі (retry при обриві мережі). Якщо замовлення з цим токеном вже збережено —
+  // повертаємо той самий результат, а не створюємо дубль.
+  const submitToken = String(form.get('submitToken') || '').replace(/[^a-zA-Z0-9-]/g, '').slice(0, 64);
+  if (submitToken && env.SHOP_KV) {
+    try {
+      const prev = await env.SHOP_KV.get('subm_' + submitToken);
+      if (prev) {
+        console.log(`[${reqId}] duplicate submit blocked (token ${submitToken})`);
+        return jsonResp(JSON.parse(prev));
+      }
+    } catch {}
+  }
+
   // Анти-спам: один телефон не может слать заказы чаще раза в N секунд
   if (phone && env.SHOP_KV) {
     const phoneKey = 'lastOrder_' + phone.replace(/\D/g, '');
@@ -445,6 +460,13 @@ export async function onRequestPost(context) {
         try { await env.SHOP_KV.put('payidx_' + orderId, orderObj.kvKey, { expirationTtl: 7 * 24 * 60 * 60 }); } catch {}
       }
       savedOrderKvKey = orderObj.kvKey;
+      if (submitToken && env.SHOP_KV) {
+        try {
+          await env.SHOP_KV.put('subm_' + submitToken,
+            JSON.stringify({ ok: true, orderId, total: totalPrice }),
+            { expirationTtl: 24 * 60 * 60 });
+        } catch {}
+      }
     } catch (e) {
       console.log(`[${reqId}] saveOrder failed: ${e.message}`);
       const limitKind = classifyLimitError(e);
