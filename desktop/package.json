@@ -1,0 +1,54 @@
+{
+  "name": "agprnt-desktop",
+  "productName": "AGPRNT",
+  "version": "1.0.0",
+  "description": "AGPRNT — обробка замовлень (адмінка agprnt.com)",
+  "main": "main.js",
+  "author": "AGPRNT",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "com.agprnt.desktop",
+    "productName": "AGPRNT",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "deleteAppDataOnUninstall": false,
+      "runAfterFinish": true,
+      "artifactName": "AGPRNT-Setup-${version}.${ext}",
+      "shortcutName": "AGPRNT Замовлення"
+    },
+    "portable": {
+      "artifactName": "AGPRNT-Portable-${version}.${ext}"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**"
+    ]
+  }
+}
