@@ -29,6 +29,17 @@ function sanitizeFolder(folder) {
     .join('/');
 }
 
+// Запасна класифікація: якщо клієнт не прислав folder (напр. старий закешований
+// _r2-upload.js), визначаємо папку за префіксом імені файлу, який ставить uploadToR2.
+// Так файли все одно лягають правильно, незалежно від кешу браузера.
+function folderFromName(name) {
+  const n = String(name || '');
+  if (/^product[_-]/i.test(n)) return 'products';
+  if (/^(logo|topbar-bg|banner|hero|hero-extra|favicon|pwaicon|pwaiconmask)[_-]/i.test(n)) return 'branding';
+  if (/^(regen|gen|gen-ref|restore|restore-src|restore-rgsrc|restore-out)[_-]/i.test(n)) return 'ai';
+  return '';
+}
+
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
   if (!env.STORAGE) return jsonResp({ ok: false, error: 'R2 не налаштовано' }, 500);
@@ -68,7 +79,8 @@ export async function onRequestPost({ request, env }) {
   const customName = (form.get('name') || '').toString().trim();
   const baseName = sanitizeName(customName || file.name || 'file');
   const ts = Date.now().toString(36);
-  const folder = sanitizeFolder(form.get('folder'));
+  // Папка: явно з форми, інакше — за префіксом імені файлу (запасний варіант для старого кешу клієнта)
+  const folder = sanitizeFolder(form.get('folder')) || folderFromName(file.name);
   const key = folder ? `${folder}/${ts}_${baseName}` : `${ts}_${baseName}`;
 
   try {
