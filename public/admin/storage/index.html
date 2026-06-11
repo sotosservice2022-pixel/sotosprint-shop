@@ -149,12 +149,6 @@
       <button class="btn btn-danger" onclick="bulkDelete()">🗑 Видалити вибрані</button>
       <button class="btn btn-secondary" onclick="clearSel()" style="margin-left:auto;">Скасувати</button>
     </div>
-    <!-- Розкладка існуючих файлів по папках (одноразово) -->
-    <div id="migrateBox" style="display:none; padding:10px 12px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; margin-bottom:10px;">
-      <div style="font-size:13px; color:#1e40af;">📦 У корені є <b id="migrateCount">0</b> файл(ів) зі старих завантажень. Розкласти їх по папках (Товари / Оформлення / AI / Замовлення)?</div>
-      <div style="font-size:11px; color:#6b7280; margin:4px 0 8px;">Посилання в каталозі й налаштуваннях оновляться автоматично. Дія безпечна, але незворотня.</div>
-      <button class="btn btn-primary btn-icon" onclick="runMigrate()">📂 Розкласти по папках</button>
-    </div>
     <!-- Навігація папками -->
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
       <div id="crumbsNav" class="crumbs" style="margin:0; flex:1;"></div>
@@ -229,7 +223,6 @@ async function loadFiles() {
       if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
     }
     renderQuota();
-    renderMigrateBox();
     renderCrumbs();
     renderFolders();
     renderFiles();
@@ -353,41 +346,6 @@ async function deleteFolder(path) {
       body: JSON.stringify({ action: 'delete', path }),
     });
     toast('✅ Папку видалено');
-    await loadFiles();
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
-}
-
-// Скільки «плоских» файлів у корені піддаються авто-розкладці (для банера міграції)
-function flatMigratableCount() {
-  // Файли в корені (folder === ''), які класифікуються за іменем ключа.
-  return files.filter(f => f.folder === '' && (
-    /^order_\d+_/.test(f.key) ||
-    /_product_/.test(f.key) ||
-    /_(logo|topbar-bg|banner|hero|hero-extra|favicon|pwaicon|pwaiconmask)[_-]/.test(f.key) ||
-    /_(regen|gen|gen-ref|restore|restore-src|restore-rgsrc|restore-out)[_-]/.test(f.key)
-  )).length;
-}
-function renderMigrateBox() {
-  const box = document.getElementById('migrateBox');
-  if (!box) return;
-  const n = flatMigratableCount();
-  box.style.display = n > 0 ? 'block' : 'none';
-  const c = document.getElementById('migrateCount');
-  if (c) c.textContent = n;
-}
-async function runMigrate() {
-  const n = flatMigratableCount();
-  if (!confirm(`Розкласти ${n} файл(ів) по папках? Посилання оновляться автоматично.`)) return;
-  toast('⏳ Розкладаю файли…');
-  try {
-    const r = await fetch('/api/admin/storage/migrate', {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
-    });
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error);
-    toast(`✅ Розкладено: ${data.moved}, оновлено посилань: ${data.refsUpdated}`);
-    if (data.errors && data.errors.length) console.warn('migrate errors:', data.errors);
     await loadFiles();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
