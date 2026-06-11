@@ -374,7 +374,8 @@ export async function onRequestPost(context) {
           if (files.length === 1) {
             const fd = new FormData();
             fd.append('chat_id', CHAT);
-            fd.append('document', files[0], files[0].name || 'photo.jpg');
+            const ext0 = (files[0].type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+            fd.append('document', files[0], `Заказ_${orderId}_${itemIdx + 1}.${ext0}`);
             fd.append('caption', photoCaption);
             await tgPace();
             await tgFetch(`${TG}/sendDocument`, { method: 'POST', body: fd });
@@ -397,7 +398,9 @@ export async function onRequestPost(context) {
               });
               fd.append('media', JSON.stringify(media));
               chunk.forEach((file, j) => {
-                fd.append(`photo${j}`, file, file.name || `photo_${j}.jpg`);
+                const globalNum2 = c * 10 + j + 1;
+                const ext = (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+                fd.append(`photo${j}`, file, `Заказ_${orderId}_${itemIdx + 1}_${globalNum2}.${ext}`);
               });
               await tgPace();
               await tgFetch(`${TG}/sendMediaGroup`, { method: 'POST', body: fd });
