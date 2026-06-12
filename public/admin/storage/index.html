@@ -70,6 +70,10 @@
     .folder-card .fc-actions { display: flex; gap: 4px; margin-top: 2px; }
     .folder-card .fc-actions button { flex: 1; padding: 4px 6px; font-size: 11px; }
 
+    /* Коли замок видалення активний — ховаємо чекбокси вибору і кнопки видалення */
+    body.lock-on .file-check, body.lock-on .folder-check { display: none; }
+    body.lock-on .js-del { display: none; }
+
     .url-input {
       width: 100%; padding: 6px 8px; font-size: 11px; font-family: 'SF Mono', Menlo, monospace;
       border: 1px solid #e5e7eb; border-radius: 6px; background: #fff; cursor: text;
@@ -142,7 +146,7 @@
     <h2 style="display: flex; justify-content: space-between; align-items: center; gap:8px; flex-wrap:wrap;">
       <span>📁 Файли в сховищі</span>
       <span style="display:flex; gap:8px; align-items:center;">
-        <button id="deleteLockBtn" type="button" class="btn btn-secondary btn-icon" onclick="toggleDeleteLock()" title="Захист від випадкового видалення">🔒 Видалення заблоковане</button>
+        <button id="deleteLockBtn" type="button" onclick="toggleDeleteLock()" title="Захист від видалення" style="background:none; border:none; cursor:pointer; font-size:20px; padding:4px; line-height:1;">🔒</button>
         <button class="btn btn-secondary btn-icon" onclick="loadFiles()">↻ Оновити</button>
       </span>
     </h2>
@@ -169,7 +173,7 @@
     <div id="bulkOpsBanner" style="display:none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
       <strong style="color: #991b1b;">⚠️ Повне очищення сховища</strong>
       <div class="hint" style="color: #7f1d1d;">Незворотньо. Видалить ВСІ файли в R2 без можливості відновлення.</div>
-      <button class="btn btn-danger" style="margin-top: 8px;" onclick="wipeAll()">🗑 Видалити ВСІ файли</button>
+      <button class="btn btn-danger js-del" style="margin-top: 8px;" onclick="wipeAll()">🗑 Видалити ВСІ файли</button>
     </div>
   </div>
 </div>
@@ -191,30 +195,47 @@ let currentFolder = '';     // поточний шлях ('' = корінь)
 let stats = { count: 0, totalMB: 0, quotaMB: 200, usedPercent: 0 };
 
 // 🔒 Захист від видалення. За замовчуванням ЗАБЛОКОВАНО (безпечно).
-// Стан памʼятаємо в localStorage; будь-яка дія видалення спершу перевіряє deleteGuard().
-let deleteLocked = localStorage.getItem('storageDeleteLocked') !== '0';
+// Стан зберігається на СЕРВЕРІ (settings.storageDeleteLocked) — однаково на всіх пристроях.
+// Поки замкнено: чекбокси на файлах і папках приховані, будь-яке видалення блокується.
+let deleteLocked = true;
 function renderDeleteLock() {
   const b = document.getElementById('deleteLockBtn');
-  if (!b) return;
-  b.textContent = deleteLocked ? '🔒 Видалення заблоковане' : '🔓 Видалення дозволене';
-  b.className = 'btn btn-icon ' + (deleteLocked ? 'btn-secondary' : 'btn-danger');
-}
-function toggleDeleteLock() {
-  // Зняти замок — лише з підтвердженням; поставити назад — без зайвих питань
-  if (deleteLocked) {
-    if (!confirm('Розблокувати видалення файлів і папок?\nБудь обережний — видалення незворотнє.')) return;
-    deleteLocked = false;
-  } else {
-    deleteLocked = true;
+  if (b) {
+    b.textContent = deleteLocked ? '🔒' : '🔓';
+    b.title = deleteLocked ? 'Видалення заблоковане — натисни, щоб дозволити' : 'Видалення дозволене — натисни, щоб замкнути';
   }
-  localStorage.setItem('storageDeleteLocked', deleteLocked ? '1' : '0');
-  renderDeleteLock();
-  toast(deleteLocked ? '🔒 Видалення заблоковано' : '🔓 Видалення розблоковано');
+  // CSS-клас на body керує видимістю чекбоксів (див. .lock-on .file-check/.folder-check)
+  document.body.classList.toggle('lock-on', deleteLocked);
+}
+async function toggleDeleteLock() {
+  // Зняти замок — лише з підтвердженням; замкнути назад — одразу
+  if (deleteLocked && !confirm('Розблокувати видалення файлів і папок?\nБудь обережний — видалення незворотнє.')) return;
+  const next = !deleteLocked;
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    const s = (await r.json()).settings || {};
+    s.storageDeleteLocked = next;
+    const r2 = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s),
+    });
+    if (!r2.ok) throw new Error('Помилка збереження');
+    deleteLocked = next;
+    renderDeleteLock();
+    // При зміні замка перемальовуємо списки, щоб чекбокси зʼявились/зникли,
+    // і скидаємо вибір, якщо замкнули
+    if (deleteLocked) clearSel();
+    renderFolders();
+    renderFiles();
+    updateBulkBar();
+    toast(deleteLocked ? '🔒 Видалення заблоковано' : '🔓 Видалення розблоковано');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 // Повертає true, якщо видаляти НЕ можна (і показує підказку). Викликати на старті кожної дії видалення.
 function deleteGuard() {
   if (deleteLocked) {
-    toast('🔒 Видалення заблоковане. Натисни замок угорі, щоб дозволити.', 'error');
+    toast('🔒 Видалення заблоковане. Натисни замок 🔒 угорі, щоб дозволити.', 'error');
     return true;
   }
   return false;
@@ -249,11 +270,14 @@ async function loadFiles() {
     stats = data.stats;
     // Якщо поточна папка зникла (видалили) — повертаємось у корінь
     if (currentFolder && !allFolders.includes(currentFolder)) currentFolder = '';
-    // Скрытие banner масових операцій
+    // Скрытие banner масових операцій + стан замка видалення (серверний)
     if (sr.ok) {
       const s = (await sr.json()).settings || {};
       const banner = document.getElementById('bulkOpsBanner');
       if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
+      // За замовчуванням замкнено (true), якщо в налаштуваннях не задано інакше
+      deleteLocked = s.storageDeleteLocked !== false;
+      renderDeleteLock();
     }
     renderQuota();
     renderCrumbs();
@@ -311,7 +335,7 @@ function renderFolders() {
         <div class="fc-meta">${fileCountIn(path)} файл(ів)${sys ? ' · системна' : ''}</div>
         ${sys ? '' : `<div class="fc-actions" onclick="event.stopPropagation()">
           <button class="btn btn-secondary btn-icon" onclick="renameFolder('${escapeAttr(path)}')">✏️ Перейм.</button>
-          <button class="btn btn-danger btn-icon" onclick="deleteFolder('${escapeAttr(path)}')">🗑</button>
+          <button class="btn btn-danger btn-icon js-del" onclick="deleteFolder('${escapeAttr(path)}')">🗑</button>
         </div>`}
       </div>`;
   }).join('');
@@ -547,7 +571,7 @@ function renderFiles() {
         <div class="file-actions">
           <button class="btn btn-secondary btn-icon" onclick="copyUrl('${escapeAttr(fullUrl)}')">📋 URL</button>
           <button class="btn btn-secondary btn-icon" onclick="window.open('${escapeAttr(f.url)}', '_blank')">👁</button>
-          <button class="btn btn-danger btn-icon" onclick="deleteFile('${escapeAttr(f.key)}')">🗑</button>
+          <button class="btn btn-danger btn-icon js-del" onclick="deleteFile('${escapeAttr(f.key)}')">🗑</button>
         </div>
       </div>
     `;
