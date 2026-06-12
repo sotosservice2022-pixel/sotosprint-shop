@@ -618,6 +618,16 @@
     @media (min-width: 700px) {
       .modal-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
     }
+    /* Режим повної сторінки товару (productPageMode === 'page') */
+    .back-to-catalog {
+      background: var(--card, #fff); color: var(--text); border: 1px solid var(--border, #e5e7eb);
+      border-radius: 10px; padding: 9px 16px; font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+    .back-to-catalog:hover { background: var(--bg); }
+    .product-page-card {
+      background: var(--card, #fff); border: 1px solid var(--border, #e5e7eb);
+      border-radius: 16px; overflow: hidden; margin-bottom: 24px;
+    }
     /* Галерея */
     .gallery {
       background: var(--bg);
@@ -1212,12 +1222,19 @@ function openTrackModal() {
     setupOrderTracking();
   }
 
-  // Открыть товар по URL ?product=ID
-  const url = new URL(location);
-  const pid = url.searchParams.get('product');
+  // Відкрити товар за URL: /product/ID (повна сторінка) або ?product=ID (зворотна сумісність)
+  const pathMatch = location.pathname.match(/^\/product\/([^/]+)\/?$/);
+  const pid = pathMatch ? decodeURIComponent(pathMatch[1]) : new URL(location).searchParams.get('product');
   if (pid) {
     const p = shop.products.find(x => x.id === pid);
-    if (p) openModal(p);
+    if (p) {
+      // Якщо зайшли прямо на /product/ID — показуємо сторінку; ?product=ID поважає режим
+      if (pathMatch || shop.productPageMode === 'page') openProductPage(p);
+      else openModal(p);
+    } else if (pathMatch) {
+      // Невідомий товар на /product/... — повертаємо в каталог
+      history.replaceState({}, '', '/');
+    }
   }
   // Закрытие модалки клавишей ESC
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
@@ -1278,7 +1295,21 @@ function setActiveCategory(slug) {
   history.pushState({}, '', url);
   renderShop();
 }
-window.addEventListener('popstate', () => renderShop());
+window.addEventListener('popstate', () => {
+  const m = location.pathname.match(/^\/product\/([^/]+)\/?$/);
+  if (m) {
+    const p = (shop.products || []).find(x => x.id === decodeURIComponent(m[1]));
+    if (p) { openProductPage(p); return; }
+  }
+  // Не на сторінці товару — закриваємо модалку (якщо була) і показуємо каталог
+  currentProduct = null;
+  document.body.style.overflow = '';
+  const modal = document.getElementById('modal');
+  if (modal) { modal.classList.remove('show'); modal.style.display = 'none'; }
+  const ov = document.getElementById('modalOverlay');
+  if (ov) ov.classList.remove('show');
+  renderShop();
+});
 
 function renderCategoriesNav() {
   const cats = Array.isArray(shop.categories) ? shop.categories.filter(c => c.name && c.slug) : [];
@@ -2292,10 +2323,14 @@ function showToast(text) {
 
 function openModalById(id) {
   const p = (shop.products || []).find(x => x.id === id);
-  if (p) openModal(p);
+  if (!p) return;
+  // Режим відкриття товару: 'page' — повна сторінка, інакше — модалка
+  if (shop.productPageMode === 'page') openProductPage(p);
+  else openModal(p);
 }
 
-function openModal(p) {
+// Підготовка стану товару (спільне для модалки і сторінки): currentProduct, images, відео.
+function prepareProduct(p) {
   currentProduct = p;
   currentImgIdx = 0;
   // Нормалізуємо images: підтримуємо string (старий формат) і object (новий: { url, zoomable, link })
@@ -2304,17 +2339,17 @@ function openModal(p) {
     if (typeof img === 'string') return { url: img, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' };
     return { url: img.url || '', zoomable: img.zoomable !== false, link: img.link || '', caption: img.caption || '', capBg: img.capBg || '', capColor: img.capColor || '', capSize: img.capSize || '' };
   }).filter(img => img.url);
-  // Зберігаємо нормалізований масив для onClick хендлерів
   window.__currentImages = images;
   window.__imgBeforeVariant = null; // скидаємо пам'ять фото-варіантів при відкритті товару
-  const videoInfo = parseVideoUrl(p.video);
-  const hasVideo = !!videoInfo;
+  const hasVideo = !!parseVideoUrl(p.video);
+  window.modalQty_value = 1;
+  return { images, hasVideo };
+}
 
-  // URL — для шаринга
-  const url = new URL(location);
-  url.searchParams.set('product', p.id);
-  history.replaceState(null, '', url);
-
+// Внутрішній HTML картки товару (галерея + інфо). Спільний для модалки і повної сторінки.
+// badgeScope — 'modal' за замовч. (стилі бейджів однакові в обох режимах).
+function productDetailHtml(p, images, hasVideo, badgeScope) {
+  const scope = badgeScope || 'modal';
   const optActiveStyle = (shop.variantActiveColor ? `--opt-active-bg:${escapeAttr(shop.variantActiveColor)};` : '')
     + (shop.variantActiveTextColor ? `--opt-active-text:${escapeAttr(shop.variantActiveTextColor)};` : '')
     + (shop.variantInactiveColor ? `--opt-bg:${escapeAttr(shop.variantInactiveColor)};` : '')
@@ -2340,8 +2375,7 @@ function openModal(p) {
     </div>
   ` : '';
 
-  document.getElementById('modalContent').innerHTML = `
-    <button class="modal-close" onclick="closeModal()">×</button>
+  return `
     <div class="modal-grid">
       <div class="gallery">
         <div class="main-img" id="mainImgHolder">
@@ -2369,7 +2403,7 @@ function openModal(p) {
         <div class="price-line" id="priceLine">${p.price} ${escapeHtml(p.currency || '₴')}</div>
         ${tierHintHtml(p, p.currency || '₴')}
         ${(() => { const si = stockInfo(p); return si.tracked ? `<div class="stock-line" style="margin:6px 0; font-size:14px; font-weight:600; color:${si.out ? '#dc2626' : '#16a34a'};">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>` : ''; })()}
-        ${getProductPromoBadges(p, 'modal').length ? `<div class="product-badges" style="position:static; margin:6px 0; flex-direction:row; flex-wrap:wrap;">${promoBadgesHtml(p, 'modal')}</div>` : ''}
+        ${getProductPromoBadges(p, scope).length ? `<div class="product-badges" style="position:static; margin:6px 0; flex-direction:row; flex-wrap:wrap;">${promoBadgesHtml(p, scope)}</div>` : ''}
         ${p.description ? `<div class="desc">${linkifyText(p.description)}</div>` : ''}
         ${attrsHtml}
         ${optsHtml}
@@ -2387,14 +2421,63 @@ function openModal(p) {
       </div>
     </div>
   `;
+}
+
+function openModal(p) {
+  const { images, hasVideo } = prepareProduct(p);
+  // URL — для шаринга
+  const url = new URL(location);
+  url.searchParams.set('product', p.id);
+  history.replaceState(null, '', url);
+
+  document.getElementById('modalContent').innerHTML =
+    `<button class="modal-close" onclick="closeModal()">×</button>` +
+    productDetailHtml(p, images, hasVideo, 'modal');
   document.getElementById('modal').style.display = 'flex';
   document.getElementById('modalOverlay').classList.add('show');
   document.getElementById('modal').classList.add('show');
   document.body.style.overflow = 'hidden';
-  window.modalQty_value = 1;
+}
+
+// Повна сторінка товару (режим productPageMode === 'page'). Рендериться у #app замість каталогу.
+function openProductPage(p) {
+  const { images, hasVideo } = prepareProduct(p);
+  // Красивий URL /product/ID (pushState — щоб «назад» повертало в каталог)
+  const target = '/product/' + encodeURIComponent(p.id);
+  if (location.pathname !== target) history.pushState({ product: p.id }, '', target);
+
+  const backLabel = escapeHtml(shop.backToCatalogText || '← Назад до каталогу');
+  document.getElementById('app').innerHTML = `
+    <div class="wrap">
+      <div style="margin:14px 0;">
+        <button class="back-to-catalog" onclick="backToCatalog()">${backLabel}</button>
+      </div>
+      <div class="product-page-card">
+        ${productDetailHtml(p, images, hasVideo, 'modal')}
+      </div>
+    </div>
+  `;
+  document.body.style.overflow = '';
+  window.scrollTo(0, 0);
+}
+
+// Повернення з повної сторінки товару в каталог.
+function backToCatalog() {
+  currentProduct = null;
+  if (window.history.length > 1) {
+    history.back();
+  } else {
+    history.pushState({}, '', '/');
+    renderShop();
+  }
 }
 
 function closeModal() {
+  // Якщо ми в режимі повної сторінки — це повернення в каталог
+  if (shop && shop.productPageMode === 'page' && location.pathname.startsWith('/product/')) {
+    backToCatalog();
+    return;
+  }
   document.getElementById('modal').classList.remove('show');
   document.getElementById('modalOverlay').classList.remove('show');
   setTimeout(() => { document.getElementById('modal').style.display = 'none'; }, 250);

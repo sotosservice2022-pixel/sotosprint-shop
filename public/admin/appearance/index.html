@@ -415,6 +415,20 @@
     </div>
   </div>
 
+  <!-- РЕЖИМ ВІДКРИТТЯ ТОВАРУ -->
+  <div class="card">
+    <h2>🪟 Як відкривається товар</h2>
+    <div class="grid">
+      <label style="font-size:14px; color:#374151; display:block;">Режим перегляду товару:
+        <select id="productPageMode" style="margin-top:6px; padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; width:100%;">
+          <option value="modal">Модальне вікно (за замовчуванням)</option>
+          <option value="page">Окрема сторінка /product/… (як на звичайних сайтах)</option>
+        </select>
+      </label>
+      <div class="hint">«Модальне вікно» — товар відкривається поверх каталогу (поточна поведінка). «Окрема сторінка» — товар відкривається на повноцінній сторінці з власним посиланням і кнопкою «← Назад до каталогу» (краще для SEO та поширення посилань).</div>
+    </div>
+  </div>
+
   <!-- ИКОНКА ВКЛАДКИ -->
   <div class="card">
     <h2>📌 Іконка вкладки браузера (favicon)</h2>
@@ -757,6 +771,7 @@ function render() {
     if (valEl) valEl.textContent = v + 'px';
   });
   document.getElementById('mobileTwoColumns').checked = !!settings.mobileTwoColumns;
+  document.getElementById('productPageMode').value = (settings.productPageMode === 'page') ? 'page' : 'modal';
   if (settings.logoImage) {
     document.getElementById('logoPreview').src = settings.logoImage;
     document.getElementById('logoPreviewWrap').style.display = '';
@@ -940,6 +955,7 @@ async function saveAll() {
     if (el) settings[key] = parseInt(el.value, 10) || 0;
   });
   settings.mobileTwoColumns = document.getElementById('mobileTwoColumns').checked;
+  settings.productPageMode = (document.getElementById('productPageMode').value === 'page') ? 'page' : 'modal';
   // Тема
   settings.theme = document.getElementById('theme').value;
   // Кнопки
