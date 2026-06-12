@@ -1324,6 +1324,9 @@ function renderCategoriesNav() {
 }
 
 function renderShop() {
+  // Повернулись у каталог — повертаємо плаваючу кнопку «Відстежити замовлення» (її ховає сторінка товару)
+  const trackFab = document.getElementById('trackFab');
+  if (trackFab) trackFab.style.display = '';
   // Спершу валідуємо кошик: видаляємо товари яких більше немає чи вимкнуті
   validateCart();
   // Динамічне оновлення SEO з settings.
@@ -2445,6 +2448,11 @@ function openProductPage(p) {
   // Красивий URL /product/ID (pushState — щоб «назад» повертало в каталог)
   const target = '/product/' + encodeURIComponent(p.id);
   if (location.pathname !== target) history.pushState({ product: p.id }, '', target);
+
+  // На сторінці товару ховаємо плаваючу кнопку «Відстежити замовлення» (немає затемнення,
+  // що ховало б її як у модалці — інакше налазить на кнопку «В корзину» на мобільному).
+  const trackFab = document.getElementById('trackFab');
+  if (trackFab) trackFab.style.display = 'none';
 
   const backLabel = escapeHtml(shop.backToCatalogText || '← Назад до каталогу');
   document.getElementById('app').innerHTML = `
