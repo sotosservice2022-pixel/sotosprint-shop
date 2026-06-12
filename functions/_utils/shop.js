@@ -104,6 +104,8 @@ const DEFAULT_SETTINGS = {
   cartOffsetXMobile: 0,
   // Каталог
   mobileTwoColumns: false,  // показувати 2 колонки на мобільному (за замовч. 1)
+  // Режим відкриття товару: 'modal' — модальне вікно (за замовч.), 'page' — окрема сторінка /product/ID
+  productPageMode: 'modal',
   // Контакты — массивы строк, отдельно в шапке и внизу
   topbarContactsEnabled: true,
   topbarContactsList: [],  // строки для шапки
