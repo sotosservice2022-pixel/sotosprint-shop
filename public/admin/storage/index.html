@@ -51,6 +51,9 @@
       display: flex; align-items: center; justify-content: center; font-size: 36px; color: #6b7280;
     }
     .file-preview img, .file-preview video { width: 100%; height: 100%; object-fit: cover; }
+    /* Виділена плитка файлу (клік по плитці при відкритому замку) */
+    body:not(.lock-on) .file-card { cursor: pointer; }
+    .file-card.selected { border-color: #0b8aff; box-shadow: 0 0 0 2px #0b8aff inset; background: #eff6ff; }
     .file-name { font-size: 12px; font-weight: 600; word-break: break-all;
       color: #1c2129; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .file-meta { font-size: 11px; color: #6b7280; }
@@ -464,7 +467,7 @@ function updateBulkBar() {
   document.getElementById('selectAll').checked = allBoxes > 0 && total === allBoxes;
 }
 function toggleAll(checked) {
-  document.querySelectorAll('.file-check').forEach(c => c.checked = checked);
+  document.querySelectorAll('.file-check').forEach(c => { c.checked = checked; syncCardSel(c); });
   document.querySelectorAll('.folder-check').forEach(c => c.checked = checked);
   updateBulkBar();
 }
@@ -557,9 +560,9 @@ function renderFiles() {
     const isVideo = (f.contentType || '').startsWith('video/');
     const fullUrl = location.origin + f.url;
     return `
-      <div class="file-card">
+      <div class="file-card" onclick="fileCardClick(event, this)">
         <div style="display: flex; gap: 6px; align-items: center;">
-          <input type="checkbox" class="file-check" data-key="${escapeAttr(f.key)}" onchange="updateBulkBar()" />
+          <input type="checkbox" class="file-check" data-key="${escapeAttr(f.key)}" onchange="syncCardSel(this); updateBulkBar();" onclick="event.stopPropagation()" />
           <span style="font-size: 11px; color: #6b7280; flex: 1;">${(f.size/1024).toFixed(1)} KB · ${new Date(f.uploaded).toLocaleDateString('uk-UA')}</span>
         </div>
         <div class="file-preview">
@@ -577,6 +580,24 @@ function renderFiles() {
       </div>
     `;
   }).join('');
+}
+
+// Клік по плитці файлу = виділити/зняти (зручніше, ніж маленький чекбокс).
+// Працює лише коли замок відкритий. Кліки по кнопках/полю URL не рахуються за виділення.
+function fileCardClick(ev, card) {
+  if (deleteLocked) return;
+  // Ігноруємо кліки по інтерактивних елементах усередині картки
+  if (ev.target.closest('button, a, input.url-input, .file-actions')) return;
+  const cb = card.querySelector('.file-check');
+  if (!cb) return;
+  cb.checked = !cb.checked;
+  syncCardSel(cb);
+  updateBulkBar();
+}
+// Підсвічування виділеної картки
+function syncCardSel(cb) {
+  const card = cb.closest('.file-card');
+  if (card) card.classList.toggle('selected', cb.checked);
 }
 
 function copyUrl(url) {
