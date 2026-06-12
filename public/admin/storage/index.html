@@ -70,8 +70,9 @@
     .folder-card .fc-actions { display: flex; gap: 4px; margin-top: 2px; }
     .folder-card .fc-actions button { flex: 1; padding: 4px 6px; font-size: 11px; }
 
-    /* Коли замок видалення активний — ховаємо чекбокси вибору і кнопки видалення */
+    /* Коли замок видалення активний — ховаємо чекбокси вибору, рядок «виділити все» і кнопки видалення */
     body.lock-on .file-check, body.lock-on .folder-check { display: none; }
+    body.lock-on #selectAllRow { display: none !important; }
     body.lock-on .js-del { display: none; }
 
     .url-input {
@@ -161,7 +162,7 @@
       <div id="crumbsNav" class="crumbs" style="margin:0; flex:1;"></div>
       <button class="btn btn-secondary btn-icon" onclick="newFolder()">➕ Нова папка</button>
     </div>
-    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px;">
+    <div id="selectAllRow" style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px;">
       <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
         <input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)" />
         Виділити все в папці
