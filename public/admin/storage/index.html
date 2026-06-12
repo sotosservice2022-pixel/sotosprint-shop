@@ -51,6 +51,9 @@
       display: flex; align-items: center; justify-content: center; font-size: 36px; color: #6b7280;
     }
     .file-preview img, .file-preview video { width: 100%; height: 100%; object-fit: cover; }
+    /* Виділена плитка файлу (клік по плитці при відкритому замку) */
+    body:not(.lock-on) .file-card { cursor: pointer; }
+    .file-card.selected { border-color: #0b8aff; box-shadow: 0 0 0 2px #0b8aff inset; background: #eff6ff; }
     .file-name { font-size: 12px; font-weight: 600; word-break: break-all;
       color: #1c2129; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .file-meta { font-size: 11px; color: #6b7280; }
@@ -69,6 +72,11 @@
     .folder-card .fc-meta { font-size: 11px; color: #6b7280; }
     .folder-card .fc-actions { display: flex; gap: 4px; margin-top: 2px; }
     .folder-card .fc-actions button { flex: 1; padding: 4px 6px; font-size: 11px; }
+
+    /* Коли замок видалення активний — ховаємо чекбокси вибору, рядок «виділити все» і кнопки видалення */
+    body.lock-on .file-check, body.lock-on .folder-check { display: none; }
+    body.lock-on #selectAllRow { display: none !important; }
+    body.lock-on .js-del { display: none; }
 
     .url-input {
       width: 100%; padding: 6px 8px; font-size: 11px; font-family: 'SF Mono', Menlo, monospace;
@@ -139,9 +147,12 @@
 
   <!-- СПИСОК -->
   <div class="card">
-    <h2 style="display: flex; justify-content: space-between; align-items: center;">
+    <h2 style="display: flex; justify-content: space-between; align-items: center; gap:8px; flex-wrap:wrap;">
       <span>📁 Файли в сховищі</span>
-      <button class="btn btn-secondary btn-icon" onclick="loadFiles()">↻ Оновити</button>
+      <span style="display:flex; gap:8px; align-items:center;">
+        <button id="deleteLockBtn" type="button" onclick="toggleDeleteLock()" title="Захист від видалення" style="background:none; border:none; cursor:pointer; font-size:20px; padding:4px; line-height:1;">🔒</button>
+        <button class="btn btn-secondary btn-icon" onclick="loadFiles()">↻ Оновити</button>
+      </span>
     </h2>
     <div id="bulkBar" style="display:none; gap:8px; flex-wrap:wrap; padding:10px 12px; background:#fef3c7; border-radius:10px; margin-bottom:10px; align-items:center;">
       <span style="font-size:13px; font-weight:600;">Вибрано: <span id="bulkCount">0</span></span>
@@ -154,7 +165,7 @@
       <div id="crumbsNav" class="crumbs" style="margin:0; flex:1;"></div>
       <button class="btn btn-secondary btn-icon" onclick="newFolder()">➕ Нова папка</button>
     </div>
-    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px;">
+    <div id="selectAllRow" style="display: flex; gap: 8px; align-items: center; margin-bottom: 10px; font-size: 13px;">
       <label style="display: flex; align-items: center; gap: 4px; cursor: pointer;">
         <input type="checkbox" id="selectAll" onchange="toggleAll(this.checked)" />
         Виділити все в папці
@@ -166,7 +177,7 @@
     <div id="bulkOpsBanner" style="display:none; margin-top: 14px; padding: 12px; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px;">
       <strong style="color: #991b1b;">⚠️ Повне очищення сховища</strong>
       <div class="hint" style="color: #7f1d1d;">Незворотньо. Видалить ВСІ файли в R2 без можливості відновлення.</div>
-      <button class="btn btn-danger" style="margin-top: 8px;" onclick="wipeAll()">🗑 Видалити ВСІ файли</button>
+      <button class="btn btn-danger js-del" style="margin-top: 8px;" onclick="wipeAll()">🗑 Видалити ВСІ файли</button>
     </div>
   </div>
 </div>
@@ -186,6 +197,53 @@ let files = [];
 let allFolders = [];        // усі шляхи папок (із ключів + порожні з KV)
 let currentFolder = '';     // поточний шлях ('' = корінь)
 let stats = { count: 0, totalMB: 0, quotaMB: 200, usedPercent: 0 };
+
+// 🔒 Захист від видалення. За замовчуванням ЗАБЛОКОВАНО (безпечно).
+// Стан зберігається на СЕРВЕРІ (settings.storageDeleteLocked) — однаково на всіх пристроях.
+// Поки замкнено: чекбокси на файлах і папках приховані, будь-яке видалення блокується.
+let deleteLocked = true;
+function renderDeleteLock() {
+  const b = document.getElementById('deleteLockBtn');
+  if (b) {
+    b.textContent = deleteLocked ? '🔒' : '🔓';
+    b.title = deleteLocked ? 'Видалення заблоковане — натисни, щоб дозволити' : 'Видалення дозволене — натисни, щоб замкнути';
+  }
+  // CSS-клас на body керує видимістю чекбоксів (див. .lock-on .file-check/.folder-check)
+  document.body.classList.toggle('lock-on', deleteLocked);
+}
+async function toggleDeleteLock() {
+  // Зняти замок — лише з підтвердженням; замкнути назад — одразу
+  if (deleteLocked && !confirm('Розблокувати видалення файлів і папок?\nБудь обережний — видалення незворотнє.')) return;
+  const next = !deleteLocked;
+  try {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    const s = (await r.json()).settings || {};
+    s.storageDeleteLocked = next;
+    const r2 = await fetch('/api/admin/settings', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(s),
+    });
+    if (!r2.ok) throw new Error('Помилка збереження');
+    deleteLocked = next;
+    renderDeleteLock();
+    // При зміні замка перемальовуємо списки, щоб чекбокси зʼявились/зникли,
+    // і скидаємо вибір, якщо замкнули
+    if (deleteLocked) clearSel();
+    renderFolders();
+    renderFiles();
+    updateBulkBar();
+    toast(deleteLocked ? '🔒 Видалення заблоковано' : '🔓 Видалення розблоковано');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+// Повертає true, якщо видаляти НЕ можна (і показує підказку). Викликати на старті кожної дії видалення.
+function deleteGuard() {
+  if (deleteLocked) {
+    toast('🔒 Видалення заблоковане. Натисни замок 🔒 угорі, щоб дозволити.', 'error');
+    return true;
+  }
+  return false;
+}
 
 // Системні папки: людська назва + іконка + незнищуваність
 const SYSTEM_FOLDERS = {
@@ -216,11 +274,14 @@ async function loadFiles() {
     stats = data.stats;
     // Якщо поточна папка зникла (видалили) — повертаємось у корінь
     if (currentFolder && !allFolders.includes(currentFolder)) currentFolder = '';
-    // Скрытие banner масових операцій
+    // Скрытие banner масових операцій + стан замка видалення (серверний)
     if (sr.ok) {
       const s = (await sr.json()).settings || {};
       const banner = document.getElementById('bulkOpsBanner');
       if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
+      // За замовчуванням замкнено (true), якщо в налаштуваннях не задано інакше
+      deleteLocked = s.storageDeleteLocked !== false;
+      renderDeleteLock();
     }
     renderQuota();
     renderCrumbs();
@@ -271,16 +332,30 @@ function renderFolders() {
     return `
       <div class="folder-card" onclick="enterFolder('${escapeAttr(path)}')">
         <div class="fc-top">
+          <input type="checkbox" class="folder-check" data-path="${escapeAttr(path)}" onclick="event.stopPropagation()" onchange="updateBulkBar()" title="Виділити папку" />
           <span class="fc-icon">📁</span>
           <span class="fc-name">${escapeHtml(folderLabel(path))}</span>
         </div>
         <div class="fc-meta">${fileCountIn(path)} файл(ів)${sys ? ' · системна' : ''}</div>
         ${sys ? '' : `<div class="fc-actions" onclick="event.stopPropagation()">
           <button class="btn btn-secondary btn-icon" onclick="renameFolder('${escapeAttr(path)}')">✏️ Перейм.</button>
-          <button class="btn btn-danger btn-icon" onclick="deleteFolder('${escapeAttr(path)}')">🗑</button>
+          <button class="btn btn-danger btn-icon js-del" onclick="deleteFolder('${escapeAttr(path)}')">🗑</button>
         </div>`}
       </div>`;
   }).join('');
+}
+
+// Вибрані папки (шляхи) — окремо від файлів
+function getSelectedFolders() {
+  return Array.from(document.querySelectorAll('.folder-check:checked')).map(c => c.dataset.path);
+}
+// Усі ключі файлів усередині вибраних папок (рекурсивно)
+function keysInsideSelectedFolders() {
+  const folders = getSelectedFolders();
+  if (!folders.length) return [];
+  return files
+    .filter(f => folders.some(fl => f.folder === fl || f.folder.startsWith(fl + '/')))
+    .map(f => f.key);
 }
 
 async function newFolder() {
@@ -327,6 +402,7 @@ async function renameFolder(path) {
 }
 
 async function deleteFolder(path) {
+  if (deleteGuard()) return;
   const cnt = fileCountIn(path);
   if (cnt > 0) {
     if (!confirm(`У папці «${path}» ${cnt} файл(ів). Видалити папку РАЗОМ з файлами? Незворотньо.`)) return;
@@ -352,7 +428,7 @@ async function deleteFolder(path) {
 
 // Перемістити вибрані файли в іншу папку
 async function bulkMove() {
-  const keys = getSelectedKeys();
+  const keys = getAllSelectedKeys(); // файли + вміст вибраних папок
   if (keys.length === 0) return;
   const choices = ['', ...allFolders].map(f => f === '' ? '(корінь)' : f);
   const dest = prompt('Перемістити ' + keys.length + ' файл(ів) у папку.\nВведіть шлях (порожньо = корінь). Доступні:\n' + choices.join('\n'), currentFolder);
@@ -373,38 +449,66 @@ async function bulkMove() {
 function getSelectedKeys() {
   return Array.from(document.querySelectorAll('.file-check:checked')).map(c => c.dataset.key);
 }
+// Усі ключі для bulk-дії: файли поточного рівня + вміст вибраних папок (без дублів)
+function getAllSelectedKeys() {
+  return Array.from(new Set([...getSelectedKeys(), ...keysInsideSelectedFolders()]));
+}
 function updateBulkBar() {
-  const sel = getSelectedKeys();
+  const selFiles = getSelectedKeys();
+  const selFolders = getSelectedFolders();
+  const total = selFiles.length + selFolders.length;
   const bar = document.getElementById('bulkBar');
-  bar.style.display = sel.length > 0 ? 'flex' : 'none';
-  document.getElementById('bulkCount').textContent = sel.length;
-  const all = document.querySelectorAll('.file-check').length;
-  document.getElementById('selectAll').checked = sel.length > 0 && sel.length === all;
+  bar.style.display = total > 0 ? 'flex' : 'none';
+  document.getElementById('bulkCount').textContent = total;
+  // «Виділити все» активне, коли вибрано всі файли І всі папки рівня
+  const allFiles = document.querySelectorAll('.file-check').length;
+  const allFolders = document.querySelectorAll('.folder-check').length;
+  const allBoxes = allFiles + allFolders;
+  document.getElementById('selectAll').checked = allBoxes > 0 && total === allBoxes;
 }
 function toggleAll(checked) {
-  document.querySelectorAll('.file-check').forEach(c => c.checked = checked);
+  document.querySelectorAll('.file-check').forEach(c => { c.checked = checked; syncCardSel(c); });
+  document.querySelectorAll('.folder-check').forEach(c => c.checked = checked);
   updateBulkBar();
 }
 function clearSel() { toggleAll(false); }
 
 async function bulkDelete() {
-  const keys = getSelectedKeys();
-  if (keys.length === 0) return;
-  if (!confirm(`Видалити ${keys.length} файлів? Незворотньо.`)) return;
+  if (deleteGuard()) return;
+  const keys = getAllSelectedKeys(); // файли + вміст вибраних папок
+  const folders = getSelectedFolders();
+  if (keys.length === 0 && folders.length === 0) return;
+  const msg = folders.length
+    ? `Видалити ${keys.length} файл(ів) із ${folders.length} вибраних папок? Незворотньо.`
+    : `Видалити ${keys.length} файлів? Незворотньо.`;
+  if (!confirm(msg)) return;
   try {
-    const r = await fetch('/api/admin/storage/delete', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keys }),
-    });
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error);
-    toast(`✅ Видалено: ${data.deleted}`);
+    if (keys.length) {
+      const r = await fetch('/api/admin/storage/delete', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keys }),
+      });
+      const data = await r.json();
+      if (!data.ok) throw new Error(data.error);
+    }
+    // Прибираємо записи порожніх власних папок (системні лишаємо)
+    for (const path of folders) {
+      if (isSystemFolder(path)) continue;
+      try {
+        await fetch('/api/admin/storage/folders', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'delete', path }),
+        });
+      } catch {}
+    }
+    toast(`✅ Видалено: ${keys.length}`);
     await loadFiles();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
 async function wipeAll() {
+  if (deleteGuard()) return;
   const word = prompt('УВАГА! Видалити ВСІ файли зі сховища?\nВведіть слово ВИДАЛИТИ-ВСЕ для підтвердження:');
   if (word !== 'ВИДАЛИТИ-ВСЕ') { toast('Скасовано', 'error'); return; }
   try {
@@ -456,9 +560,9 @@ function renderFiles() {
     const isVideo = (f.contentType || '').startsWith('video/');
     const fullUrl = location.origin + f.url;
     return `
-      <div class="file-card">
+      <div class="file-card" onclick="fileCardClick(event, this)">
         <div style="display: flex; gap: 6px; align-items: center;">
-          <input type="checkbox" class="file-check" data-key="${escapeAttr(f.key)}" onchange="updateBulkBar()" />
+          <input type="checkbox" class="file-check" data-key="${escapeAttr(f.key)}" onchange="syncCardSel(this); updateBulkBar();" onclick="event.stopPropagation()" />
           <span style="font-size: 11px; color: #6b7280; flex: 1;">${(f.size/1024).toFixed(1)} KB · ${new Date(f.uploaded).toLocaleDateString('uk-UA')}</span>
         </div>
         <div class="file-preview">
@@ -471,11 +575,29 @@ function renderFiles() {
         <div class="file-actions">
           <button class="btn btn-secondary btn-icon" onclick="copyUrl('${escapeAttr(fullUrl)}')">📋 URL</button>
           <button class="btn btn-secondary btn-icon" onclick="window.open('${escapeAttr(f.url)}', '_blank')">👁</button>
-          <button class="btn btn-danger btn-icon" onclick="deleteFile('${escapeAttr(f.key)}')">🗑</button>
+          <button class="btn btn-danger btn-icon js-del" onclick="deleteFile('${escapeAttr(f.key)}')">🗑</button>
         </div>
       </div>
     `;
   }).join('');
+}
+
+// Клік по плитці файлу = виділити/зняти (зручніше, ніж маленький чекбокс).
+// Працює лише коли замок відкритий. Кліки по кнопках/полю URL не рахуються за виділення.
+function fileCardClick(ev, card) {
+  if (deleteLocked) return;
+  // Ігноруємо кліки по інтерактивних елементах усередині картки
+  if (ev.target.closest('button, a, input.url-input, .file-actions')) return;
+  const cb = card.querySelector('.file-check');
+  if (!cb) return;
+  cb.checked = !cb.checked;
+  syncCardSel(cb);
+  updateBulkBar();
+}
+// Підсвічування виділеної картки
+function syncCardSel(cb) {
+  const card = cb.closest('.file-card');
+  if (card) card.classList.toggle('selected', cb.checked);
 }
 
 function copyUrl(url) {
@@ -483,6 +605,7 @@ function copyUrl(url) {
 }
 
 async function deleteFile(key) {
+  if (deleteGuard()) return;
   if (!confirm('Видалити файл?\n' + key)) return;
   try {
     const r = await fetch('/api/admin/storage/delete', {
@@ -624,6 +747,7 @@ function toast(msg, kind) {
 function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function escapeAttr(s) { return escapeHtml(s); }
 
+renderDeleteLock();
 loadFiles();
 
 // Авто-оновлення списку, коли повертаємось на вкладку (напр. після видалення товару
