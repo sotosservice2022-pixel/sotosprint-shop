@@ -2403,6 +2403,7 @@ function productDetailHtml(p, images, hasVideo, badgeScope) {
       </div>
       <div class="info">
         <h2>${nameHtml(p.name)}</h2>
+        ${(shop.productCodeShow && p.sku) ? `<div class="product-sku" style="font-size:12px; color:var(--muted,#6b7280); margin:2px 0 6px;">Код: ${escapeHtml(p.sku)}</div>` : ''}
         <div class="price-line" id="priceLine">${p.price} ${escapeHtml(p.currency || '₴')}</div>
         ${tierHintHtml(p, p.currency || '₴')}
         ${(() => { const si = stockInfo(p); return si.tracked ? `<div class="stock-line" style="margin:6px 0; font-size:14px; font-weight:600; color:${si.out ? '#dc2626' : '#16a34a'};">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>` : ''; })()}

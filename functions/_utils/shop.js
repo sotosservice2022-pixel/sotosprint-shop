@@ -106,6 +106,10 @@ const DEFAULT_SETTINGS = {
   mobileTwoColumns: false,  // показувати 2 колонки на мобільному (за замовч. 1)
   // Режим відкриття товару: 'modal' — модальне вікно (за замовч.), 'page' — окрема сторінка /product/ID
   productPageMode: 'modal',
+  // Коди (артикули) товарів: присвоєння ART-00N + показ покупцю. Лічильник монотонний (закріплення коду).
+  productCodeEnabled: false,
+  productCodeShow: false,
+  productCodeCounter: 0,
   // Контакты — массивы строк, отдельно в шапке и внизу
   topbarContactsEnabled: true,
   topbarContactsList: [],  // строки для шапки

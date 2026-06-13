@@ -326,6 +326,22 @@
     </div>
   </div>
 
+  <!-- 🏷 Код товару (артикул) -->
+  <div class="card no-collapse" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 style="font-size: 16px; margin: 0 0 12px; color: #374151;">🏷 Код товару (артикул)</h2>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+      <input type="checkbox" id="productCodeEnabled" />
+      <label for="productCodeEnabled" style="margin:0; font-weight:600; font-size:13px;">Присвоювати код товару (ART-001, ART-002…)</label>
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px; padding-left: 22px;">
+      <input type="checkbox" id="productCodeShow" />
+      <label for="productCodeShow" style="margin:0; font-size:13px;">Показувати код покупцю на сторінці товару</label>
+    </div>
+    <div style="font-size: 12px; color: #6b7280; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+      💡 Увімкнеш — усім товарам без коду присвоїться артикул по порядку; новим товарам — наступний номер. Код закріплюється за товаром назавжди (видалення інших товарів його не змінює). Вимкнеш — усі коди анулюються. Зберігається кнопкою <strong>«💾 Зберегти все»</strong>.
+    </div>
+  </div>
+
   <!-- 💰 Групова зміна цін -->
   <div class="card no-collapse" id="priceBulkCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 id="priceBulkHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">💰 Групова зміна цін</h2>
@@ -437,6 +453,11 @@ async function loadAll() {
       if (navEl) navEl.checked = appSettings.showCategoriesNav !== false;
       if (allTabEl) allTabEl.checked = appSettings.showAllCategoriesTab !== false;
       if (defNameEl) defNameEl.value = appSettings.defaultCategoryName || 'Усі товари';
+      // Коди товарів (артикули)
+      const pcEnEl = document.getElementById('productCodeEnabled');
+      const pcShowEl = document.getElementById('productCodeShow');
+      if (pcEnEl) pcEnEl.checked = appSettings.productCodeEnabled === true;
+      if (pcShowEl) pcShowEl.checked = appSettings.productCodeShow === true;
       renderCategories();
       // Робимо блок категорій згортуваним (за замовчуванням згорнутий, щоб не заважав)
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
@@ -678,7 +699,7 @@ function renderList() {
       <div class="thumb">${mainImg ? `<img src="${mainImg}" />` : '🖼️'}</div>
       <div class="info">
         <div class="name">${p.pinTop ? '<span title="Закріплено зверху (ТОП)" style="margin-right:3px;">📌</span>' : ''}${escapeHtml(p.name || '(без імені)')}${catName ? ` <span style="display:inline-block; padding:1px 6px; font-size:11px; background:var(--accent); color:#fff; border-radius:8px; vertical-align:middle;">${escapeHtml(catName)}</span>` : ''}</div>
-        <div class="meta">${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}${(p.options?.length) ? ' · ⚙️ ' + p.options.length + ' вар.' : ''}</div>
+        <div class="meta">${p.sku ? '<span style="font-weight:700; color:#0b8aff;">' + escapeHtml(p.sku) + '</span> · ' : ''}${(p.images?.length || (p.image ? 1 : 0))} фото${p.video ? ' · 🎬' : ''}${(p.attributes?.length) ? ' · ' + p.attributes.length + ' хар-к' : ''}${(p.options?.length) ? ' · ⚙️ ' + p.options.length + ' вар.' : ''}</div>
         ${(Array.isArray(p.badges) && p.badges.length) ? `<div class="row-badges" style="display:flex; gap:3px; flex-wrap:wrap; margin-top:3px;">${p.badges.filter(b => b && b.text).map(b => `<span style="font-size:10px; font-weight:700; line-height:1.4; padding:1px 6px; border-radius:4px; background:${escapeAttr(b.color || '#dc2626')}; color:${escapeAttr(b.textColor || '#ffffff')}; text-transform:uppercase;">${escapeHtml(b.text)}</span>`).join('')}</div>` : ''}
       </div>
       <div onclick="event.stopPropagation()" style="display:flex; align-items:center; gap:3px; margin:0 6px; flex-shrink:0;" title="${unlocked ? 'Редагувати ціну прямо тут' : 'Ціни заблоковані — натисни 🔒 зверху, щоб редагувати'}">
@@ -1759,13 +1780,23 @@ function removeProduct(idx) {
   if (window.currentIdx === idx) closeEditor();
   renderList();
 }
+// Наступний артикул ART-00N. Лічильник монотонний (у appSettings) — код закріплюється назавжди.
+function nextSku() {
+  const n = (parseInt(appSettings.productCodeCounter, 10) || 0) + 1;
+  appSettings.productCodeCounter = n;
+  return 'ART-' + String(n).padStart(3, '0');
+}
+
 function addProduct() {
   const id = 'p' + Math.random().toString(36).slice(2, 8);
-  products.push({
+  const np = {
     id, name: 'Новий товар', description: '', price: 0, currency: '₴',
     images: [], video: '', attributes: [], options: [],
     enabled: true, requiresPhoto: false,
-  });
+  };
+  // Якщо коди увімкнено — новий товар одразу отримує наступний артикул
+  if (appSettings.productCodeEnabled === true) np.sku = nextSku();
+  products.push(np);
   renderList();
   editProduct(products.length - 1);
 }
@@ -1864,6 +1895,24 @@ async function saveAll(reopenEditor = true) {
     if (appSettings && Array.isArray(appSettings.badgeColors)) {
       serverSettings.badgeColors = appSettings.badgeColors;
     }
+    // === Коди товарів (артикули) ===
+    const pcEnEl = document.getElementById('productCodeEnabled');
+    const pcShowEl = document.getElementById('productCodeShow');
+    const codeEnabled = !!(pcEnEl && pcEnEl.checked);
+    serverSettings.productCodeEnabled = codeEnabled;
+    serverSettings.productCodeShow = !!(pcShowEl && pcShowEl.checked);
+    // Лічильник беремо зі СВІЖИХ серверних settings (монотонний, не переюзується)
+    let counter = parseInt(serverSettings.productCodeCounter, 10) || 0;
+    if (codeEnabled) {
+      // Присвоюємо код усім товарам БЕЗ нього (за поточним порядком)
+      for (const p of products) {
+        if (!p.sku) { counter += 1; p.sku = 'ART-' + String(counter).padStart(3, '0'); }
+      }
+    } else {
+      // Анулюємо коди в усіх товарів (лічильник лишаємо — артикул-стабільність)
+      for (const p of products) { if (p.sku) delete p.sku; }
+    }
+    serverSettings.productCodeCounter = counter;
     const sRes = await fetch('/api/admin/settings', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       credentials: 'include', body: JSON.stringify(serverSettings),
