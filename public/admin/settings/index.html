@@ -259,6 +259,11 @@
       </div>
       <div class="hint">Якщо увімкнено — після кнопки «В корзину» у відкритій картці вона автоматично закривається. Вимкни, щоб клієнт міг далі дивитись товар / додати ще.</div>
       <div class="checkbox-inline" style="margin-top: 8px;">
+        <input type="checkbox" id="closeProductAfterRemove" />
+        <label for="closeProductAfterRemove" style="margin:0">Закривати картку товару після прибирання з кошика</label>
+      </div>
+      <div class="hint">Стосується випадку, коли товар уже в кошику і клік по кнопці прибирає його (налаштування «🗑 Клік прибирає з кошика»). Вимкни, щоб картка лишалась відкритою.</div>
+      <div class="checkbox-inline" style="margin-top: 8px;">
         <input type="checkbox" id="inCartClickOpensCart" />
         <label for="inCartClickOpensCart" style="margin:0">Якщо товар вже в кошику — клік по «✓ У кошику» відкриває кошик (замість повторного додавання)</label>
       </div>
@@ -940,6 +945,7 @@ function render() {
   document.getElementById('showSoldCount').checked = !!settings.showSoldCount;
   document.getElementById('quickAddToCartEnabled').checked = !!settings.quickAddToCartEnabled;
   document.getElementById('closeProductAfterAdd').checked = settings.closeProductAfterAdd !== false;
+  document.getElementById('closeProductAfterRemove').checked = settings.closeProductAfterRemove !== false;
   document.getElementById('inCartClickOpensCart').checked = settings.inCartClickOpensCart !== false;
   document.getElementById('inCartClickOpensCartMobile').checked = settings.inCartClickOpensCartMobile !== false;
   document.getElementById('inCartClickRemoves').checked = !!settings.inCartClickRemoves;
@@ -1160,6 +1166,7 @@ async function saveAll() {
   settings.showSoldCount = document.getElementById('showSoldCount').checked;
   settings.quickAddToCartEnabled = document.getElementById('quickAddToCartEnabled').checked;
   settings.closeProductAfterAdd = document.getElementById('closeProductAfterAdd').checked;
+  settings.closeProductAfterRemove = document.getElementById('closeProductAfterRemove').checked;
   settings.inCartClickOpensCart = document.getElementById('inCartClickOpensCart').checked;
   settings.inCartClickOpensCartMobile = document.getElementById('inCartClickOpensCartMobile').checked;
   settings.inCartClickRemoves = document.getElementById('inCartClickRemoves').checked;

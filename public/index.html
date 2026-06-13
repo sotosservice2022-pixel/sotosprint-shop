@@ -2727,9 +2727,20 @@ function addCurrentToCart() {
   // якщо дію оброблено (тоді не додаємо повторно).
   const alreadyInCart = getCart().some(i => i.productId === p.id && (i.optionId || '') === optionId);
   if (alreadyInCart && handleInCartClick(p.id, optionId)) {
-    // Закриваємо картку (як і при звичайному додаванні), щоб поведінка була послідовна
-    if (shop.productPageMode === 'page' && location.pathname.startsWith('/product/')) backToCatalog();
-    else closeModal();
+    // Закриваємо картку лише якщо це дозволено налаштуванням (за замовч. так)
+    if (shop.closeProductAfterRemove !== false) {
+      if (shop.productPageMode === 'page' && location.pathname.startsWith('/product/')) backToCatalog();
+      else closeModal();
+    } else {
+      // Не закриваємо — оновлюємо кнопку в актуальний стан (товар міг бути прибраний)
+      setTimeout(() => {
+        const b = document.getElementById('modalAddBtn');
+        if (!b) return;
+        const nowIn = isInCart(p.id);
+        b.classList.toggle('in-cart', nowIn);
+        b.textContent = nowIn ? (shop.inCartText || '✓ У кошику') : (shop.addToCartText || 'В корзину');
+      }, 300);
+    }
     return;
   }
 
