@@ -49,7 +49,15 @@
     return n >= 8 && n <= 48;
   }
 
-  // Лишаємо у style лише color і font-size (безпечні значення). Решта — геть.
+  // font-family: лише безпечні символи (літери/цифри/пробіл/кома/лапки/дефіс), без url()/expression.
+  // Шрифт нічого не виконує — достатньо обмежити набір символів і довжину.
+  function isSafeFontFamily(v) {
+    v = String(v || '').trim();
+    if (!v || v.length > 80) return false;
+    return /^[\w ,'"\-]+$/.test(v);
+  }
+
+  // Лишаємо у style лише color / font-size / font-family (безпечні значення). Решта — геть.
   function filterStyle(styleStr) {
     var out = [];
     String(styleStr || '').split(';').forEach(function (decl) {
@@ -60,6 +68,7 @@
       if (/url\(|expression|javascript:/i.test(val)) return; // підозрілі значення
       if (prop === 'color' && isSafeColor(val)) out.push('color:' + val);
       else if (prop === 'font-size' && isSafeFontSize(val)) out.push('font-size:' + val);
+      else if (prop === 'font-family' && isSafeFontFamily(val)) out.push('font-family:' + val);
     });
     return out.join('; ');
   }
