@@ -1297,6 +1297,11 @@ function setActiveCategory(slug) {
   renderShop();
 }
 window.addEventListener('popstate', (ev) => {
+  // Якщо відкрито кошик — «назад» спершу закриває його (а не виходить із сайту)
+  if (document.getElementById('cartPanel')?.classList.contains('show')) {
+    doCloseCartDom();
+    return;
+  }
   // Повна сторінка товару /product/ID
   const m = location.pathname.match(/^\/product\/([^/]+)\/?$/);
   if (m) {
@@ -3128,8 +3133,24 @@ function updateCartBadge() {
 }
 
 function toggleCart(open) {
-  document.getElementById('cartPanel').classList.toggle('show', open);
-  document.getElementById('cartOverlay').classList.toggle('show', open);
+  if (open) {
+    const isOpen = document.getElementById('cartPanel').classList.contains('show');
+    // pushState → свайп/кнопка «назад» закриває кошик, а не виходить із сайту
+    if (!isOpen && !(history.state && history.state.cart)) {
+      history.pushState({ cart: true }, '', location.href);
+    }
+    document.getElementById('cartPanel').classList.add('show');
+    document.getElementById('cartOverlay').classList.add('show');
+  } else {
+    // Якщо кошик відкрито через pushState — повертаємось назад (popstate зробить DOM-закриття)
+    if (history.state && history.state.cart) { history.back(); return; }
+    doCloseCartDom();
+  }
+}
+// DOM-закриття кошика без зміни історії
+function doCloseCartDom() {
+  document.getElementById('cartPanel').classList.remove('show');
+  document.getElementById('cartOverlay').classList.remove('show');
 }
 
 // === Утилиты ===
