@@ -254,6 +254,11 @@
       </div>
       <div class="hint">Якщо увімкнено — клієнт може додати товар з каталога одним кліком, не відкриваючи картку. Якщо у товара є <strong>варіанти</strong> — картка відкриється все одно (треба обрати варіант). Фото клієнт прикріплює на оформленні, тож воно не заважає швидкому додаванню.</div>
       <div class="checkbox-inline" style="margin-top: 8px;">
+        <input type="checkbox" id="closeProductAfterAdd" />
+        <label for="closeProductAfterAdd" style="margin:0">Закривати картку товару після додавання в кошик</label>
+      </div>
+      <div class="hint">Якщо увімкнено — після кнопки «В корзину» у відкритій картці вона автоматично закривається. Вимкни, щоб клієнт міг далі дивитись товар / додати ще.</div>
+      <div class="checkbox-inline" style="margin-top: 8px;">
         <input type="checkbox" id="inCartClickOpensCart" />
         <label for="inCartClickOpensCart" style="margin:0">Якщо товар вже в кошику — клік по «✓ У кошику» відкриває кошик (замість повторного додавання)</label>
       </div>
@@ -934,6 +939,7 @@ function render() {
   // Sold count
   document.getElementById('showSoldCount').checked = !!settings.showSoldCount;
   document.getElementById('quickAddToCartEnabled').checked = !!settings.quickAddToCartEnabled;
+  document.getElementById('closeProductAfterAdd').checked = settings.closeProductAfterAdd !== false;
   document.getElementById('inCartClickOpensCart').checked = settings.inCartClickOpensCart !== false;
   document.getElementById('inCartClickOpensCartMobile').checked = settings.inCartClickOpensCartMobile !== false;
   document.getElementById('inCartClickRemoves').checked = !!settings.inCartClickRemoves;
@@ -1153,6 +1159,7 @@ async function saveAll() {
   // Sold count
   settings.showSoldCount = document.getElementById('showSoldCount').checked;
   settings.quickAddToCartEnabled = document.getElementById('quickAddToCartEnabled').checked;
+  settings.closeProductAfterAdd = document.getElementById('closeProductAfterAdd').checked;
   settings.inCartClickOpensCart = document.getElementById('inCartClickOpensCart').checked;
   settings.inCartClickOpensCartMobile = document.getElementById('inCartClickOpensCartMobile').checked;
   settings.inCartClickRemoves = document.getElementById('inCartClickRemoves').checked;

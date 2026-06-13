@@ -2759,9 +2759,15 @@ function addCurrentToCart() {
   const btn = document.getElementById('modalAddBtn');
   btn.classList.add('in-cart');
   btn.textContent = '✓ Добавлено в корзину';
-  setTimeout(() => {
-    closeModal();
-  }, 800);
+  // Закривати картку після додавання — лише якщо увімкнено в налаштуваннях (за замовч. так).
+  if (shop.closeProductAfterAdd !== false) {
+    setTimeout(() => { closeModal(); }, 800);
+  } else {
+    // Не закриваємо — повертаємо текст кнопки в «✓ У кошику», щоб було видно стан
+    setTimeout(() => {
+      btn.textContent = shop.inCartText || '✓ У кошику';
+    }, 800);
+  }
 }
 
 // === Корзина ===
