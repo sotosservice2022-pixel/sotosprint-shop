@@ -976,6 +976,21 @@ export function escapeHtml(text) {
   }[c]));
 }
 
+// Зрізає HTML-теги в чистий текст (для SEO-мета/title, куди не можна вставляти теги).
+// Декодує базові entity, стискає пробіли. Для plain-text каналів — НЕ для HTML-рендера.
+export function stripTags(text) {
+  return String(text ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 export function jsonResp(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
     status,

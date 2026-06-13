@@ -747,6 +747,8 @@
 <script src="/admin/_admin-ui.js"></script>
 <script src="/admin/_admin.js"></script>
 <script src="/admin/_r2-upload.js"></script>
+<script src="/_richtext-sanitize.js"></script>
+<script src="/admin/_richtext.js"></script>
 <script>
 let settings = {};
 
@@ -925,6 +927,11 @@ function render() {
 
   TEXT_FIELDS.forEach(k => { const el = document.getElementById(k); if (el) el.value = settings[k] ?? ''; });
   NUMBER_FIELDS.forEach(k => { const el = document.getElementById(k); if (el) el.value = settings[k] ?? ''; });
+  // Rich-text (компактний) на короткі акцентні поля. Ідемпотентно — повторний render не дублює.
+  if (window.initRichText) {
+    initRichText('#subtitle', { mode: 'compact' });
+    initRichText('#catalogTitle', { mode: 'compact' });
+  }
   // Запам'ятовуємо topbarTitleSize щоб правильно показати превʼю мобільного
   window.__topbarTitleSize = settings.topbarTitleSize || 17;
   updateMobilePreview();

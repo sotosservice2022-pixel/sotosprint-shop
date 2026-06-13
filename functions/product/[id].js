@@ -2,7 +2,7 @@
 // Віддає той самий index.html (SPA сам відрендерить товар за шляхом), але з підставленими
 // SEO-тегами КОНКРЕТНОГО товару (title / description / og:* / twitter:*), щоб пошук і соцмережі
 // бачили правильне прев'ю. Якщо щось піде не так — м'який фолбек на /?product=<id>.
-import { getProducts, getSettings, storageUrl } from '../_utils/shop.js';
+import { getProducts, getSettings, storageUrl, stripTags } from '../_utils/shop.js';
 
 // Перше фото товару → абсолютний URL для og:image
 function firstImageUrl(p, origin) {
@@ -52,7 +52,7 @@ export async function onRequestGet(context) {
   try { s = await getSettings(env); } catch (_) {}
   const shopTitle = s.seoTitle || s.title || '';
   const title = product.name ? `${String(product.name).replace(/\s+/g, ' ').trim()}${shopTitle ? ' — ' + shopTitle : ''}` : shopTitle;
-  const desc = (product.description ? String(product.description) : (s.seoDescription || ''))
+  const desc = (product.description ? stripTags(product.description) : (s.seoDescription || ''))
     .replace(/\s+/g, ' ').trim().slice(0, 300);
   const img = firstImageUrl(product, origin) || (s.seoOgImage ? String(s.seoOgImage).trim() : '');
 

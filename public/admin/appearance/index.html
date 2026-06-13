@@ -690,6 +690,8 @@
 
 <script src="/admin/_admin-ui.js"></script>
 <script src="/admin/_r2-upload.js"></script>
+<script src="/_richtext-sanitize.js"></script>
+<script src="/admin/_richtext.js"></script>
 <script src="/admin/_admin.js"></script>
 <script>
 let settings = {};
@@ -858,7 +860,7 @@ function renderHeaderMenu() {
         </label>
         <button class="btn btn-danger btn-icon" type="button" onclick="removeHeaderMenu(${i})">×</button>
       </div>
-      <textarea data-k="content" rows="4" placeholder="Опис пункту (можна HTML — &lt;p&gt;, &lt;a&gt;, &lt;strong&gt; і т.д.)" style="width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff;">${escapeHtml(item.content || '')}</textarea>
+      <textarea id="menuContent_${i}" data-k="content" rows="4" placeholder="Опис пункту (можна форматувати: жирний, списки, посилання, емодзі)" style="width: 100%; padding: 9px 11px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 14px; font-family: inherit; background: #fff;">${escapeHtml(item.content || '')}</textarea>
     `;
     wrap.appendChild(row);
     row.querySelectorAll('[data-k]').forEach(el => {
@@ -869,6 +871,9 @@ function renderHeaderMenu() {
       el.addEventListener('input', upd);
       el.addEventListener('change', upd);
     });
+    // Rich-text редактор на контент пункту меню (повний). Підключається після data-k
+    // обробників — віджет диспатчить синтетичний 'input', тож item.content оновлюється сам.
+    if (window.initRichText) initRichText('#menuContent_' + i, { mode: 'full' });
   });
 }
 
@@ -1102,6 +1107,8 @@ function renderBannerSlots(side) {
   if (!container) return;
   const arr = settings.sideBanners[side];
   container.innerHTML = arr.map((b, i) => bannerSlotHtml(side, i, b)).join('');
+  // Rich-text (компактний) на текст кожного банера. Ідемпотентно (dataset.rtInit).
+  if (window.initRichText) arr.forEach((b, i) => initRichText('#b_' + side + '_' + i + '_text', { mode: 'compact' }));
 }
 
 function bannerSlotHtml(side, idx, b) {
@@ -1215,6 +1222,11 @@ async function loadHeroBanner() {
   const h = curHeroObj();
   document.getElementById('heroEnabled').checked = !!h.enabled;
   document.getElementById('heroText').value = h.text || '';
+  // Rich-text (компактний) на текст банера. Вішаємо один раз; при перемиканні категорії
+  // .value переписано вище — просимо редактор перезавантажити вміст із target._rtReload().
+  if (window.initRichText) initRichText('#heroText', { mode: 'compact' });
+  const heroTextEl = document.getElementById('heroText');
+  if (heroTextEl && heroTextEl._rtReload) heroTextEl._rtReload();
   document.getElementById('heroTextColor').value = h.textColor || '#ffffff';
   const op = (typeof h.textBgOpacity === 'number') ? h.textBgOpacity : 0.4;
   document.getElementById('heroTextBgOpacity').value = op;

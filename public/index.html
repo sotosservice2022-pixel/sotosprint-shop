@@ -890,6 +890,7 @@
   <div class="modal-content" id="modalContent"></div>
 </div>
 
+<script src="/_richtext-sanitize.js"></script>
 <script>
 const CART_KEY = 'sotosprint_cart_v1';
 let shop = null;
@@ -1596,9 +1597,9 @@ function renderShop() {
     ${renderHomePromo('top')}
     ${renderHeroBanner()}
     <div class="wrap">
-      ${shop.subtitle ? `<p class="sub align-${shop.subtitleAlign || 'left'}">${escapeHtml(shop.subtitle)}</p>` : ''}
+      ${shop.subtitle ? `<p class="sub align-${shop.subtitleAlign || 'left'}">${renderRichCompact(shop.subtitle)}</p>` : ''}
       ${renderHomePromo('aboveCatalog')}
-      ${shop.catalogTitle && shop.catalogTitle.trim() ? `<h2 class="section-title">${escapeHtml(shop.catalogTitle)}</h2>` : ''}
+      ${shop.catalogTitle && shop.catalogTitle.trim() ? `<h2 class="section-title">${renderRichCompact(shop.catalogTitle)}</h2>` : ''}
       ${renderCategoriesNav()}
       ${productsHtml}
       ${renderFooterContacts()}
@@ -1745,7 +1746,7 @@ function bannerItemHtml(item) {
   } else if (IMG) {
     mediaHtml = `<img src="${IMG}" alt="" />`;
   }
-  const textHtml = TEXT ? `<div class="text">${escapeHtml(TEXT)}</div>` : '';
+  const textHtml = TEXT ? `<div class="text">${renderRichCompact(TEXT)}</div>` : '';
   if (!mediaHtml && !textHtml) return '';
 
   // Визначаємо посилання: спочатку productId, потім link
@@ -1891,7 +1892,7 @@ function renderHeroBanner() {
 
   const textColor = h.textColor || '#fff';
   const textHtml = hasText
-    ? `<div class="hero-banner-text" style="color:${escapeAttr(textColor)}; text-align:${tAlign};">${escapeHtml(h.text)}</div>`
+    ? `<div class="hero-banner-text" style="color:${escapeAttr(textColor)}; text-align:${tAlign};">${renderRichCompact(h.text)}</div>`
     : '';
 
   const innerStyle = `min-height:${minH}px; padding:${padY}px 16px; justify-content:${justify};`;
@@ -2014,11 +2015,9 @@ window.openMenuItem = function(idx) {  const items = (shop.headerMenuEnabled !==
   if (!item) return;
   const overlay = document.createElement('div');
   overlay.className = 'menu-modal-overlay';
-  // content може містити HTML — не екрануємо. Користувач відповідає за коректність.
-  // \n замінюємо на <br> для зручності
-  const html = String(item.content || '').includes('<')
-    ? item.content
-    : escapeHtml(item.content || '').replace(/\n/g, '<br>');
+  // content може містити HTML з редактора — чистимо санітайзером (фікс XSS).
+  // Легасі-текст без тегів — екрануємо і \n→<br>.
+  const html = renderRich(item.content);
   overlay.innerHTML = `
     <div class="menu-modal">
       <button class="close" aria-label="Закрити">×</button>
@@ -2428,7 +2427,7 @@ function productDetailHtml(p, images, hasVideo, badgeScope) {
         ${tierHintHtml(p, p.currency || '₴')}
         ${(() => { const si = stockInfo(p); return si.tracked ? `<div class="stock-line" style="margin:6px 0; font-size:14px; font-weight:600; color:${si.out ? '#dc2626' : '#16a34a'};">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>` : ''; })()}
         ${getProductPromoBadges(p, scope).length ? `<div class="product-badges" style="position:static; margin:6px 0; flex-direction:row; flex-wrap:wrap;">${promoBadgesHtml(p, scope)}</div>` : ''}
-        ${p.description ? `<div class="desc">${linkifyText(p.description)}</div>` : ''}
+        ${p.description ? `<div class="desc">${renderRich(p.description)}</div>` : ''}
         ${attrsHtml}
         ${optsHtml}
         <div class="qty-row">
@@ -3197,6 +3196,31 @@ function linkifyText(text) {
     .replace(/(https?:\/\/[^\s<>"]+)/gi, '<a href="$1" target="_blank" rel="noopener" style="color:var(--accent);">$1</a>')
     .replace(/(\s|^)(www\.[^\s<>"]+)/gi, '$1<a href="https://$2" target="_blank" rel="noopener" style="color:var(--accent);">$2</a>')
     .replace(/\n/g, '<br>');
+}
+
+// === Rich-text рендер: HTML з редактора чистимо санітайзером; легасі-текст — як раніше ===
+// ЗАЛІЗНЕ ПРАВИЛО: гілка rich — ТІЛЬКИ санітайз; гілка plain — ТІЛЬКИ linkify/nameHtml.
+// Ніколи не проганяти linkifyText по санітизованому HTML (подвійне кодування).
+function looksLikeHtml(v) {
+  return typeof v === 'string' && /<(b|strong|i|em|u|s|strike|p|ul|ol|li|a|span|br)\b/i.test(v);
+}
+function renderRich(v) {
+  if (!v) return '';
+  if (looksLikeHtml(v) && window.sanitizeRichHtml) return window.sanitizeRichHtml(v, { mode: 'full' });
+  return linkifyText(v);
+}
+function renderRichCompact(v) {
+  if (!v) return '';
+  if (looksLikeHtml(v) && window.sanitizeRichHtml) return window.sanitizeRichHtml(v, { mode: 'compact' });
+  return nameHtml(v);
+}
+function htmlToPlainText(v) {
+  if (!v) return '';
+  if (!looksLikeHtml(v)) return String(v);
+  try {
+    const d = new DOMParser().parseFromString(v, 'text/html');
+    return (d.body.textContent || '').replace(/\s+/g, ' ').trim();
+  } catch (e) { return String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
 }
 </script>
 </body>

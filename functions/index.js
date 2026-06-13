@@ -9,7 +9,7 @@
 //
 // Якщо відповідне поле порожнє — нічого не чіпаємо, лишається статичний тег з index.html
 // (за замовчуванням заголовок "AGPRNT — ..." та https://agprnt.com/og-image.jpg).
-import { getSettings } from './_utils/shop.js';
+import { getSettings, stripTags } from './_utils/shop.js';
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -26,8 +26,8 @@ export async function onRequest(context) {
   } catch (_) {}
   if (!s) return res;
 
-  const title = s.seoTitle ? String(s.seoTitle).trim() : '';
-  const description = s.seoDescription ? String(s.seoDescription).trim() : '';
+  const title = s.seoTitle ? stripTags(s.seoTitle) : '';
+  const description = s.seoDescription ? stripTags(s.seoDescription) : '';
   const keywords = s.seoKeywords ? String(s.seoKeywords).trim() : '';
   const ogImage = s.seoOgImage ? String(s.seoOgImage).trim() : '';
   // Кастомний фавікон з адмінки (Зовнішній вигляд → Favicon). Підставляємо у сирий HTML,
