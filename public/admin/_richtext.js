@@ -98,6 +98,10 @@
     this.target = target;
     this.mode = mode;
     this.savedRange = null;
+    this.undoStack = [];
+    this.redoStack = [];
+    this._lastRecorded = null;
+    this._typingTimer = null;
 
     var edit = document.createElement('div');
     edit.className = 'rt-edit';
@@ -108,18 +112,33 @@
     // зберігаємо виділення щоразу, коли воно змінюється всередині поля
     edit.addEventListener('keyup', function () { self.saveSelection(); });
     edit.addEventListener('mouseup', function () { self.saveSelection(); });
-    edit.addEventListener('input', function () { self.saveSelection(); self.sync(); });
+    edit.addEventListener('input', function () {
+      self.saveSelection();
+      self.sync();
+      // запис історії з дебаунсом (щоб набір тексту не плодив сотні станів)
+      clearTimeout(self._typingTimer);
+      self._typingTimer = setTimeout(function () { self.record(); }, 500);
+    });
     edit.addEventListener('blur', function () { self.sync(); });
-    edit.addEventListener('paste', function () { setTimeout(function () { self.sync(); }, 0); });
+    edit.addEventListener('paste', function () { setTimeout(function () { self.sync(); self.record(); }, 0); });
+    // Ctrl/Cmd+Z — відмінити, Ctrl+Y або Shift+Ctrl/Cmd+Z — повторити
+    edit.addEventListener('keydown', function (e) {
+      var z = (e.key === 'z' || e.key === 'Z'), y = (e.key === 'y' || e.key === 'Y');
+      if ((e.ctrlKey || e.metaKey) && z && !e.shiftKey) { e.preventDefault(); self.undo(); }
+      else if ((e.ctrlKey || e.metaKey) && (y || (z && e.shiftKey))) { e.preventDefault(); self.redo(); }
+    });
     // Надійно: будь-яка зміна виділення в документі, що потрапляє в наше поле — зберігаємо одразу.
     // Це усуває «перша дія не спрацьовує» (коли клікнув у поле, але keyup/mouseup ще не було).
-    document.addEventListener('selectionchange', function () {
+    // Слухач самовидаляється, якщо поле прибрано з DOM (редактор товару перестворюється) — без витоку.
+    function onSelChange() {
+      if (!document.body.contains(self.edit)) { document.removeEventListener('selectionchange', onSelChange); return; }
       var sel = window.getSelection();
       if (sel && sel.rangeCount) {
         var r = sel.getRangeAt(0);
         if (self.edit.contains(r.commonAncestorContainer)) self.savedRange = r.cloneRange();
       }
-    });
+    }
+    document.addEventListener('selectionchange', onSelChange);
 
     this.loadValue();
   }
@@ -133,12 +152,48 @@
         .replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; })
         .replace(/\r?\n/g, '<br>');
     }
+    // початковий стан для історії
+    this.undoStack = [this.edit.innerHTML];
+    this.redoStack = [];
+    this._lastRecorded = this.edit.innerHTML;
   };
 
   RT.prototype.sync = function () {
     var clean = window.sanitizeRichHtml(this.edit.innerHTML, { mode: this.mode });
     this.target.value = clean;
     this.target.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  // Записати поточний стан у стек «відмінити» (якщо змінився). Чистить redo.
+  RT.prototype.record = function () {
+    var html = this.edit.innerHTML;
+    if (html === this._lastRecorded) return;
+    this.undoStack.push(html);
+    if (this.undoStack.length > 100) this.undoStack.shift();
+    this.redoStack = [];
+    this._lastRecorded = html;
+  };
+
+  RT.prototype.undo = function () {
+    clearTimeout(this._typingTimer);
+    // якщо останній набраний стан ще не записаний — зафіксувати
+    if (this.edit.innerHTML !== this._lastRecorded) this.record();
+    if (this.undoStack.length <= 1) return; // лишаємо найперший стан
+    var cur = this.undoStack.pop();
+    this.redoStack.push(cur);
+    var prev = this.undoStack[this.undoStack.length - 1];
+    this.edit.innerHTML = prev;
+    this._lastRecorded = prev;
+    this.sync();
+  };
+
+  RT.prototype.redo = function () {
+    if (!this.redoStack.length) return;
+    var html = this.redoStack.pop();
+    this.undoStack.push(html);
+    this.edit.innerHTML = html;
+    this._lastRecorded = html;
+    this.sync();
   };
 
   // Зберегти поточний Range, якщо він усередині нашого поля.
@@ -172,6 +227,7 @@
     exec(cmd, val);
     this.saveSelection();
     this.sync();
+    this.record();
   };
 
   // Обгорнути збережене виділення у <span> з заданою CSS-властивістю (колір/розмір/шрифт).
@@ -198,6 +254,7 @@
       this.savedRange = nr.cloneRange();
     } catch (e) {}
     this.sync();
+    this.record();
   };
 
   // Вставити текст (емодзі) у збережену позицію.
@@ -206,30 +263,54 @@
     exec('insertText', text);
     this.saveSelection();
     this.sync();
+    this.record();
   };
 
-  // Зняти ВСЕ форматування з виділення: дістаємо чистий текст фрагмента і вставляємо назад
-  // як текстові вузли з <br> замість переносів. Надійніше за execCommand('removeFormat'),
-  // який НЕ прибирає наші <span style> (колір/розмір/шрифт) і списки.
+  // Обхід вузла → плоский текст зі збереженими переносами (<br> і кінці блоків p/li/div → \n).
+  function nodeToTextWithBreaks(node, lines) {
+    var nodes = node.childNodes;
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      if (n.nodeType === 3) { // текст
+        lines[lines.length - 1] += n.nodeValue.replace(/\r?\n/g, ' ');
+      } else if (n.nodeType === 1) {
+        var tag = n.tagName;
+        if (tag === 'BR') { lines.push(''); }
+        else if (tag === 'P' || tag === 'LI' || tag === 'DIV' || tag === 'UL' || tag === 'OL') {
+          if (lines[lines.length - 1] !== '') lines.push('');
+          nodeToTextWithBreaks(n, lines);
+          lines.push('');
+        } else {
+          nodeToTextWithBreaks(n, lines); // інлайн (span/b/i/a…) — без переносу
+        }
+      }
+    }
+  }
+
+  // Зняти ВСЕ форматування з виділення: чистий текст зі збереженими переносами (<br>/абзаци),
+  // вставити назад текстовими вузлами + <br>. Надійніше за execCommand('removeFormat'),
+  // який НЕ прибирає наші <span style> (колір/розмір/шрифт), списки і посилання.
   RT.prototype.clearFormatting = function () {
     this.restoreSelection();
     var sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
     var range = sel.getRangeAt(0);
     if (!this.edit.contains(range.commonAncestorContainer)) return;
+    this.record(); // зберегти стан для «відмінити»
     var frag = range.extractContents();
-    var text = (frag.textContent || '');
     range.deleteContents();
-    // будуємо вузли: рядки тексту, між ними <br>
-    var parts = text.split(/\r?\n/);
+    var lines = [''];
+    nodeToTextWithBreaks(frag, lines);
+    // прибрати порожні рядки на краях
+    while (lines.length && lines[0] === '') lines.shift();
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
     var holder = document.createDocumentFragment();
     var lastNode = null;
-    parts.forEach(function (line, i) {
+    lines.forEach(function (line, i) {
       if (i > 0) { var br = document.createElement('br'); holder.appendChild(br); lastNode = br; }
       if (line) { var tn = document.createTextNode(line); holder.appendChild(tn); lastNode = tn; }
     });
     range.insertNode(holder);
-    // курсор у кінець вставленого
     sel.removeAllRanges();
     if (lastNode) {
       var nr = document.createRange();
@@ -239,6 +320,7 @@
       this.savedRange = nr.cloneRange();
     }
     this.sync();
+    this.record();
   };
 
   // Вставити посилання.
@@ -253,6 +335,7 @@
     }
     this.saveSelection();
     this.sync();
+    this.record();
   };
 
   // === UI ===
@@ -304,6 +387,11 @@
     var bar = document.createElement('div');
     bar.className = 'rt-toolbar';
     var isFull = (mode !== 'compact');
+
+    // Відмінити / Повторити
+    bar.appendChild(mkBtn('↶', 'Відмінити (Ctrl+Z)', function () { rt.undo(); }));
+    bar.appendChild(mkBtn('↷', 'Повторити (Ctrl+Y)', function () { rt.redo(); }));
+    bar.appendChild(mkSep());
 
     bar.appendChild(mkBtn('<b>B</b>', 'Жирний', function () { rt.run('bold'); }));
     bar.appendChild(mkBtn('<i>I</i>', 'Курсив', function () { rt.run('italic'); }));
@@ -433,13 +521,11 @@
       });
     }));
 
-    // Очистити форматування (тільки full)
-    if (isFull) {
-      bar.appendChild(mkSep());
-      bar.appendChild(mkBtn('🧹', 'Очистити форматування', function () {
-        rt.clearFormatting();
-      }));
-    }
+    // Очистити форматування (в усіх режимах)
+    bar.appendChild(mkSep());
+    bar.appendChild(mkBtn('🧹', 'Очистити форматування', function () {
+      rt.clearFormatting();
+    }));
 
     return bar;
   }
