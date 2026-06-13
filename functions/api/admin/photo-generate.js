@@ -139,7 +139,9 @@ async function startGPTBackground(env, prompt, refs, quality, size, modelOverrid
   // Модель-оркестратор — чат з vision (НЕ gpt-image-1, то модель інструмента).
   // Можна перевизначити з фронту (випадний список моделей) — лише безпечний формат id.
   const safeModel = modelOverride && /^[a-z0-9][\w.\-]{1,60}$/i.test(modelOverride) ? modelOverride : '';
-  const orchModel = safeModel || env.GPT_ORCHESTRATOR_MODEL || 'gpt-4.1-mini';
+  const orchModel = safeModel || env.GPT_ORCHESTRATOR_MODEL || 'gpt-5.4-mini';
+  // Модель інструмента малювання (можна перевизначити секретом). За замовч. — найновіша gpt-image-2.
+  const imgModel = env.GPT_IMAGE_MODEL || 'gpt-image-2';
 
   const content = [{ type: 'input_text', text: prompt }];
   for (const ref of refs) {
@@ -149,7 +151,7 @@ async function startGPTBackground(env, prompt, refs, quality, size, modelOverrid
   const body = {
     model: orchModel,
     input: [{ role: 'user', content }],
-    tools: [{ type: 'image_generation', quality: q, size: s }],
+    tools: [{ type: 'image_generation', model: imgModel, quality: q, size: s }],
     tool_choice: { type: 'image_generation' },
     background: true,
   };

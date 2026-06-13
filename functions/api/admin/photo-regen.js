@@ -154,7 +154,7 @@ async function runGPT(env, { buf, contentType }, prompt, modelOverride, quality,
   if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
 
   // модель можна перевизначити з фронту (поле «Модель GPT»), але лише безпечний формат
-  let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
+  let model = env.GPT_IMAGE_MODEL || 'gpt-image-2';
   if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
 
   // якість і розмір можна задати з фронту (дешевше/швидше = low + менший розмір)

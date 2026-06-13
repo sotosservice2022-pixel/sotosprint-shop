@@ -173,21 +173,22 @@
         <div class="hint keyMsg" id="keyMsg_openai" style="margin-top:6px;"></div>
         <div class="field-label" style="margin-top:12px;">Модель GPT</div>
         <div class="hint" style="margin-bottom:6px;">
-          Модель-оркестратор: «бачить» фото-приклад і керує генерацією. <b>mini</b> — швидше й дешевше, повні — якісніше.
-          Сам малюнок завжди робить інструмент <code>gpt-image-1</code>. Зберігається автоматично.
+          Модель-оркестратор: «бачить» фото-приклад і керує генерацією. <b>mini/nano</b> — швидше й дешевше, повні — якісніше.
+          Сам малюнок робить інструмент <code>gpt-image-2</code>. Зберігається автоматично.
         </div>
         <div class="row" style="gap:8px; align-items:center;">
           <select id="gptModelSelect" style="flex:1; min-width:220px;">
-            <option value="gpt-4.1-mini">gpt-4.1-mini — швидко й дешево (типово)</option>
-            <option value="gpt-4.1">gpt-4.1 — якісніше</option>
-            <option value="gpt-4o">gpt-4o — універсальна</option>
-            <option value="gpt-4o-mini">gpt-4o-mini — найдешевша</option>
-            <option value="o3">o3 — складніші запити</option>
+            <option value="gpt-5.4-mini">gpt-5.4-mini — швидко й дешево (типово)</option>
+            <option value="gpt-5.5">gpt-5.5 — найкраща (складні запити)</option>
+            <option value="gpt-5.4">gpt-5.4 — якісна</option>
+            <option value="gpt-5.4-nano">gpt-5.4-nano — найдешевша/найшвидша</option>
+            <option value="gpt-4.1-mini">gpt-4.1-mini — старіша, швидка</option>
+            <option value="gpt-4o">gpt-4o — старіша, універсальна</option>
             <option value="__custom__">✏️ Інша (ввести вручну)…</option>
           </select>
         </div>
         <div class="row" id="gptModelCustomRow" style="gap:8px; align-items:center; margin-top:8px; display:none;">
-          <input id="gptModel" type="text" placeholder="напр. gpt-4.1, o3-mini…" style="flex:1; min-width:220px;" autocomplete="off" spellcheck="false" />
+          <input id="gptModel" type="text" placeholder="напр. gpt-5.5, gpt-5.4-mini…" style="flex:1; min-width:220px;" autocomplete="off" spellcheck="false" />
         </div>
         <div class="hint" id="gptModelMsg" style="margin-top:6px;"></div>
 
@@ -809,7 +810,7 @@ document.querySelectorAll('.clearKeyBtn').forEach(btn => btn.onclick = () => {
 
 // ---------- модель GPT (зберігається локально в браузері) ----------
 // Список відомих моделей-оркестраторів (мають збігатися з <option> у gptModelSelect).
-const GPT_KNOWN_MODELS = ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o', 'gpt-4o-mini', 'o3'];
+const GPT_KNOWN_MODELS = ['gpt-5.4-mini', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-nano', 'gpt-4.1-mini', 'gpt-4o'];
 function getGptModel() {
   try { return (localStorage.getItem('restoreGptModel') || '').trim(); } catch { return ''; }
 }
@@ -821,7 +822,7 @@ function saveGptModel(v) {
   try { if (v) localStorage.setItem('restoreGptModel', v); else localStorage.removeItem('restoreGptModel'); } catch {}
   const msg = document.getElementById('gptModelMsg');
   if (msg) {
-    msg.textContent = v ? ('Модель: ' + v) : 'Модель за замовчуванням (gpt-4.1-mini)';
+    msg.textContent = v ? ('Модель: ' + v) : 'Модель за замовчуванням (gpt-5.4-mini)';
     msg.style.color = '#16a34a';
   }
 }
@@ -830,12 +831,12 @@ function syncGptModelCustomRow(selVal) {
   if (row) row.style.display = (selVal === '__custom__') ? 'flex' : 'none';
 }
 (function initGptModel() {
-  const saved = getGptModel(); // '' → дефолт (gpt-4.1-mini)
+  const saved = getGptModel(); // '' → дефолт (gpt-5.4-mini)
   const sel = document.getElementById('gptModelSelect');
   const inp = document.getElementById('gptModel');
   if (sel) {
     if (!saved || GPT_KNOWN_MODELS.includes(saved)) {
-      sel.value = saved || 'gpt-4.1-mini';
+      sel.value = saved || 'gpt-5.4-mini';
       if (inp) inp.value = '';
     } else {
       sel.value = '__custom__';
