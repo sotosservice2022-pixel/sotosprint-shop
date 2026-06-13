@@ -383,6 +383,34 @@ async function parseAiResponse(r) {
   return d;
 }
 
+// Чекає результат AI-генерації. Якщо бекенд повернув фонове завдання (status:'pending' + jobId) —
+// опитує /photo-generate {action:'poll'} кожні 3с, доки не 'completed'. Кожен запит короткий,
+// тож таймаут шлюзу Cloudflare обходиться. Повертає url готового зображення.
+// onTick(secs) — необов'язковий колбек для оновлення статусу («Генерую… Nс»).
+async function awaitAiResult(d, onTick) {
+  if (d.status === 'completed' && d.url) return d.url;
+  if (d.status !== 'pending' || !d.jobId) {
+    if (d.url) return d.url; // сумісність зі старим синхронним форматом
+    throw new Error('Неочікувана відповідь сервера');
+  }
+  const jobId = d.jobId;
+  const started = Date.now();
+  const MAX_MS = 5 * 60 * 1000; // 5 хв стелі на одну генерацію
+  while (Date.now() - started < MAX_MS) {
+    await new Promise(res => setTimeout(res, 3000));
+    if (typeof onTick === 'function') onTick(Math.round((Date.now() - started) / 1000));
+    const r = await fetch('/api/admin/photo-generate', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'poll', jobId }),
+    });
+    const pd = await parseAiResponse(r);
+    if (pd.status === 'completed' && pd.url) return pd.url;
+    // status:'pending' — продовжуємо опитувати
+  }
+  throw new Error('Генерація триває надто довго. Спробуй ще раз або якість нижче.');
+}
+
 async function generateNow() {
   const prompt = document.getElementById('genPrompt').value.trim();
   if (!prompt) { toast('Спочатку напиши опис зображення', 'error'); return; }
@@ -408,9 +436,10 @@ async function generateNow() {
       }),
     });
     const d = await parseAiResponse(r);
-    item.afterUrl = d.url; item.afterKind = 'regen'; item.status = 'done';
+    item.afterUrl = await awaitAiResult(d, secs => { item.error = null; item.tick = secs; renderItem(item); });
+    item.tick = null; item.afterKind = 'regen'; item.status = 'done';
   } catch (e) {
-    item.status = 'err'; item.error = e.message;
+    item.status = 'err'; item.error = e.message; item.tick = null;
   }
   renderItem(item); updateCounter(); saveItems();
   btn.disabled = false;
@@ -517,9 +546,10 @@ async function retryGen(id) {
       }),
     });
     const d = await parseAiResponse(r);
-    item.afterUrl = d.url; item.afterKind = 'regen'; item.status = 'done';
+    item.afterUrl = await awaitAiResult(d, secs => { item.error = null; item.tick = secs; renderItem(item); });
+    item.tick = null; item.afterKind = 'regen'; item.status = 'done';
   } catch (e) {
-    item.status = 'err'; item.error = e.message;
+    item.status = 'err'; item.error = e.message; item.tick = null;
   }
   renderItem(item); updateCounter(); saveItems();
 }
@@ -596,7 +626,7 @@ function renderItem(item) {
   const statusMap = {
     uploading: ['busy', '<span class="spin"></span>Завантаження…'],
     pending: ['pending', '⏳ Очікує обробки'],
-    busy: ['busy', '<span class="spin"></span>Обробка…'],
+    busy: ['busy', '<span class="spin"></span>' + (item.tick ? ('Генерую… ' + item.tick + 'с') : 'Обробка…')],
     done: ['done', '✅ Готово'],
     err: ['err', '⚠️ ' + (item.error || 'Помилка')],
   };

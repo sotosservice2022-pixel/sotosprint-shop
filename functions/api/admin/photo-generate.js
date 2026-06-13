@@ -126,11 +126,13 @@ function imageFromResponses(data) {
   return null;
 }
 
-// --- OpenAI GPT через РЕФЕРЕНС: Responses API + vision (як браузерний ChatGPT) ---
-// GPT-4o «бачить» фото-приклад очима, розуміє що на ньому, і генерує НОВЕ зображення
-// «за мотивами» через інструмент image_generation. Це принципово краще за endpoint
-// /images/edits (який лише механічно перемальовує піксели прикладу).
-async function runGPTWithVision(env, prompt, refs, quality, size) {
+// --- OpenAI GPT: СТАРТ фонової генерації (Responses API + background mode) ---
+// background:true → запит одразу повертає id зі статусом queued, не чекаючи картинку.
+// Так HTTP-запит короткий і не впирається в таймаут шлюзу Cloudflare (~100с).
+// GPT-4o «бачить» фото-приклад очима (vision) і генерує НОВЕ зображення «за мотивами»
+// через інструмент image_generation — як браузерний ChatGPT, а не механічний /images/edits.
+// Працює і з референсом (vision), і без (чиста генерація за текстом) — однаково.
+async function startGPTBackground(env, prompt, refs, quality, size) {
   const apiKey = await getOpenAIKey(env);
   if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
   const { q, s } = normGptQS(quality, size, env);
@@ -147,6 +149,7 @@ async function runGPTWithVision(env, prompt, refs, quality, size) {
     input: [{ role: 'user', content }],
     tools: [{ type: 'image_generation', quality: q, size: s }],
     tool_choice: { type: 'image_generation' },
+    background: true,
   };
   const r = await fetch('https://api.openai.com/v1/responses', {
     method: 'POST',
@@ -155,77 +158,33 @@ async function runGPTWithVision(env, prompt, refs, quality, size) {
   });
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error('OpenAI Responses: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
-  const img = imageFromResponses(data);
-  if (!img) throw new Error('OpenAI не повернув зображення (Responses)');
-  return img;
+  if (!data.id) throw new Error('OpenAI не повернув ідентифікатор завдання');
+  return data.id;
 }
 
-// --- OpenAI GPT БЕЗ референса: чиста генерація за текстом (endpoint generations) ---
-async function runGPTTextOnly(env, prompt, modelOverride, quality, size) {
+// --- OpenAI GPT: ОПИТУВАННЯ фонового завдання ---
+// Повертає { status: 'completed', img } | { status: 'pending' }; кидає при failed/cancelled.
+async function pollGPTBackground(env, jobId) {
   const apiKey = await getOpenAIKey(env);
-  if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
-  let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
-  if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
-  const { q, s } = normGptQS(quality, size, env);
-
-  const r = await fetch('https://api.openai.com/v1/images/generations', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model, prompt, size: s, quality: q, n: 1 }),
+  if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI.');
+  const r = await fetch('https://api.openai.com/v1/responses/' + encodeURIComponent(jobId), {
+    method: 'GET', headers: { 'Authorization': 'Bearer ' + apiKey },
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error('OpenAI: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
-  const item0 = data?.data?.[0] || {};
-  if (item0.b64_json) return { bytes: b64ToBytes(item0.b64_json), contentType: 'image/png' };
-  if (item0.url) {
-    const ir = await fetch(item0.url);
-    if (!ir.ok) throw new Error('Не вдалося завантажити згенероване зображення');
-    const ab = await ir.arrayBuffer();
-    const ct = ir.headers.get('content-type') || 'image/png';
-    return { bytes: new Uint8Array(ab), contentType: ct };
+  if (!r.ok) throw new Error('OpenAI Responses: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
+  const status = data.status; // queued | in_progress | completed | failed | incomplete | cancelled
+  if (status === 'completed') {
+    const img = imageFromResponses(data);
+    if (!img) throw new Error('OpenAI не повернув зображення (можливо, запит відхилено політикою). Спробуй інакший опис.');
+    return { status: 'completed', img };
   }
-  throw new Error('OpenAI не повернув зображення');
-}
-
-// --- OpenAI GPT: вибір шляху (з референсом → vision; без → text) ---
-async function runGPT(env, prompt, refs, modelOverride, quality, size) {
-  if (refs && refs.length) {
-    try {
-      return await runGPTWithVision(env, prompt, refs, quality, size);
-    } catch (e) {
-      // Запасний варіант: якщо Responses недоступний (стара модель/обмеження ключа) —
-      // не залишаємо клієнта без результату, пробуємо старий edits.
-      const apiKey = await getOpenAIKey(env);
-      const { q, s } = normGptQS(quality, size, env);
-      let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
-      if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
-      const form = new FormData();
-      form.append('model', model);
-      form.append('image', new Blob([refs[0].buf], { type: refs[0].contentType || 'image/png' }), 'ref.png');
-      form.append('prompt', prompt);
-      form.append('size', s);
-      form.append('quality', q);
-      form.append('n', '1');
-      const r = await fetch('https://api.openai.com/v1/images/edits', {
-        method: 'POST', headers: { 'Authorization': 'Bearer ' + apiKey }, body: form,
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) {
-        // Кидаємо ПЕРВИННУ помилку Responses (вона інформативніша), а edits лише як підказку
-        throw new Error(e.message || ('OpenAI: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status))));
-      }
-      const item0 = data?.data?.[0] || {};
-      if (item0.b64_json) return { bytes: b64ToBytes(item0.b64_json), contentType: 'image/png' };
-      if (item0.url) {
-        const ir = await fetch(item0.url);
-        if (!ir.ok) throw new Error('Не вдалося завантажити згенероване зображення');
-        const ab = await ir.arrayBuffer();
-        return { bytes: new Uint8Array(ab), contentType: ir.headers.get('content-type') || 'image/png' };
-      }
-      throw new Error(e.message || 'OpenAI не повернув зображення');
-    }
+  if (status === 'failed' || status === 'incomplete' || status === 'cancelled') {
+    const msg = (data && data.error && data.error.message)
+      || (data && data.incomplete_details && data.incomplete_details.reason)
+      || ('статус: ' + status);
+    throw new Error('Генерація не вдалась: ' + msg);
   }
-  return runGPTTextOnly(env, prompt, modelOverride, quality, size);
+  return { status: 'pending' }; // queued / in_progress
 }
 
 export async function onRequestPost({ request, env }) {
@@ -235,12 +194,31 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалідний JSON' }, 400); }
 
+  const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt' };
+
+  // === ОПИТУВАННЯ фонового GPT-завдання (action:'poll', jobId) ===
+  // Кожен запит короткий → не впирається в таймаут шлюзу. Коли completed — зберігаємо
+  // картинку в R2 і повертаємо url. Поки pending — клієнт опитує далі.
+  if (body.action === 'poll') {
+    const jobId = (body.jobId && String(body.jobId).trim()) || '';
+    if (!jobId) return jsonResp({ ok: false, error: 'Немає jobId' }, 400);
+    try {
+      const res = await pollGPTBackground(env, jobId);
+      if (res.status === 'completed') {
+        const url = await putToR2(env, res.img.bytes, res.img.contentType, prefixMap.gpt);
+        return jsonResp({ ok: true, status: 'completed', url, engine: 'gpt' });
+      }
+      return jsonResp({ ok: true, status: 'pending' });
+    } catch (e) {
+      return jsonResp({ ok: false, error: e.message || String(e) }, 500);
+    }
+  }
+
   const prompt = (body.prompt && String(body.prompt).trim()) || '';
   if (!prompt) return jsonResp({ ok: false, error: 'Вкажи опис зображення (поле «Опис»)' }, 400);
 
   const engine = (body.engine === 'gpt') ? 'gpt' : 'premium';
   const refUrls = Array.isArray(body.refUrls) ? body.refUrls.slice(0, 4) : [];
-  const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt' };
 
   // Формат/орієнтація: квадрат | A4 книжкова (вертикальна) | A4 альбомна (горизонтальна)
   const FORMAT_TO_SIZE = { square: '1024x1024', a4p: '1024x1536', a4l: '1536x1024' };
@@ -253,15 +231,18 @@ export async function onRequestPost({ request, env }) {
       const ref = await loadRef(env, u);
       if (ref) refs.push(ref);
     }
-    const modelOverride = (body.model && String(body.model).trim()) || '';
     const gptQuality = (body.quality && String(body.quality).trim()) || '';
-    // Розмір беремо з формату (єдине джерело правди для режиму «Створення»)
     const gptSize = FORMAT_TO_SIZE[format];
-    let out;
-    if (engine === 'gpt') out = await runGPT(env, prompt, refs, modelOverride, gptQuality, gptSize);
-    else out = await runPremium(env, prompt, refs, FORMAT_TO_AR[format]);
-    const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
-    return jsonResp({ ok: true, url, engine });
+
+    // GPT → запускаємо фонове завдання, одразу повертаємо jobId (клієнт опитує poll)
+    if (engine === 'gpt') {
+      const jobId = await startGPTBackground(env, prompt, refs, gptQuality, gptSize);
+      return jsonResp({ ok: true, status: 'pending', jobId, engine: 'gpt' });
+    }
+    // Gemini → синхронно (швидкий, у таймаут вкладається)
+    const out = await runPremium(env, prompt, refs, FORMAT_TO_AR[format]);
+    const url = await putToR2(env, out.bytes, out.contentType, prefixMap.premium);
+    return jsonResp({ ok: true, status: 'completed', url, engine: 'premium' });
   } catch (e) {
     return jsonResp({ ok: false, error: e.message || String(e) }, 500);
   }

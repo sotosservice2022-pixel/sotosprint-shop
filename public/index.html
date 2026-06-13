@@ -372,6 +372,7 @@
       padding: 8px 12px; background: var(--accent); color: var(--accent-text);
       border: none; border-radius: 8px; cursor: pointer;
       font-size: 13px; font-weight: 600; width: 100%;
+      -webkit-user-select: none; user-select: none;
     }
     .product .add:hover { background: var(--accent-dark); }
     .product .add.in-cart { background: var(--success); }
@@ -769,6 +770,7 @@
       padding: 14px; background: var(--accent); color: var(--accent-text);
       border: none; border-radius: 10px; cursor: pointer;
       font-size: 15px; font-weight: 600; width: 100%;
+      -webkit-user-select: none; user-select: none;
     }
     .add-big:hover { background: var(--accent-dark); }
     .add-big.in-cart { background: var(--success); }
@@ -3127,7 +3129,10 @@ function toggleItemSelected(idx, selected) {
 
 function updateCartBadge() {
   const cart = getCart();
-  const count = cart.reduce((s, i) => s + (i.selected !== false ? i.quantity : 0), 0);
+  // Бейдж рахує ВСІ товари в кошику (незалежно від галочки) — щоб збігалося з підсвіткою
+  // кнопок на головній (вони теж дивляться лише «чи лежить у кошику»). Галочка впливає
+  // тільки на те, що піде в замовлення при оформленні.
+  const count = cart.reduce((s, i) => s + i.quantity, 0);
   const badge = document.getElementById('cartBadge');
   if (badge) badge.textContent = count;
 }
