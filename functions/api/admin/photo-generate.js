@@ -94,53 +94,90 @@ async function runPremium(env, prompt, refs, aspectRatio) {
   return { bytes: b64ToBytes(b64), contentType: mime };
 }
 
-// --- OpenAI GPT: генерація (generations) або з референсом (edits) ---
-async function runGPT(env, prompt, refs, modelOverride, quality, size) {
+// Дістати OpenAI-ключ (env або KV)
+async function getOpenAIKey(env) {
   let apiKey = env.OPENAI_API_KEY;
   if (!apiKey && env.SHOP_KV) {
     try { apiKey = await env.SHOP_KV.get('openai_image_key'); } catch (_) {}
   }
-  if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
+  return apiKey;
+}
 
-  let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
-  if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
-
+// Нормалізація якості/розміру (спільна для всіх GPT-шляхів)
+function normGptQS(quality, size, env) {
   const ALLOWED_QUALITY = ['low', 'medium', 'high', 'auto'];
   const ALLOWED_SIZE = ['1024x1024', '1024x1536', '1536x1024', 'auto'];
-  let q = (quality || env.GPT_IMAGE_QUALITY || 'medium').toLowerCase();
-  if (!ALLOWED_QUALITY.includes(q)) q = 'medium';
+  // Дефолт якості — 'high', щоб результат був як у браузерному ChatGPT (раніше було 'medium' → гірше)
+  let q = (quality || env.GPT_IMAGE_QUALITY || 'high').toLowerCase();
+  if (!ALLOWED_QUALITY.includes(q)) q = 'high';
   let s = (size || env.GPT_IMAGE_SIZE || '1024x1024').toLowerCase();
   if (!ALLOWED_SIZE.includes(s)) s = '1024x1024';
+  return { q, s };
+}
 
-  let data;
-  if (refs.length) {
-    // з референсом — endpoint edits (перший приклад як основа)
-    const form = new FormData();
-    form.append('model', model);
-    form.append('image', new Blob([refs[0].buf], { type: refs[0].contentType || 'image/png' }), 'ref.png');
-    form.append('prompt', prompt);
-    form.append('size', s);
-    form.append('quality', q);
-    form.append('n', '1');
-    const r = await fetch('https://api.openai.com/v1/images/edits', {
-      method: 'POST', headers: { 'Authorization': 'Bearer ' + apiKey }, body: form,
-    });
-    data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('OpenAI: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
-  } else {
-    // чиста генерація за текстом — endpoint generations
-    const r = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model, prompt, size: s, quality: q, n: 1 }),
-    });
-    data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error('OpenAI: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
+// Витягти base64-зображення з відповіді Responses API (image_generation_call.result)
+function imageFromResponses(data) {
+  const out = Array.isArray(data?.output) ? data.output : [];
+  for (const o of out) {
+    if (o && (o.type === 'image_generation_call') && o.result) {
+      return { bytes: b64ToBytes(o.result), contentType: 'image/png' };
+    }
   }
+  return null;
+}
+
+// --- OpenAI GPT через РЕФЕРЕНС: Responses API + vision (як браузерний ChatGPT) ---
+// GPT-4o «бачить» фото-приклад очима, розуміє що на ньому, і генерує НОВЕ зображення
+// «за мотивами» через інструмент image_generation. Це принципово краще за endpoint
+// /images/edits (який лише механічно перемальовує піксели прикладу).
+async function runGPTWithVision(env, prompt, refs, quality, size) {
+  const apiKey = await getOpenAIKey(env);
+  if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
+  const { q, s } = normGptQS(quality, size, env);
+  // Модель-оркестратор — чат з vision (НЕ gpt-image-1, то модель інструмента)
+  const orchModel = env.GPT_ORCHESTRATOR_MODEL || 'gpt-4.1-mini';
+
+  const content = [{ type: 'input_text', text: prompt }];
+  for (const ref of refs) {
+    const dataUrl = `data:${ref.contentType || 'image/png'};base64,${bufToB64(ref.buf)}`;
+    content.push({ type: 'input_image', image_url: dataUrl });
+  }
+  const body = {
+    model: orchModel,
+    input: [{ role: 'user', content }],
+    tools: [{ type: 'image_generation', quality: q, size: s }],
+    tool_choice: { type: 'image_generation' },
+  };
+  const r = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('OpenAI Responses: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
+  const img = imageFromResponses(data);
+  if (!img) throw new Error('OpenAI не повернув зображення (Responses)');
+  return img;
+}
+
+// --- OpenAI GPT БЕЗ референса: чиста генерація за текстом (endpoint generations) ---
+async function runGPTTextOnly(env, prompt, modelOverride, quality, size) {
+  const apiKey = await getOpenAIKey(env);
+  if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
+  let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
+  if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
+  const { q, s } = normGptQS(quality, size, env);
+
+  const r = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model, prompt, size: s, quality: q, n: 1 }),
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error('OpenAI: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status)));
   const item0 = data?.data?.[0] || {};
   if (item0.b64_json) return { bytes: b64ToBytes(item0.b64_json), contentType: 'image/png' };
   if (item0.url) {
-    // деякі моделі повертають url замість b64 — підвантажуємо
     const ir = await fetch(item0.url);
     if (!ir.ok) throw new Error('Не вдалося завантажити згенероване зображення');
     const ab = await ir.arrayBuffer();
@@ -148,6 +185,47 @@ async function runGPT(env, prompt, refs, modelOverride, quality, size) {
     return { bytes: new Uint8Array(ab), contentType: ct };
   }
   throw new Error('OpenAI не повернув зображення');
+}
+
+// --- OpenAI GPT: вибір шляху (з референсом → vision; без → text) ---
+async function runGPT(env, prompt, refs, modelOverride, quality, size) {
+  if (refs && refs.length) {
+    try {
+      return await runGPTWithVision(env, prompt, refs, quality, size);
+    } catch (e) {
+      // Запасний варіант: якщо Responses недоступний (стара модель/обмеження ключа) —
+      // не залишаємо клієнта без результату, пробуємо старий edits.
+      const apiKey = await getOpenAIKey(env);
+      const { q, s } = normGptQS(quality, size, env);
+      let model = env.GPT_IMAGE_MODEL || 'gpt-image-1';
+      if (modelOverride && /^(gpt-image|dall-e)[\w.\-]*$/i.test(modelOverride)) model = modelOverride;
+      const form = new FormData();
+      form.append('model', model);
+      form.append('image', new Blob([refs[0].buf], { type: refs[0].contentType || 'image/png' }), 'ref.png');
+      form.append('prompt', prompt);
+      form.append('size', s);
+      form.append('quality', q);
+      form.append('n', '1');
+      const r = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + apiKey }, body: form,
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        // Кидаємо ПЕРВИННУ помилку Responses (вона інформативніша), а edits лише як підказку
+        throw new Error(e.message || ('OpenAI: ' + ((data && data.error && data.error.message) || ('HTTP ' + r.status))));
+      }
+      const item0 = data?.data?.[0] || {};
+      if (item0.b64_json) return { bytes: b64ToBytes(item0.b64_json), contentType: 'image/png' };
+      if (item0.url) {
+        const ir = await fetch(item0.url);
+        if (!ir.ok) throw new Error('Не вдалося завантажити згенероване зображення');
+        const ab = await ir.arrayBuffer();
+        return { bytes: new Uint8Array(ab), contentType: ir.headers.get('content-type') || 'image/png' };
+      }
+      throw new Error(e.message || 'OpenAI не повернув зображення');
+    }
+  }
+  return runGPTTextOnly(env, prompt, modelOverride, quality, size);
 }
 
 export async function onRequestPost({ request, env }) {
