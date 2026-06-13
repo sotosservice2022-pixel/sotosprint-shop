@@ -2287,9 +2287,10 @@ window.quickAdd = (productId) => {
   if (stockInfo(p).out) { showToast(shop.outOfStockText || 'Немає в наявності'); return; }
   // Товар вже в кошику — обробляємо за налаштуваннями (remove / open cart / add another)
   if (isInCart(productId) && handleInCartClick(productId)) return;
-  const hasMultipleOptions = Array.isArray(p.options) && p.options.length > 0;
-  const needsPhoto = p.requiresPhoto === true; // товар вимагає фото від клієнта → відкриваємо картку
-  if (hasMultipleOptions || needsPhoto) {
+  // Фото клієнт прикріплює на оформленні (checkout), не в картці — тож фото НЕ привід
+  // відкривати картку. Картку відкриваємо лише якщо є варіанти (їх треба обрати до кошика).
+  const hasOptions = Array.isArray(p.options) && p.options.length > 0;
+  if (hasOptions) {
     openModalById(productId); // поважає режим модалка/сторінка
     return;
   }
