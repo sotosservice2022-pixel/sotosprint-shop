@@ -111,6 +111,15 @@
     edit.addEventListener('input', function () { self.saveSelection(); self.sync(); });
     edit.addEventListener('blur', function () { self.sync(); });
     edit.addEventListener('paste', function () { setTimeout(function () { self.sync(); }, 0); });
+    // Надійно: будь-яка зміна виділення в документі, що потрапляє в наше поле — зберігаємо одразу.
+    // Це усуває «перша дія не спрацьовує» (коли клікнув у поле, але keyup/mouseup ще не було).
+    document.addEventListener('selectionchange', function () {
+      var sel = window.getSelection();
+      if (sel && sel.rangeCount) {
+        var r = sel.getRangeAt(0);
+        if (self.edit.contains(r.commonAncestorContainer)) self.savedRange = r.cloneRange();
+      }
+    });
 
     this.loadValue();
   }
@@ -196,6 +205,39 @@
     this.restoreSelection();
     exec('insertText', text);
     this.saveSelection();
+    this.sync();
+  };
+
+  // Зняти ВСЕ форматування з виділення: дістаємо чистий текст фрагмента і вставляємо назад
+  // як текстові вузли з <br> замість переносів. Надійніше за execCommand('removeFormat'),
+  // який НЕ прибирає наші <span style> (колір/розмір/шрифт) і списки.
+  RT.prototype.clearFormatting = function () {
+    this.restoreSelection();
+    var sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    var range = sel.getRangeAt(0);
+    if (!this.edit.contains(range.commonAncestorContainer)) return;
+    var frag = range.extractContents();
+    var text = (frag.textContent || '');
+    range.deleteContents();
+    // будуємо вузли: рядки тексту, між ними <br>
+    var parts = text.split(/\r?\n/);
+    var holder = document.createDocumentFragment();
+    var lastNode = null;
+    parts.forEach(function (line, i) {
+      if (i > 0) { var br = document.createElement('br'); holder.appendChild(br); lastNode = br; }
+      if (line) { var tn = document.createTextNode(line); holder.appendChild(tn); lastNode = tn; }
+    });
+    range.insertNode(holder);
+    // курсор у кінець вставленого
+    sel.removeAllRanges();
+    if (lastNode) {
+      var nr = document.createRange();
+      nr.setStartAfter(lastNode);
+      nr.collapse(true);
+      sel.addRange(nr);
+      this.savedRange = nr.cloneRange();
+    }
     this.sync();
   };
 
@@ -395,11 +437,7 @@
     if (isFull) {
       bar.appendChild(mkSep());
       bar.appendChild(mkBtn('🧹', 'Очистити форматування', function () {
-        rt.restoreSelection();
-        exec('removeFormat');
-        exec('unlink');
-        rt.saveSelection();
-        rt.sync();
+        rt.clearFormatting();
       }));
     }
 
