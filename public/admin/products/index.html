@@ -482,13 +482,15 @@ function renderCategories() {
   categories.forEach((cat, i) => {
     const row = document.createElement('div');
     row.style.cssText = 'display: flex; gap: 6px; margin-bottom: 6px; align-items: center;';
+    const hidden = cat.hidden === true;
     row.innerHTML = `
       <div class="row-arrows">
         <button type="button" onclick="moveCategory(${i}, -1)" ${i===0?'disabled':''} title="Вгору">▲</button>
         <button type="button" onclick="moveCategory(${i}, 1)" ${i===categories.length-1?'disabled':''} title="Вниз">▼</button>
       </div>
-      <input type="text" value="${escapeAttr(cat.name || '')}" placeholder="Назва (наприклад: Чашки)" title="Назва категорії — що побачить клієнт у вкладці" data-k="name" style="flex: 2; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
-      <input type="text" value="${escapeAttr(cat.slug || '')}" placeholder="slug (cups, metal-prints) — латиниця" title="Slug — латинський ідентифікатор для URL ?category=..." data-k="slug" style="flex: 1; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" />
+      <input type="text" value="${escapeAttr(cat.name || '')}" placeholder="Назва (наприклад: Чашки)" title="Назва категорії — що побачить клієнт у вкладці" data-k="name" style="flex: 2; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc; ${hidden ? 'opacity:.55;' : ''}" />
+      <input type="text" value="${escapeAttr(cat.slug || '')}" placeholder="slug (cups, metal-prints) — латиниця" title="Slug — латинський ідентифікатор для URL ?category=..." data-k="slug" style="flex: 1; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc; ${hidden ? 'opacity:.55;' : ''}" />
+      <button type="button" class="btn btn-icon" onclick="toggleCategoryHidden(${i})" title="${hidden ? 'Категорія прихована — показати' : 'Показувати категорію — натисни, щоб сховати'}" style="border:1px solid ${hidden ? '#fca5a5' : '#86efac'}; background:${hidden ? '#fef2f2' : '#f0fdf4'};">${hidden ? '🙈' : '👁'}</button>
       <button class="btn btn-danger btn-icon" onclick="removeCategory(${i})">×</button>
     `;
     wrap.appendChild(row);
@@ -538,6 +540,11 @@ function addCategory() {
   if (!Array.isArray(categories)) categories = [];
   const id = 'cat_' + Math.random().toString(36).slice(2, 9);
   categories.push({ id, name: '', slug: '' });
+  renderCategories();
+}
+function toggleCategoryHidden(i) {
+  if (!Array.isArray(categories) || !categories[i]) return;
+  categories[i].hidden = !categories[i].hidden;
   renderCategories();
 }
 function removeCategory(i) {

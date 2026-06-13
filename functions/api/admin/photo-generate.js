@@ -132,12 +132,14 @@ function imageFromResponses(data) {
 // GPT-4o «бачить» фото-приклад очима (vision) і генерує НОВЕ зображення «за мотивами»
 // через інструмент image_generation — як браузерний ChatGPT, а не механічний /images/edits.
 // Працює і з референсом (vision), і без (чиста генерація за текстом) — однаково.
-async function startGPTBackground(env, prompt, refs, quality, size) {
+async function startGPTBackground(env, prompt, refs, quality, size, modelOverride) {
   const apiKey = await getOpenAIKey(env);
   if (!apiKey) throw new Error('GPT-рушій не налаштовано: введи ключ OpenAI на сторінці (блок «Ключ OpenAI (GPT)») або додай секрет OPENAI_API_KEY.');
   const { q, s } = normGptQS(quality, size, env);
-  // Модель-оркестратор — чат з vision (НЕ gpt-image-1, то модель інструмента)
-  const orchModel = env.GPT_ORCHESTRATOR_MODEL || 'gpt-4.1-mini';
+  // Модель-оркестратор — чат з vision (НЕ gpt-image-1, то модель інструмента).
+  // Можна перевизначити з фронту (випадний список моделей) — лише безпечний формат id.
+  const safeModel = modelOverride && /^[a-z0-9][\w.\-]{1,60}$/i.test(modelOverride) ? modelOverride : '';
+  const orchModel = safeModel || env.GPT_ORCHESTRATOR_MODEL || 'gpt-4.1-mini';
 
   const content = [{ type: 'input_text', text: prompt }];
   for (const ref of refs) {
@@ -232,11 +234,12 @@ export async function onRequestPost({ request, env }) {
       if (ref) refs.push(ref);
     }
     const gptQuality = (body.quality && String(body.quality).trim()) || '';
+    const gptModel = (body.model && String(body.model).trim()) || '';
     const gptSize = FORMAT_TO_SIZE[format];
 
     // GPT → запускаємо фонове завдання, одразу повертаємо jobId (клієнт опитує poll)
     if (engine === 'gpt') {
-      const jobId = await startGPTBackground(env, prompt, refs, gptQuality, gptSize);
+      const jobId = await startGPTBackground(env, prompt, refs, gptQuality, gptSize, gptModel);
       return jsonResp({ ok: true, status: 'pending', jobId, engine: 'gpt' });
     }
     // Gemini → синхронно (швидкий, у таймаут вкладається)

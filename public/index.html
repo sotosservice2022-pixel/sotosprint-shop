@@ -1287,7 +1287,7 @@ function getEffectiveCategoryId() {
   const active = getActiveCategoryId();
   if (active) return active;
   const showAllTab = shop.showAllCategoriesTab !== false;
-  const cats = Array.isArray(shop.categories) ? shop.categories.filter(c => c.name && c.slug) : [];
+  const cats = Array.isArray(shop.categories) ? shop.categories.filter(c => c.name && c.slug && !c.hidden) : [];
   if (!showAllTab && cats.length > 0) return cats[0].slug;
   return '';
 }
@@ -1327,7 +1327,7 @@ window.addEventListener('popstate', (ev) => {
 });
 
 function renderCategoriesNav() {
-  const cats = Array.isArray(shop.categories) ? shop.categories.filter(c => c.name && c.slug) : [];
+  const cats = Array.isArray(shop.categories) ? shop.categories.filter(c => c.name && c.slug && !c.hidden) : [];
   if (!shop.showCategoriesNav || cats.length === 0) return '';
   const active = getEffectiveCategoryId();
   const allLabel = shop.defaultCategoryName || 'Усі товари';
@@ -1426,9 +1426,13 @@ function renderShop() {
     // Фільтр по категорії (тільки якщо немає пошуку).
     // getEffectiveCategoryId() сам підставляє першу категорію, коли вкладку «Усі» вимкнено.
     const active = getEffectiveCategoryId();
-    if (active) {
-      const cat = (shop.categories || []).find(c => c.slug === active);
-      if (cat) products = products.filter(p => p.categoryId === cat.id);
+    const cat = active ? (shop.categories || []).find(c => c.slug === active) : null;
+    if (cat && !cat.hidden) {
+      products = products.filter(p => p.categoryId === cat.id);
+    } else {
+      // Вкладка «Усі товари»: ховаємо товари прихованих категорій (товар лишається з categoryId).
+      const hiddenIds = (shop.categories || []).filter(c => c.hidden).map(c => c.id);
+      if (hiddenIds.length) products = products.filter(p => !hiddenIds.includes(p.categoryId));
     }
   }
   const productsHtml = products.length === 0
