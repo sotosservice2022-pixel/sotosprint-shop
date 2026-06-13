@@ -757,8 +757,14 @@ async function refreshKeyStatus(provider) {
   try {
     const r = await fetch('/api/admin/ai-key?provider=' + provider, { credentials: 'include' });
     const d = await r.json();
-    if (d.ok && d.hasKey) { el.textContent = 'збережено ✓'; el.style.color = '#16a34a'; }
-    else { el.textContent = 'не задано'; el.style.color = '#9ca3af'; }
+    const inp = document.getElementById('key_' + provider);
+    if (d.ok && d.hasKey) {
+      el.textContent = 'збережено ✓'; el.style.color = '#16a34a';
+      if (inp) inp.placeholder = 'Ключ збережено ✓ — введіть новий, щоб замінити';
+    } else {
+      el.textContent = 'не задано'; el.style.color = '#9ca3af';
+      if (inp) inp.placeholder = (provider === 'openai') ? 'Встав ключ OpenAI (sk-…)…' : 'Встав ключ Gemini…';
+    }
   } catch { el.textContent = '—'; }
 }
 async function saveKey(provider, key) {
