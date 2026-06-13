@@ -1228,9 +1228,10 @@ function openTrackModal() {
   if (pid) {
     const p = shop.products.find(x => x.id === pid);
     if (p) {
-      // Якщо зайшли прямо на /product/ID — показуємо сторінку; ?product=ID поважає режим
+      // Якщо зайшли прямо на /product/ID — показуємо сторінку; ?product=ID поважає режим.
+      // openModal(p, false) — без pushState, щоб «назад» не виходив із сайту при прямому вході.
       if (pathMatch || shop.productPageMode === 'page') openProductPage(p);
-      else openModal(p);
+      else openModal(p, false);
     } else if (pathMatch) {
       // Невідомий товар на /product/... — повертаємо в каталог
       history.replaceState({}, '', '/');
@@ -1295,19 +1296,26 @@ function setActiveCategory(slug) {
   history.pushState({}, '', url);
   renderShop();
 }
-window.addEventListener('popstate', () => {
+window.addEventListener('popstate', (ev) => {
+  // Повна сторінка товару /product/ID
   const m = location.pathname.match(/^\/product\/([^/]+)\/?$/);
   if (m) {
     const p = (shop.products || []).find(x => x.id === decodeURIComponent(m[1]));
     if (p) { openProductPage(p); return; }
   }
-  // Не на сторінці товару — закриваємо модалку (якщо була) і показуємо каталог
+  // Повернулись/перейшли на стан модалки (?product= з history.state.modal) — відкриваємо модалку
+  const st = ev.state;
+  if (st && st.modal) {
+    const p = (shop.products || []).find(x => x.id === st.modal);
+    if (p) { openModal(p, false); return; }
+  }
+  // Інакше — закриваємо модалку (якщо була) і показуємо каталог
+  if (document.getElementById('modal')?.classList.contains('show')) {
+    doCloseModalDom();
+    return; // каталог уже відрендерений під модалкою — зайвий renderShop не потрібен
+  }
   currentProduct = null;
   document.body.style.overflow = '';
-  const modal = document.getElementById('modal');
-  if (modal) { modal.classList.remove('show'); modal.style.display = 'none'; }
-  const ov = document.getElementById('modalOverlay');
-  if (ov) ov.classList.remove('show');
   renderShop();
 });
 
@@ -2280,9 +2288,9 @@ window.quickAdd = (productId) => {
   // Товар вже в кошику — обробляємо за налаштуваннями (remove / open cart / add another)
   if (isInCart(productId) && handleInCartClick(productId)) return;
   const hasMultipleOptions = Array.isArray(p.options) && p.options.length > 0;
-  const needsPhoto = p.clientPhotosRequired;
+  const needsPhoto = p.requiresPhoto === true; // товар вимагає фото від клієнта → відкриваємо картку
   if (hasMultipleOptions || needsPhoto) {
-    openModal(p);
+    openModalById(productId); // поважає режим модалка/сторінка
     return;
   }
   // Простий товар — додаємо одразу qty=1
@@ -2419,20 +2427,23 @@ function productDetailHtml(p, images, hasVideo, badgeScope) {
             <button onclick="modalQty(1)">+</button>
           </div>
         </div>
-        ${(() => { const si = stockInfo(p); return si.out
-          ? `<button class="add-big" id="modalAddBtn" disabled style="opacity:.55; cursor:not-allowed;">${escapeHtml(shop.outOfStockText || 'Немає в наявності')}</button>`
-          : `<button class="add-big" id="modalAddBtn" onclick="addCurrentToCart()">${escapeHtml(shop.addToCartText || 'В корзину')}</button>`; })()}
+        ${(() => { const si = stockInfo(p); if (si.out)
+          return `<button class="add-big" id="modalAddBtn" disabled style="opacity:.55; cursor:not-allowed;">${escapeHtml(shop.outOfStockText || 'Немає в наявності')}</button>`;
+          const inCart = isInCart(p.id);
+          return `<button class="add-big${inCart ? ' in-cart' : ''}" id="modalAddBtn" onclick="addCurrentToCart()">${escapeHtml(inCart ? (shop.inCartText || '✓ У кошику') : (shop.addToCartText || 'В корзину'))}</button>`; })()}
       </div>
     </div>
   `;
 }
 
-function openModal(p) {
+function openModal(p, push = true) {
   const { images, hasVideo } = prepareProduct(p);
-  // URL — для шаринга
+  // URL — для шаринга. pushState (а не replace) → свайп/кнопка «назад» закриває модалку.
+  // push=false при відкритті за прямим посиланням ?product= (щоб «назад» не виходив із сайту).
   const url = new URL(location);
   url.searchParams.set('product', p.id);
-  history.replaceState(null, '', url);
+  if (push && !(history.state && history.state.modal)) history.pushState({ modal: p.id }, '', url);
+  else history.replaceState({ modal: p.id }, '', url);
 
   document.getElementById('modalContent').innerHTML =
     `<button class="modal-close" onclick="closeModal()">×</button>` +
@@ -2441,6 +2452,17 @@ function openModal(p) {
   document.getElementById('modalOverlay').classList.add('show');
   document.getElementById('modal').classList.add('show');
   document.body.style.overflow = 'hidden';
+}
+
+// DOM-закриття модалки (анімація + чистка), без зміни історії.
+function doCloseModalDom() {
+  const modal = document.getElementById('modal');
+  const ov = document.getElementById('modalOverlay');
+  if (modal) modal.classList.remove('show');
+  if (ov) ov.classList.remove('show');
+  setTimeout(() => { if (modal) modal.style.display = 'none'; }, 250);
+  document.body.style.overflow = '';
+  currentProduct = null;
 }
 
 // Повна сторінка товару (режим productPageMode === 'page'). Рендериться у #app замість каталогу.
@@ -2487,12 +2509,13 @@ function closeModal() {
     backToCatalog();
     return;
   }
-  document.getElementById('modal').classList.remove('show');
-  document.getElementById('modalOverlay').classList.remove('show');
-  setTimeout(() => { document.getElementById('modal').style.display = 'none'; }, 250);
-  document.body.style.overflow = '';
-  currentProduct = null;
-  // Убираем product из URL
+  // Якщо модалку відкрито через pushState — повертаємось назад в історії
+  // (popstate сам зробить DOM-закриття). Інакше закриваємо напряму.
+  if (history.state && history.state.modal) {
+    history.back();
+    return;
+  }
+  doCloseModalDom();
   const url = new URL(location);
   url.searchParams.delete('product');
   history.replaceState(null, '', url);
