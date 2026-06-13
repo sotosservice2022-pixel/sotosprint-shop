@@ -366,6 +366,23 @@ function clearGenRef() {
 }
 
 // згенерувати зображення за описом (+ опціональний приклад)
+// Безпечний розбір відповіді AI-ендпоінта. При таймауті/помилці шлюзу Cloudflare віддає
+// HTML (а не JSON) — тоді r.json() падає з «Unexpected token '<'». Тут ловимо це і даємо
+// зрозуміле пояснення замість криптової помилки.
+async function parseAiResponse(r) {
+  if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); throw new Error('Не авторизовано'); }
+  const text = await r.text();
+  let d;
+  try { d = JSON.parse(text); }
+  catch {
+    if (r.status === 524 || r.status === 504) throw new Error('Час очікування вичерпано (генерація надто довга). Спробуй якість нижче або ще раз.');
+    if (r.status === 502 || r.status === 503) throw new Error('Сервіс генерації тимчасово недоступний (' + r.status + '). Спробуй ще раз.');
+    throw new Error('Сервер повернув неочікувану відповідь (HTTP ' + r.status + '). Спробуй ще раз.');
+  }
+  if (!d.ok) throw new Error(d.error || 'Помилка');
+  return d;
+}
+
 async function generateNow() {
   const prompt = document.getElementById('genPrompt').value.trim();
   if (!prompt) { toast('Спочатку напиши опис зображення', 'error'); return; }
@@ -390,9 +407,7 @@ async function generateNow() {
         model: gptModel || undefined, quality: gptQuality || undefined,
       }),
     });
-    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Помилка');
+    const d = await parseAiResponse(r);
     item.afterUrl = d.url; item.afterKind = 'regen'; item.status = 'done';
   } catch (e) {
     item.status = 'err'; item.error = e.message;
@@ -458,9 +473,7 @@ async function processOne(item) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined }),
       });
-      if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
-      const d = await r.json();
-      if (!d.ok) throw new Error(d.error || 'Помилка');
+      const d = await parseAiResponse(r);
       item.afterUrl = d.url; item.afterKind = 'regen';
     }
     item.status = 'done';
@@ -503,9 +516,7 @@ async function retryGen(id) {
         model: gptModel || undefined, quality: gptQuality || undefined,
       }),
     });
-    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
-    const d = await r.json();
-    if (!d.ok) throw new Error(d.error || 'Помилка');
+    const d = await parseAiResponse(r);
     item.afterUrl = d.url; item.afterKind = 'regen'; item.status = 'done';
   } catch (e) {
     item.status = 'err'; item.error = e.message;
