@@ -44,7 +44,16 @@ window.uploadToR2 = async function(file, opts = {}) {  if (!file) throw new Erro
   const r = await fetch('/api/admin/storage/upload', {
     method: 'POST', credentials: 'include', body: fd,
   });
-  const data = await r.json();
+  // При таймауті/помилці шлюзу Cloudflare віддає HTML (не JSON) — r.json() падає з
+  // «Unexpected token '<'». Читаємо як текст і даємо зрозуміле пояснення.
+  const text = await r.text();
+  let data;
+  try { data = JSON.parse(text); }
+  catch {
+    if (r.status === 413) throw new Error('Файл завеликий для завантаження');
+    if (r.status === 524 || r.status === 504) throw new Error('Час очікування вичерпано — файл завеликий або мережа повільна. Спробуй менше фото.');
+    throw new Error('Не вдалося завантажити (HTTP ' + r.status + '). Спробуй ще раз або менший файл.');
+  }
   if (!data.ok) throw new Error(data.error || 'Помилка завантаження');
   return data.url; // /api/storage/<key>
 };
