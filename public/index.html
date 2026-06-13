@@ -2722,6 +2722,17 @@ function addCurrentToCart() {
   const optionName = optionNames.join(' + ');  // рядок для відображення (кошик/чекаут/Telegram)
   const qty = window.modalQty_value || 1;
 
+  // Якщо ця позиція (товар+варіант) вже в кошику — поводимось ІДЕНТИЧНО кнопці на головній:
+  // за налаштуваннями (прибрати / відкрити кошик / додати ще). handleInCartClick поверне true,
+  // якщо дію оброблено (тоді не додаємо повторно).
+  const alreadyInCart = getCart().some(i => i.productId === p.id && (i.optionId || '') === optionId);
+  if (alreadyInCart && handleInCartClick(p.id, optionId)) {
+    // Закриваємо картку (як і при звичайному додаванні), щоб поведінка була послідовна
+    if (shop.productPageMode === 'page' && location.pathname.startsWith('/product/')) backToCatalog();
+    else closeModal();
+    return;
+  }
+
   const cart = getCart();
   const existing = cart.find(i => i.productId === p.id && (i.optionId || '') === optionId);
   if (existing) {
