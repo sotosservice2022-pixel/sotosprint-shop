@@ -17,7 +17,7 @@
       background: var(--bg); color: var(--text); margin: 0;
       padding: 16px; padding-bottom: calc(env(safe-area-inset-bottom) + 88px);
     }
-    .wrap { max-width: 1200px; margin: 0 auto; padding: 0 16px; }
+    .wrap { max-width: 600px; margin: 0 auto; padding: 0 16px; }
     .back-link {
       display: inline-block; color: var(--muted); text-decoration: none;
       margin-bottom: 12px; font-size: 14px;
@@ -158,6 +158,14 @@ let shop = null, cart = [], filesPerItem = []; // [[File, ...], ...]
     document.documentElement.style.setProperty('--accent-dark', shop.buttonHoverColor || shop.buttonColor);
   }
   if (shop.buttonTextColor) document.documentElement.style.setProperty('--accent-text', shop.buttonTextColor);
+  // Ширина сторінки оформлення — регулюється в адмінці (Налаштування). За замовч. 600px.
+  {
+    const w = parseInt(shop.checkoutMaxWidth, 10);
+    if (w >= 400 && w <= 1600) {
+      const wrap = document.querySelector('.wrap');
+      if (wrap) wrap.style.maxWidth = w + 'px';
+    }
+  }
   if (shop.shopEnabled === false) {
     document.getElementById('app').innerHTML = `<div class="empty">${escapeHtml(shop.shopDisabledMessage)} <br><a href="/">Назад</a></div>`;
     return;

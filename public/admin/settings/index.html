@@ -163,6 +163,9 @@
         <div><label>Заголовок сторінки оформлення</label><input type="text" id="checkoutTitle" /></div>
         <div><label>Кнопка «Відправити замовлення»</label><input type="text" id="submitText" /></div>
       </div>
+      <div><label>Ширина сторінки оформлення (px)</label><input type="number" id="checkoutMaxWidth" min="400" max="1600" step="20" placeholder="600" />
+        <div class="hint">Максимальна ширина блоку оформлення замовлення. За замовч. <b>600</b>. Більше — ширше (до 1600), менше — вужче (від 400).</div>
+      </div>
       <div><label>Повідомлення про успішне замовлення</label><input type="text" id="successText" />
         <div class="hint">Доступно <code>{orderId}</code></div></div>
       <div><label>Текст «Кошик порожній»</label><input type="text" id="emptyCartText" /></div>
@@ -818,7 +821,8 @@ const TEXT_FIELDS = [
   'adminHeaderText','outOfStockText',
 ];
 const NUMBER_FIELDS = ['compressMaxSide','compressQuality','productImageMaxSide','productImageQuality',
-  'publicPollIntervalSec','adminPollIntervalSec','ordersAutoRefreshSec','shopVersionCacheSec','shopFullCacheSec'];
+  'publicPollIntervalSec','adminPollIntervalSec','ordersAutoRefreshSec','shopVersionCacheSec','shopFullCacheSec',
+  'checkoutMaxWidth'];
 
 async function loadAll() {
   setStatus('Загрузка…');
@@ -1174,6 +1178,7 @@ async function saveAll() {
   settings.ordersAutoRefreshSec = clamp(document.getElementById('ordersAutoRefreshSec').value, 5, 120, 15);
   settings.shopVersionCacheSec = clamp(document.getElementById('shopVersionCacheSec').value, 1, 30, 2);
   settings.shopFullCacheSec = clamp(document.getElementById('shopFullCacheSec').value, 5, 300, 30);
+  settings.checkoutMaxWidth = clamp(document.getElementById('checkoutMaxWidth').value, 400, 1600, 600);
   settings.topbarContactsEnabled = document.getElementById('topbarContactsEnabled').checked;
   settings.contactsEnabled = document.getElementById('contactsEnabled').checked;
   // Sold count
