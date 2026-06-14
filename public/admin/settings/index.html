@@ -251,6 +251,13 @@
   <div class="card">
     <h2>🛒 Швидке додавання в кошик</h2>
     <div class="grid">
+      <div style="padding: 10px; background: #fff7ed; border-radius: 8px; border: 1px solid #fed7aa;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="hideCardBuyButton" />
+          <label for="hideCardBuyButton" style="margin:0; font-weight:600;">🚫 Не показувати кнопку «У кошик» на картках каталогу</label>
+        </div>
+        <div class="hint" style="margin-top:6px;">Якщо увімкнено — кнопка купівлі зникає з карток на головній. Щоб купити, клієнт має <strong>зайти в товар</strong> (клік по картці відкриває товар як завжди). Має пріоритет над «Швидке додавання» нижче.</div>
+      </div>
       <div class="checkbox-inline">
         <input type="checkbox" id="quickAddToCartEnabled" />
         <label for="quickAddToCartEnabled" style="margin:0">Кнопка «У кошик» прямо на картці товару (без відкриття картки)</label>
@@ -975,6 +982,7 @@ function render() {
 
   // Sold count
   document.getElementById('showSoldCount').checked = !!settings.showSoldCount;
+  document.getElementById('hideCardBuyButton').checked = !!settings.hideCardBuyButton;
   document.getElementById('quickAddToCartEnabled').checked = !!settings.quickAddToCartEnabled;
   document.getElementById('closeProductAfterAdd').checked = settings.closeProductAfterAdd !== false;
   document.getElementById('closeProductAfterRemove').checked = settings.closeProductAfterRemove !== false;
@@ -1200,6 +1208,7 @@ async function saveAll() {
   // Sold count
   settings.showSoldCount = document.getElementById('showSoldCount').checked;
   settings.quickAddToCartEnabled = document.getElementById('quickAddToCartEnabled').checked;
+  settings.hideCardBuyButton = document.getElementById('hideCardBuyButton').checked;
   settings.closeProductAfterAdd = document.getElementById('closeProductAfterAdd').checked;
   settings.closeProductAfterRemove = document.getElementById('closeProductAfterRemove').checked;
   settings.inCartClickNothing = document.getElementById('inCartClickNothing').checked;

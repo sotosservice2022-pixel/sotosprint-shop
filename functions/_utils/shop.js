@@ -323,6 +323,7 @@ const DEFAULT_SETTINGS = {
 
   // Счётчик продаж под товарами
   showSoldCount: false,
+  hideCardBuyButton: false, // не показувати кнопку «У кошик» на картках каталогу (купівля лише через картку товару)
   quickAddToCartEnabled: false,
   closeProductAfterAdd: true, // закривати картку товару після додавання в кошик (true = поточна поведінка)
   closeProductAfterRemove: true, // закривати картку товару після прибирання з кошика (true = поточна поведінка)
