@@ -287,38 +287,20 @@
     }
   }
 
-  // Зняти ВСЕ форматування з виділення: чистий текст зі збереженими переносами (<br>/абзаци),
-  // вставити назад текстовими вузлами + <br>. Надійніше за execCommand('removeFormat'),
-  // який НЕ прибирає наші <span style> (колір/розмір/шрифт), списки і посилання.
+  // Скинути форматування ВСЬОГО поля до чистого тексту зі збереженими переносами рядків/абзаців.
+  // Передбачувано (без склеювання слів у рядок) — фактично «повернути до простого тексту».
   RT.prototype.clearFormatting = function () {
-    this.restoreSelection();
-    var sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-    var range = sel.getRangeAt(0);
-    if (!this.edit.contains(range.commonAncestorContainer)) return;
     this.record(); // зберегти стан для «відмінити»
-    var frag = range.extractContents();
-    range.deleteContents();
     var lines = [''];
-    nodeToTextWithBreaks(frag, lines);
+    nodeToTextWithBreaks(this.edit, lines);
     // прибрати порожні рядки на краях
     while (lines.length && lines[0] === '') lines.shift();
     while (lines.length && lines[lines.length - 1] === '') lines.pop();
-    var holder = document.createDocumentFragment();
-    var lastNode = null;
-    lines.forEach(function (line, i) {
-      if (i > 0) { var br = document.createElement('br'); holder.appendChild(br); lastNode = br; }
-      if (line) { var tn = document.createTextNode(line); holder.appendChild(tn); lastNode = tn; }
-    });
-    range.insertNode(holder);
-    sel.removeAllRanges();
-    if (lastNode) {
-      var nr = document.createRange();
-      nr.setStartAfter(lastNode);
-      nr.collapse(true);
-      sel.addRange(nr);
-      this.savedRange = nr.cloneRange();
-    }
+    var html = lines.map(function (line) {
+      return line.replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; });
+    }).join('<br>');
+    this.edit.innerHTML = html;
+    this.savedRange = null;
     this.sync();
     this.record();
   };
