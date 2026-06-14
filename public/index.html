@@ -3264,7 +3264,9 @@ function linkifyText(text) {
 // ЗАЛІЗНЕ ПРАВИЛО: гілка rich — ТІЛЬКИ санітайз; гілка plain — ТІЛЬКИ linkify/nameHtml.
 // Ніколи не проганяти linkifyText по санітизованому HTML (подвійне кодування).
 function looksLikeHtml(v) {
-  return typeof v === 'string' && /<(b|strong|i|em|u|s|strike|p|ul|ol|li|a|span|br)\b/i.test(v);
+  // Тег має закритися (>, />) або мати атрибут (style=/href=) — щоб «ширина<b висота» НЕ
+  // вважалось HTML (там після b іде текст, а не закриття/атрибут).
+  return typeof v === 'string' && /<(b|strong|i|em|u|s|strike|p|ul|ol|li|a|span|br)(\s*\/?>|\s+[a-z-]+\s*=)/i.test(v);
 }
 function renderRich(v) {
   if (!v) return '';

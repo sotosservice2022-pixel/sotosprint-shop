@@ -163,6 +163,7 @@
 
   // Допоміжне: чи схоже значення на HTML (відкривний дозволений тег).
   window.looksLikeRichHtml = function (v) {
-    return typeof v === 'string' && /<(b|strong|i|em|u|s|strike|p|ul|ol|li|a|span|br)\b/i.test(v);
+    // Тег має закритися (>, />) або мати атрибут — щоб «ширина<b висота» НЕ було HTML.
+    return typeof v === 'string' && /<(b|strong|i|em|u|s|strike|p|ul|ol|li|a|span|br)(\s*\/?>|\s+[a-z-]+\s*=)/i.test(v);
   };
 })();
