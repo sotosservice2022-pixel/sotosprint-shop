@@ -774,7 +774,12 @@ function updateMobilePreview() {
   const baseSize = window.__topbarTitleSize || 17;
   const mobileSize = baseSize * 0.85;
   previewTitle.style.fontSize = mobileSize + 'px';
-  previewTitle.innerHTML = text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])).replace(/\r?\n|\\n/g, '<br>');
+  // Заголовок може містити HTML з редактора → чистимо санітайзером; інакше екрануємо як текст.
+  if (window.looksLikeRichHtml && window.looksLikeRichHtml(text) && window.sanitizeRichHtml) {
+    previewTitle.innerHTML = window.sanitizeRichHtml(text, { mode: 'compact' });
+  } else {
+    previewTitle.innerHTML = text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])).replace(/\r?\n|\\n/g, '<br>');
+  }
   previewTitle.style.display = '-webkit-box';
   previewTitle.style.webkitLineClamp = '3';
   previewTitle.style.webkitBoxOrient = 'vertical';
@@ -929,6 +934,8 @@ function render() {
   NUMBER_FIELDS.forEach(k => { const el = document.getElementById(k); if (el) el.value = settings[k] ?? ''; });
   // Rich-text (компактний) на короткі акцентні поля. Ідемпотентно — повторний render не дублює.
   if (window.initRichText) {
+    initRichText('#title', { mode: 'compact' });
+    initRichText('#mobileTitle', { mode: 'compact' });
     initRichText('#subtitle', { mode: 'compact' });
     initRichText('#catalogTitle', { mode: 'compact' });
   }

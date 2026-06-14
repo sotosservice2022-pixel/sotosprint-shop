@@ -1186,7 +1186,7 @@ function openTrackModal() {
     return;
   }
   // Назва вкладки браузера: окреме поле browserTabTitle, або seoTitle, або обчислюється з title
-  document.title = shop.browserTabTitle || shop.seoTitle || stripEmoji((shop.title || '').replace(/\r?\n|\\n/g, ' ')) || 'Магазин';
+  document.title = shop.browserTabTitle || shop.seoTitle || stripEmoji(titlePlain(shop.title || '')) || 'Магазин';
 
   // Режим прев'ю для адміна: ?preview=1 + валідна адмін-сесія (перевіряємо на сервері,
   // бо кука admin_session — HttpOnly і JS її не бачить).
@@ -1199,7 +1199,7 @@ function openTrackModal() {
   }
   if (shop.shopEnabled === false && !_isPreview) {
     document.getElementById('app').innerHTML = `
-      <div class="topbar"><h1>${escapeHtml(shop.title || '').replace(/\r?\n|\\n/g, '<br>')}</h1></div>
+      <div class="topbar"><h1>${renderTitle(shop.title || '')}</h1></div>
       <div class="wrap">
         <div class="closed-card">${escapeHtml(shop.shopDisabledMessage || '🚫 Магазин закритий')}</div>
       </div>
@@ -1538,10 +1538,10 @@ function renderShop() {
       </div>`
     : '';
 
-  // \n у полі назви → примусовий перенос рядка (поле — звичайний input, тому ловимо і \n-токен)
-  const titleBreak = (s) => escapeHtml(s || '').replace(/\r?\n|\\n/g, '<br>');
-  const desktopTitle = titleBreak(shop.title);
-  const mobTitle = shop.mobileTitle ? titleBreak(shop.mobileTitle) : desktopTitle;
+  // Заголовок може містити форматування з редактора (HTML) АБО бути звичайним текстом.
+  // renderTitle: HTML → компактний санітайз; текст → екран + \n/\\n → <br> (як було).
+  const desktopTitle = renderTitle(shop.title);
+  const mobTitle = shop.mobileTitle ? renderTitle(shop.mobileTitle) : desktopTitle;
   const titleHtml = shop.titleLinksToHome
     ? `<a class="title-link" href="/" title="На головну"><h1><span class="title-desktop">${desktopTitle}</span><span class="title-mobile">${mobTitle}</span></h1></a>`
     : `<h1><span class="title-desktop">${desktopTitle}</span><span class="title-mobile">${mobTitle}</span></h1>`;
@@ -3275,6 +3275,17 @@ function htmlToPlainText(v) {
     const d = new DOMParser().parseFromString(v, 'text/html');
     return (d.body.textContent || '').replace(/\s+/g, ' ').trim();
   } catch (e) { return String(v).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+}
+// Заголовок магазину (шапка): HTML з редактора → компактний санітайз; легасі-текст →
+// екрануємо + \n і токен \\n → <br> (як було). Для вкладки/SEO беремо htmlToPlainText.
+function renderTitle(v) {
+  if (!v) return '';
+  if (looksLikeHtml(v) && window.sanitizeRichHtml) return window.sanitizeRichHtml(v, { mode: 'compact' });
+  return escapeHtml(v).replace(/\r?\n|\\n/g, '<br>');
+}
+// Чистий текст заголовка (вкладка браузера, SEO-фолбек): без HTML, переноси → пробіл.
+function titlePlain(v) {
+  return htmlToPlainText(v).replace(/\\n/g, ' ').replace(/\s+/g, ' ').trim();
 }
 </script>
 </body>
