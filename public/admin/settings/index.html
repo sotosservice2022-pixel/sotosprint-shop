@@ -253,10 +253,14 @@
     <div class="grid">
       <div style="padding: 10px; background: #fff7ed; border-radius: 8px; border: 1px solid #fed7aa;">
         <div class="checkbox-inline">
-          <input type="checkbox" id="hideCardBuyButton" />
-          <label for="hideCardBuyButton" style="margin:0; font-weight:600;">🚫 Не показувати кнопку «У кошик» на картках каталогу</label>
+          <input type="checkbox" id="hideCardBuyButtonDesktop" />
+          <label for="hideCardBuyButtonDesktop" style="margin:0; font-weight:600;">🚫 Не показувати кнопку «У кошик» на картках — десктоп</label>
         </div>
-        <div class="hint" style="margin-top:6px;">Якщо увімкнено — кнопка купівлі зникає з карток на головній. Щоб купити, клієнт має <strong>зайти в товар</strong> (клік по картці відкриває товар як завжди). Має пріоритет над «Швидке додавання» нижче.</div>
+        <div class="checkbox-inline" style="margin-top: 8px;">
+          <input type="checkbox" id="hideCardBuyButtonMobile" />
+          <label for="hideCardBuyButtonMobile" style="margin:0; font-weight:600;">📱 Не показувати на мобільному (≤700px)</label>
+        </div>
+        <div class="hint" style="margin-top:6px;">Якщо увімкнено — кнопка купівлі зникає з карток на головній (окремо для десктопа і мобільного). Щоб купити, клієнт має <strong>зайти в товар</strong> (клік по картці відкриває товар як завжди). Має пріоритет над «Швидке додавання» нижче.</div>
       </div>
       <div class="checkbox-inline">
         <input type="checkbox" id="quickAddToCartEnabled" />
@@ -982,7 +986,8 @@ function render() {
 
   // Sold count
   document.getElementById('showSoldCount').checked = !!settings.showSoldCount;
-  document.getElementById('hideCardBuyButton').checked = !!settings.hideCardBuyButton;
+  document.getElementById('hideCardBuyButtonDesktop').checked = !!settings.hideCardBuyButtonDesktop;
+  document.getElementById('hideCardBuyButtonMobile').checked = !!settings.hideCardBuyButtonMobile;
   document.getElementById('quickAddToCartEnabled').checked = !!settings.quickAddToCartEnabled;
   document.getElementById('closeProductAfterAdd').checked = settings.closeProductAfterAdd !== false;
   document.getElementById('closeProductAfterRemove').checked = settings.closeProductAfterRemove !== false;
@@ -1208,7 +1213,8 @@ async function saveAll() {
   // Sold count
   settings.showSoldCount = document.getElementById('showSoldCount').checked;
   settings.quickAddToCartEnabled = document.getElementById('quickAddToCartEnabled').checked;
-  settings.hideCardBuyButton = document.getElementById('hideCardBuyButton').checked;
+  settings.hideCardBuyButtonDesktop = document.getElementById('hideCardBuyButtonDesktop').checked;
+  settings.hideCardBuyButtonMobile = document.getElementById('hideCardBuyButtonMobile').checked;
   settings.closeProductAfterAdd = document.getElementById('closeProductAfterAdd').checked;
   settings.closeProductAfterRemove = document.getElementById('closeProductAfterRemove').checked;
   settings.inCartClickNothing = document.getElementById('inCartClickNothing').checked;

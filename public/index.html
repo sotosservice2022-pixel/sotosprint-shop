@@ -376,6 +376,13 @@
     }
     .product .add:hover { background: var(--accent-dark); }
     .product .add.in-cart { background: var(--success); }
+    /* Сховати кнопку «У кошик» на картках: окремо desktop / mobile (≤700px).
+       Через CSS, а не вирізання з HTML — щоб ресайз/поворот екрана перемикав коректно. */
+    .catalog.hide-card-buy-desktop .product .add { display: none; }
+    @media (max-width: 700px) {
+      .catalog.hide-card-buy-desktop .product .add { display: block; }
+      .catalog.hide-card-buy-mobile .product .add { display: none; }
+    }
     /* Анімація зникнення при видаленні з кошика */
     .product .add.removing-anim {
       transition: transform .25s ease, opacity .25s ease, background-color .25s ease;
@@ -1445,7 +1452,7 @@ function renderShop() {
   }
   const productsHtml = products.length === 0
     ? `<p class="sub" style="text-align:center; padding:40px 0;">${q.length >= 2 ? `Нічого не знайдено за запитом «${escapeHtml(q)}»` : (getEffectiveCategoryId() ? 'У цій категорії поки що немає товарів.' : 'Каталог поки порожній. Загляньте пізніше.')}</p>`
-    : `<div class="catalog${shop.mobileTwoColumns ? ' mobile-2col' : ''}">${products.map(productCardHtml).join('')}</div>`;
+    : `<div class="catalog${shop.mobileTwoColumns ? ' mobile-2col' : ''}${shop.hideCardBuyButtonDesktop ? ' hide-card-buy-desktop' : ''}${shop.hideCardBuyButtonMobile ? ' hide-card-buy-mobile' : ''}">${products.map(productCardHtml).join('')}</div>`;
 
   // Тема
   document.documentElement.setAttribute('data-theme', shop.theme === 'dark' ? 'dark' : 'light');
@@ -2186,11 +2193,10 @@ function productCardHtml(p) {
   const stockHtml = si.tracked
     ? `<div class="sold" style="color:${si.out ? '#dc2626' : '#16a34a'}; font-weight:600;">${si.out ? '✕ Немає в наявності' : '✓ В наявності: ' + si.qty + ' шт'}</div>`
     : '';
-  // Режим «купити лише через картку товару»: ховаємо кнопку на картці каталогу зовсім
-  // (клік по картці все одно відкриває товар, де є кнопка «В корзину»).
-  const cardBtn = shop.hideCardBuyButton
-    ? ''
-    : si.out
+  // Режим «купити лише через картку товару»: кнопку на картці каталогу ховаємо через CSS
+  // (клас на каталозі + media query), а не вирізаємо з HTML — щоб ресайз/поворот екрана
+  // коректно перемикав десктоп/мобільний без ре-рендера. Кнопка завжди в DOM.
+  const cardBtn = si.out
     ? `<button class="add" disabled style="opacity:.55; cursor:not-allowed;" onclick="event.stopPropagation();">${escapeHtml(shop.outOfStockText || 'Немає в наявності')}</button>`
     : `<button class="add ${isInCart(p.id) ? 'in-cart' : ''}" data-product-id="${escapeAttr(p.id)}" onclick="event.stopPropagation(); handleAddBtnClick('${escapeAttr(p.id)}')">${escapeHtml(isInCart(p.id) ? (shop.inCartText || '✓ У кошику') : (shop.addToCartText || 'В корзину'))}</button>`;
   return `
