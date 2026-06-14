@@ -2230,7 +2230,7 @@ function handleInCartClick(productId, optionId) {
     const shouldConfirm = isMobile ? !!shop.inCartConfirmRemoveMobile : !!shop.inCartConfirmRemove;
     if (shouldConfirm) {
       const confirmText = shop.inCartConfirmRemoveText || 'Прибрати товар з кошика?';
-      if (!confirm(confirmText)) return true; // користувач відмовився, але клік оброблено
+      if (!confirm(confirmText)) return 'cancelled'; // користувач відмовився, але клік оброблено
     }
     // Анімація зникнення (якщо ввімкнена)
     const btn = document.querySelector(`button.add[data-product-id="${productId}"]`);
@@ -2803,7 +2803,9 @@ function addCurrentToCart() {
       if (!pageMode && shop.closeProductAfterRemove !== false) closeModal();
       return;
     }
-    // action === false → нічого не обробили, падаємо нижче й додаємо ще одну штуку
+    // Будь-яка інша оброблена дія (напр. 'cancelled' — користувач відмовився прибирати) —
+    // НЕ додаємо повторно. Падаємо нижче тільки коли action === false (нічого не зробили).
+    if (action !== false) return;
   }
 
   const cart = getCart();
