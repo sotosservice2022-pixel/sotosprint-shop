@@ -2241,7 +2241,11 @@ function handleInCartClick(productId, optionId) {
     const doRemove = () => {
       try {
         const cart = JSON.parse(localStorage.getItem('sotosprint_cart_v1') || '[]');
-        const filtered = cart.filter(i => i.productId !== productId);
+        // Якщо переданий варіант (optId) — прибираємо ТІЛЬКИ цю позицію (товар+варіант),
+        // інакше (кнопка картки без варіанта) — усі позиції цього товару.
+        const filtered = optId
+          ? cart.filter(i => !(i.productId === productId && (i.optionId || '') === optId))
+          : cart.filter(i => i.productId !== productId);
         localStorage.setItem('sotosprint_cart_v1', JSON.stringify(filtered));
         if (typeof renderCart === 'function') renderCart();
         if (typeof updateCartBadge === 'function') updateCartBadge();
