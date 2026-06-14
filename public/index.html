@@ -2220,10 +2220,14 @@ function isInCart(productId) {
 function handleInCartClick(productId, optionId) {
   const optId = optionId || '';
   const isMobile = window.innerWidth <= 700;
+  const shouldNothing = isMobile ? !!shop.inCartClickNothingMobile : !!shop.inCartClickNothing;
   const shouldRemove = isMobile ? !!shop.inCartClickRemovesMobile : !!shop.inCartClickRemoves;
   const shouldOpenCart = isMobile
     ? (shop.inCartClickOpensCartMobile !== false)
     : (shop.inCartClickOpensCart !== false);
+
+  // Найвищий пріоритет: «нічого не робити» — клік по товару, що вже в кошику, ігнорується.
+  if (shouldNothing) return 'nothing';
 
   if (shouldRemove) {
     // Підтвердження якщо ввімкнено (окремо для desktop/mobile)

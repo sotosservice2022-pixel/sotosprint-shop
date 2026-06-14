@@ -266,6 +266,20 @@
         <label for="closeProductAfterRemove" style="margin:0">Закривати картку товару після прибирання з кошика</label>
       </div>
       <div class="hint">Стосується випадку, коли товар уже в кошику і клік по кнопці прибирає його (налаштування «🗑 Клік прибирає з кошика»). Вимкни, щоб картка лишалась відкритою.</div>
+      <div style="margin-top: 12px; padding: 10px; background: #f0f9ff; border-radius: 8px; border: 1px solid #bae6fd;">
+        <div class="checkbox-inline">
+          <input type="checkbox" id="inCartClickNothing" />
+          <label for="inCartClickNothing" style="margin:0; font-weight:600;">🚫 Якщо товар вже в кошику — клік по «✓ У кошику» <strong>нічого не робить</strong> (десктоп)</label>
+        </div>
+        <div class="checkbox-inline" style="margin-top: 8px;">
+          <input type="checkbox" id="inCartClickNothingMobile" />
+          <label for="inCartClickNothingMobile" style="margin:0; font-weight:600;">📱 Нічого не робить — на мобільному (≤700px)</label>
+        </div>
+        <div class="hint" style="font-size:12px; color:#075985; margin-top:6px;">
+          ⚠️ Найвищий <strong>пріоритет</strong> над «відкриває кошик» і «прибирає». Якщо ввімкнено — клік по товару, що вже в кошику, повністю ігнорується (і на головній, і у картці товару, в обох режимах сайту).
+        </div>
+      </div>
+
       <div class="checkbox-inline" style="margin-top: 8px;">
         <input type="checkbox" id="inCartClickOpensCart" />
         <label for="inCartClickOpensCart" style="margin:0">Якщо товар вже в кошику — клік по «✓ У кошику» відкриває кошик (замість повторного додавання)</label>
@@ -964,6 +978,8 @@ function render() {
   document.getElementById('quickAddToCartEnabled').checked = !!settings.quickAddToCartEnabled;
   document.getElementById('closeProductAfterAdd').checked = settings.closeProductAfterAdd !== false;
   document.getElementById('closeProductAfterRemove').checked = settings.closeProductAfterRemove !== false;
+  document.getElementById('inCartClickNothing').checked = !!settings.inCartClickNothing;
+  document.getElementById('inCartClickNothingMobile').checked = !!settings.inCartClickNothingMobile;
   document.getElementById('inCartClickOpensCart').checked = settings.inCartClickOpensCart !== false;
   document.getElementById('inCartClickOpensCartMobile').checked = settings.inCartClickOpensCartMobile !== false;
   document.getElementById('inCartClickRemoves').checked = !!settings.inCartClickRemoves;
@@ -1186,6 +1202,8 @@ async function saveAll() {
   settings.quickAddToCartEnabled = document.getElementById('quickAddToCartEnabled').checked;
   settings.closeProductAfterAdd = document.getElementById('closeProductAfterAdd').checked;
   settings.closeProductAfterRemove = document.getElementById('closeProductAfterRemove').checked;
+  settings.inCartClickNothing = document.getElementById('inCartClickNothing').checked;
+  settings.inCartClickNothingMobile = document.getElementById('inCartClickNothingMobile').checked;
   settings.inCartClickOpensCart = document.getElementById('inCartClickOpensCart').checked;
   settings.inCartClickOpensCartMobile = document.getElementById('inCartClickOpensCartMobile').checked;
   settings.inCartClickRemoves = document.getElementById('inCartClickRemoves').checked;

@@ -326,6 +326,8 @@ const DEFAULT_SETTINGS = {
   quickAddToCartEnabled: false,
   closeProductAfterAdd: true, // закривати картку товару після додавання в кошик (true = поточна поведінка)
   closeProductAfterRemove: true, // закривати картку товару після прибирання з кошика (true = поточна поведінка)
+  inCartClickNothing: false,   // якщо товар вже в кошику — клік нічого не робить (найвищий пріоритет)
+  inCartClickNothingMobile: false, // те саме але для мобільного (≤700px)
   inCartClickOpensCart: true,  // якщо товар вже в кошику — клік по кнопці відкриває кошик (замість повторного додавання)
   inCartClickOpensCartMobile: true, // те саме але для мобільного (≤700px)
   inCartClickRemoves: false,   // якщо товар вже в кошику — клік прибирає його з кошика (має пріоритет над OpensCart)
