@@ -2781,7 +2781,7 @@ function addCurrentToCart() {
     if (!opt) continue;
     optionIds.push(oid);
     optionNames.push(opt.name || '');
-    optionItems.push({ id: oid, name: opt.name || '', priceDelta: opt.priceDelta || 0, photoNum: parseInt(opt.photoNum, 10) || 0 });
+    optionItems.push({ id: oid, name: opt.name || '', priceDelta: opt.priceDelta || 0, photoNum: parseInt(opt.photoNum, 10) || 0, requiresPhoto: !!opt.requiresPhoto });
     sumDelta += (opt.priceDelta || 0);
   }
   const optionId = optionIds.join('+');       // композитний ключ (для ідентичності рядка/промокодів)

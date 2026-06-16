@@ -189,6 +189,16 @@ function getCart() {
 }
 function saveCart() { localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
 
+// Чи потрібне фото для позиції кошика: фото вимагає САМ товар (requiresPhoto !== false)
+// АБО будь-який обраний варіант (optionItems[].requiresPhoto). Так варіант може зробити
+// фото обов'язковим навіть якщо товар у цілому без обов'язкового фото.
+function itemNeedsPhoto(item, product) {
+  const prod = product || (typeof productById !== 'undefined' ? productById.get(item.productId) : null);
+  const productRequires = prod ? (prod.requiresPhoto !== false) : true;
+  const variantRequires = Array.isArray(item.optionItems) && item.optionItems.some(o => o && o.requiresPhoto);
+  return productRequires || variantRequires;
+}
+
 function render() {
   const productById = new Map((shop.products || []).map(p => [p.id, p]));
   const showThumbs = shop.checkoutShowThumbs !== false; // дефолт: показувати мініатюри
@@ -226,7 +236,7 @@ function render() {
 
     ${(() => {
       // Только товары, которые требуют фото
-      const photoItems = cart.filter(item => productById.get(item.productId)?.requiresPhoto !== false);
+      const photoItems = cart.filter(item => itemNeedsPhoto(item, productById.get(item.productId)));
       if (photoItems.length === 0) return ''; // ВЕСЬ блок скрыт если ни один товар не требует фото
       return `
         <div class="card">
@@ -667,7 +677,7 @@ async function submitOrder() {
   const productById = new Map((shop.products || []).map(p => [p.id, p]));
   for (let i = 0; i < cart.length; i++) {
     const product = productById.get(cart[i].productId);
-    if (product?.requiresPhoto !== false && filesPerItem[i].length === 0) {
+    if (itemNeedsPhoto(cart[i], product) && filesPerItem[i].length === 0) {
       showItemError(i, 'Для цієї позиції потрібне фото');
       showStatus(shop.noPhotosError || 'Прикрепите фото для всех товаров', 'error');
       document.getElementById('item-err_' + i)?.scrollIntoView({ behavior: 'smooth', block: 'center' });

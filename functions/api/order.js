@@ -104,13 +104,14 @@ export async function onRequestPost(context) {
     const qty = Math.max(1, Math.min(parseInt(item.quantity, 10) || 1, 1000));
     let unitPrice = tierUnitPrice(product, qty); // 💰 оптова ціна від кількості (база)
     let optionLabel = null;
+    let optionRequiresPhoto = false; // чи хоч один обраний варіант вимагає фото (з даних товару)
     const prodOpts = Array.isArray(product.options) ? product.options : [];
     if (Array.isArray(item.optionIds) && item.optionIds.length && prodOpts.length) {
       // Мультивибір: сумуємо надбавки усіх обраних варіантів (ціни беремо з товару — не довіряємо клієнту).
       const names = [];
       for (const oid of item.optionIds) {
         const opt = prodOpts.find(o => o.id === oid);
-        if (opt) { unitPrice += (opt.priceDelta || 0); names.push(opt.name); }
+        if (opt) { unitPrice += (opt.priceDelta || 0); names.push(opt.name); if (opt.requiresPhoto) optionRequiresPhoto = true; }
       }
       optionLabel = names.length ? names.join(' + ') : null;
     } else if (item.optionId && prodOpts.length) {
@@ -119,14 +120,14 @@ export async function onRequestPost(context) {
       const names = [];
       for (const oid of ids) {
         const opt = prodOpts.find(o => o.id === oid);
-        if (opt) { unitPrice += (opt.priceDelta || 0); names.push(opt.name); }
+        if (opt) { unitPrice += (opt.priceDelta || 0); names.push(opt.name); if (opt.requiresPhoto) optionRequiresPhoto = true; }
       }
       optionLabel = names.length ? names.join(' + ') : null;
     }
     const lineTotal = unitPrice * qty;
     totalPrice += lineTotal;
     enrichedCart.push({
-      product, qty, unitPrice, lineTotal, optionLabel,
+      product, qty, unitPrice, lineTotal, optionLabel, optionRequiresPhoto,
     });
   }
 
@@ -216,7 +217,7 @@ export async function onRequestPost(context) {
       totalPhotos++;
       photoFiles.push({ itemIndex: i, file: f });
     }
-    if (enrichedCart[i].product.requiresPhoto && files.length === 0) {
+    if ((enrichedCart[i].product.requiresPhoto || enrichedCart[i].optionRequiresPhoto) && files.length === 0) {
       return jsonResp({ ok: false, error: `Для "${enrichedCart[i].product.name}" нужно прикрепить фото` }, 400);
     }
   }

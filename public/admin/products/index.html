@@ -1523,16 +1523,22 @@ function renderOpts(p) {
       <label class="opt-addon" title="Доповнення: незалежна кнопка (нажав/віджав), сумується і НЕ входить у перемикач. Корисно коли варіант ДОДАЄ товар, а не змінює тип. Працює навіть у режимі «Тільки один варіант».">
         <input type="checkbox" data-k="addon" ${o.addon ? 'checked' : ''} /> ➕ доп.
       </label>
+      <label class="opt-addon" title="Якщо цей варіант обрано — клієнт ОБОВ'ЯЗКОВО має прикріпити фото на оформленні (навіть якщо сам товар без обов'язкового фото).">
+        <input type="checkbox" data-k="requiresPhoto" ${o.requiresPhoto ? 'checked' : ''} /> 📷 фото
+      </label>
       <button class="btn btn-danger btn-icon" type="button">×</button>
     `;
     row.querySelectorAll('[data-k]').forEach(input => {
-      input.addEventListener('input', () => {
+      const upd = () => {
         const k = input.dataset.k;
         if (k === 'priceDelta') o[k] = parseFloat(input.value) || 0;
         else if (k === 'photoNum') o[k] = parseInt(input.value, 10) || 0;
         else if (k === 'addon') o[k] = input.checked;
+        else if (k === 'requiresPhoto') o[k] = input.checked;
         else { o[k] = input.value; o.id = makeOptId(input.value, i); }
-      });
+      };
+      input.addEventListener('input', upd);
+      input.addEventListener('change', upd);
     });
     row.querySelector('button').onclick = () => { p.options.splice(i, 1); renderOpts(p); };
     el.appendChild(row);
