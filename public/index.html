@@ -321,6 +321,13 @@
     .sub.align-right { text-align: right; }
     h2.section-title { font-size: 22px; margin: 8px 0 14px; }
     .cat-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 4px; }
+    .sort-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 0 4px; flex-wrap: wrap; }
+    .sort-label { font-size: 14px; color: var(--muted); font-weight: 500; }
+    .sort-select {
+      padding: 8px 12px; border: 1.5px solid var(--border); background: var(--card); color: var(--text);
+      border-radius: 10px; font-size: 14px; font-family: inherit; cursor: pointer; max-width: 100%;
+    }
+    .sort-select:focus { outline: none; border-color: var(--accent); }
     .cat-tab {
       padding: 8px 16px; border: 1.5px solid var(--border); background: var(--card); color: var(--text);
       border-radius: 999px; font-size: 14px; font-weight: 500; cursor: pointer;
@@ -1353,6 +1360,60 @@ function renderCategoriesNav() {
   return `<div class="cat-nav">${tabs}</div>`;
 }
 
+// === Сортування товарів (для покупця) ===
+const SORT_LABELS = {
+  price_asc: 'Ціна: спершу дешевші',
+  price_desc: 'Ціна: спершу дорожчі',
+  popular: 'Спочатку популярні',
+  name: 'За назвою (А-Я)',
+};
+const SORT_ALLOWED = ['price_asc', 'price_desc', 'popular', 'name'];
+// Поточний вибір покупця (живе в сесії, щоб не злітав при перемальовуванні).
+window.currentSort = (function () {
+  try { return sessionStorage.getItem('agprnt_sort') || ''; } catch { return ''; }
+})();
+function setSort(val) {
+  window.currentSort = val || '';
+  try { sessionStorage.setItem('agprnt_sort', window.currentSort); } catch {}
+  renderShop();
+}
+// Сортує КОПІЮ списку. Закріплені (pinTop) завжди зверху; усередині кожної групи — обраний критерій.
+// Порожній критерій → ручний порядок (як прийшов із адмінки).
+function sortProducts(list) {
+  const arr = list.slice();
+  const crit = window.currentSort;
+  const cmp = (a, b) => {
+    switch (crit) {
+      case 'price_asc': return ((a.price || 0) - (b.price || 0));
+      case 'price_desc': return ((b.price || 0) - (a.price || 0));
+      case 'popular': return ((b.soldCount || 0) - (a.soldCount || 0));
+      case 'name': return String(a.name || '').localeCompare(String(b.name || ''), 'uk');
+      default: return 0;
+    }
+  };
+  // стабільне сортування: спершу за pinTop (закріплені зверху), потім за критерієм, зберігаючи вихідний індекс
+  return arr
+    .map((p, i) => [p, i])
+    .sort((A, B) => {
+      const pinDiff = (B[0].pinTop ? 1 : 0) - (A[0].pinTop ? 1 : 0);
+      if (pinDiff) return pinDiff;
+      const c = crit ? cmp(A[0], B[0]) : 0;
+      if (c) return c;
+      return A[1] - B[1]; // стабільність / ручний порядок
+    })
+    .map(([p]) => p);
+}
+// Дропдаун сортування. Показуємо лише дозволені й увімкнені варіанти.
+function renderSortBar() {
+  const opts = (Array.isArray(shop.sortOptions) ? shop.sortOptions : []).filter(k => SORT_ALLOWED.includes(k));
+  if (!shop.sortEnabled || opts.length === 0) return '';
+  const cur = window.currentSort;
+  const items = ['<option value="">За порядком магазину</option>']
+    .concat(opts.map(k => `<option value="${k}"${k === cur ? ' selected' : ''}>${escapeHtml(SORT_LABELS[k])}</option>`));
+  return `<div class="sort-bar"><label class="sort-label">Сортування:</label>` +
+    `<select class="sort-select" onchange="setSort(this.value)">${items.join('')}</select></div>`;
+}
+
 function renderShop() {
   // Повернулись у каталог — повертаємо плаваючу кнопку «Відстежити замовлення» (її ховає сторінка товару)
   const trackFab = document.getElementById('trackFab');
@@ -1450,6 +1511,8 @@ function renderShop() {
       if (hiddenIds.length) products = products.filter(p => !hiddenIds.includes(p.categoryId));
     }
   }
+  // Сортування (для покупця): застосовується після фільтрів, перед рендером. Закріплені зверху.
+  products = sortProducts(products);
   const productsHtml = products.length === 0
     ? `<p class="sub" style="text-align:center; padding:40px 0;">${q.length >= 2 ? `Нічого не знайдено за запитом «${escapeHtml(q)}»` : (getEffectiveCategoryId() ? 'У цій категорії поки що немає товарів.' : 'Каталог поки порожній. Загляньте пізніше.')}</p>`
     : `<div class="catalog${shop.mobileTwoColumns ? ' mobile-2col' : ''}${shop.hideCardBuyButtonDesktop ? ' hide-card-buy-desktop' : ''}${shop.hideCardBuyButtonMobile ? ' hide-card-buy-mobile' : ''}">${products.map(productCardHtml).join('')}</div>`;
@@ -1615,6 +1678,7 @@ function renderShop() {
       ${renderHomePromo('aboveCatalog')}
       ${shop.catalogTitle && shop.catalogTitle.trim() ? `<h2 class="section-title">${renderRichCompact(shop.catalogTitle)}</h2>` : ''}
       ${renderCategoriesNav()}
+      ${renderSortBar()}
       ${productsHtml}
       ${renderFooterContacts()}
     </div>

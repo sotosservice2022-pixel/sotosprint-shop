@@ -326,6 +326,38 @@
     </div>
   </div>
 
+  <!-- ↕️ Сортування товарів (для покупця) -->
+  <div class="card no-collapse" id="sortCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 style="font-size: 16px; margin: 0 0 12px; color: #374151;">↕️ Сортування товарів (для покупця)</h2>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+      <input type="checkbox" id="sortEnabled" />
+      <label for="sortEnabled" style="margin:0; font-weight:600; font-size:13px;">Показувати покупцю вибір сортування (дропдаун над каталогом)</label>
+    </div>
+    <div style="margin-bottom: 10px; padding-left: 22px;">
+      <label style="font-weight:600; font-size:13px; display:block; margin-bottom:6px;">Які варіанти показувати покупцю</label>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <label style="margin:0; font-size:13px;"><input type="checkbox" class="sortOpt" value="price_asc" /> Ціна: спершу дешевші</label>
+        <label style="margin:0; font-size:13px;"><input type="checkbox" class="sortOpt" value="price_desc" /> Ціна: спершу дорожчі</label>
+        <label style="margin:0; font-size:13px;"><input type="checkbox" class="sortOpt" value="popular" /> Спочатку популярні (за кількістю покупок)</label>
+        <label style="margin:0; font-size:13px;"><input type="checkbox" class="sortOpt" value="name" /> За назвою (А-Я)</label>
+      </div>
+    </div>
+    <div style="margin-bottom: 6px; padding-left: 22px;">
+      <label style="font-weight:600; font-size:13px; display:block; margin-bottom:4px;">Варіант за замовчуванням</label>
+      <select id="sortDefault" style="width:100%; max-width:340px; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;">
+        <option value="">За порядком магазину (ручний)</option>
+        <option value="price_asc">Ціна: спершу дешевші</option>
+        <option value="price_desc">Ціна: спершу дорожчі</option>
+        <option value="popular">Спочатку популярні</option>
+        <option value="name">За назвою (А-Я)</option>
+      </select>
+      <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">«За порядком магазину» — твій ручний порядок товарів (закріплені 📌 завжди зверху). Сортування діє після фільтра пошуку/категорії.</div>
+    </div>
+    <div style="margin-top: 12px;">
+      <span style="font-size: 13px; color: #6b7280;">💡 Зберігається кнопкою <strong>«💾 Зберегти все»</strong> внизу сторінки.</span>
+    </div>
+  </div>
+
   <!-- 🏷 Код товару (артикул) -->
   <div class="card no-collapse" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 style="font-size: 16px; margin: 0 0 12px; color: #374151;">🏷 Код товару (артикул)</h2>
@@ -460,6 +492,13 @@ async function loadAll() {
       const pcShowEl = document.getElementById('productCodeShow');
       if (pcEnEl) pcEnEl.checked = appSettings.productCodeEnabled === true;
       if (pcShowEl) pcShowEl.checked = appSettings.productCodeShow === true;
+      // Сортування товарів (для покупця)
+      const sortEnEl = document.getElementById('sortEnabled');
+      if (sortEnEl) sortEnEl.checked = appSettings.sortEnabled === true;
+      const sortOpts = Array.isArray(appSettings.sortOptions) ? appSettings.sortOptions : ['price_asc', 'price_desc', 'popular', 'name'];
+      document.querySelectorAll('.sortOpt').forEach(cb => { cb.checked = sortOpts.includes(cb.value); });
+      const sortDefEl = document.getElementById('sortDefault');
+      if (sortDefEl) sortDefEl.value = appSettings.sortDefault || '';
       renderCategories();
       // Робимо блок категорій згортуваним (за замовчуванням згорнутий, щоб не заважав)
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
@@ -1905,6 +1944,14 @@ async function saveAll(reopenEditor = true) {
     if (navEl) serverSettings.showCategoriesNav = navEl.checked;
     if (allTabEl) serverSettings.showAllCategoriesTab = allTabEl.checked;
     if (defNameEl) serverSettings.defaultCategoryName = defNameEl.value.trim() || 'Усі товари';
+    // === Сортування товарів (для покупця) ===
+    const sortEnEl = document.getElementById('sortEnabled');
+    if (sortEnEl) serverSettings.sortEnabled = sortEnEl.checked;
+    const SORT_ORDER = ['price_asc', 'price_desc', 'popular', 'name'];
+    const checkedSort = Array.from(document.querySelectorAll('.sortOpt')).filter(cb => cb.checked).map(cb => cb.value);
+    serverSettings.sortOptions = SORT_ORDER.filter(k => checkedSort.includes(k)); // фіксований порядок
+    const sortDefEl = document.getElementById('sortDefault');
+    if (sortDefEl) serverSettings.sortDefault = sortDefEl.value || '';
     // промокоди редагуються у редакторі товару (пишуть в appSettings.promoCodes)
     if (appSettings && Array.isArray(appSettings.promoCodes)) {
       serverSettings.promoCodes = appSettings.promoCodes;
