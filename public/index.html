@@ -322,6 +322,8 @@
     h2.section-title { font-size: 22px; margin: 8px 0 14px; }
     .cat-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 4px; }
     .sort-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 0 4px; flex-wrap: wrap; }
+    .sort-bar.sort-center { justify-content: center; }
+    .sort-bar.sort-right { justify-content: flex-end; }
     .sort-label { font-size: 14px; color: var(--muted); font-weight: 500; }
     .sort-select {
       padding: 8px 12px; border: 1.5px solid var(--border); background: var(--card); color: var(--text);
@@ -1410,7 +1412,8 @@ function renderSortBar() {
   const cur = window.currentSort;
   const items = ['<option value="">За порядком магазину</option>']
     .concat(opts.map(k => `<option value="${k}"${k === cur ? ' selected' : ''}>${escapeHtml(SORT_LABELS[k])}</option>`));
-  return `<div class="sort-bar"><label class="sort-label">Сортування:</label>` +
+  const align = ['left', 'center', 'right'].includes(shop.sortAlign) ? shop.sortAlign : 'left';
+  return `<div class="sort-bar sort-${align}"><label class="sort-label">Сортування:</label>` +
     `<select class="sort-select" onchange="setSort(this.value)">${items.join('')}</select></div>`;
 }
 
@@ -1677,8 +1680,9 @@ function renderShop() {
       ${shop.subtitle ? `<p class="sub align-${shop.subtitleAlign || 'left'}">${renderRichCompact(shop.subtitle)}</p>` : ''}
       ${renderHomePromo('aboveCatalog')}
       ${shop.catalogTitle && shop.catalogTitle.trim() ? `<h2 class="section-title">${renderRichCompact(shop.catalogTitle)}</h2>` : ''}
+      ${shop.sortPosition === 'above' ? renderSortBar() : ''}
       ${renderCategoriesNav()}
-      ${renderSortBar()}
+      ${shop.sortPosition !== 'above' ? renderSortBar() : ''}
       ${productsHtml}
       ${renderFooterContacts()}
     </div>

@@ -327,8 +327,8 @@
   </div>
 
   <!-- ↕️ Сортування товарів (для покупця) -->
-  <div class="card no-collapse" id="sortCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
-    <h2 style="font-size: 16px; margin: 0 0 12px; color: #374151;">↕️ Сортування товарів (для покупця)</h2>
+  <div class="card" id="sortCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 id="sortHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">↕️ Сортування товарів (для покупця)</h2>
     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
       <input type="checkbox" id="sortEnabled" />
       <label for="sortEnabled" style="margin:0; font-weight:600; font-size:13px;">Показувати покупцю вибір сортування (дропдаун над каталогом)</label>
@@ -353,14 +353,31 @@
       </select>
       <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">«За порядком магазину» — твій ручний порядок товарів (закріплені 📌 завжди зверху). Сортування діє після фільтра пошуку/категорії.</div>
     </div>
+    <div style="margin-bottom: 6px; padding-left: 22px; display:flex; gap:12px; flex-wrap:wrap;">
+      <div>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:4px;">Положення</label>
+        <select id="sortPosition" style="padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;">
+          <option value="below">Під вкладками категорій</option>
+          <option value="above">Над вкладками категорій</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-weight:600; font-size:13px; display:block; margin-bottom:4px;">Вирівнювання</label>
+        <select id="sortAlign" style="padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;">
+          <option value="left">Зліва</option>
+          <option value="center">По центру</option>
+          <option value="right">Справа</option>
+        </select>
+      </div>
+    </div>
     <div style="margin-top: 12px;">
       <span style="font-size: 13px; color: #6b7280;">💡 Зберігається кнопкою <strong>«💾 Зберегти все»</strong> внизу сторінки.</span>
     </div>
   </div>
 
   <!-- 🏷 Код товару (артикул) -->
-  <div class="card no-collapse" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
-    <h2 style="font-size: 16px; margin: 0 0 12px; color: #374151;">🏷 Код товару (артикул)</h2>
+  <div class="card" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 id="productCodeHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">🏷 Код товару (артикул)</h2>
     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
       <input type="checkbox" id="productCodeEnabled" />
       <label for="productCodeEnabled" style="margin:0; font-weight:600; font-size:13px;">Присвоювати код товару (ART-001, ART-002…)</label>
@@ -499,9 +516,15 @@ async function loadAll() {
       document.querySelectorAll('.sortOpt').forEach(cb => { cb.checked = sortOpts.includes(cb.value); });
       const sortDefEl = document.getElementById('sortDefault');
       if (sortDefEl) sortDefEl.value = appSettings.sortDefault || '';
+      const sortPosEl = document.getElementById('sortPosition');
+      if (sortPosEl) sortPosEl.value = (appSettings.sortPosition === 'above') ? 'above' : 'below';
+      const sortAlignEl = document.getElementById('sortAlign');
+      if (sortAlignEl) sortAlignEl.value = ['left', 'center', 'right'].includes(appSettings.sortAlign) ? appSettings.sortAlign : 'left';
       renderCategories();
-      // Робимо блок категорій згортуваним (за замовчуванням згорнутий, щоб не заважав)
+      // Робимо блоки згортуваними (за замовчуванням згорнуті, щоб не заважали)
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
+      makeCollapsible(document.getElementById('sortCard'), document.getElementById('sortHeading'), 'collapse_sort', true);
+      makeCollapsible(document.getElementById('productCodeCard'), document.getElementById('productCodeHeading'), 'collapse_productcode', true);
     }
     renderList();
     makeCollapsible(document.getElementById('priceBulkCard'), document.getElementById('priceBulkHeading'), 'collapse_pricebulk', true);
@@ -1952,6 +1975,10 @@ async function saveAll(reopenEditor = true) {
     serverSettings.sortOptions = SORT_ORDER.filter(k => checkedSort.includes(k)); // фіксований порядок
     const sortDefEl = document.getElementById('sortDefault');
     if (sortDefEl) serverSettings.sortDefault = sortDefEl.value || '';
+    const sortPosEl = document.getElementById('sortPosition');
+    if (sortPosEl) serverSettings.sortPosition = (sortPosEl.value === 'above') ? 'above' : 'below';
+    const sortAlignEl = document.getElementById('sortAlign');
+    if (sortAlignEl) serverSettings.sortAlign = ['left', 'center', 'right'].includes(sortAlignEl.value) ? sortAlignEl.value : 'left';
     // промокоди редагуються у редакторі товару (пишуть в appSettings.promoCodes)
     if (appSettings && Array.isArray(appSettings.promoCodes)) {
       serverSettings.promoCodes = appSettings.promoCodes;

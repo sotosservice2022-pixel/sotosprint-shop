@@ -108,6 +108,8 @@ const DEFAULT_SETTINGS = {
   sortEnabled: false,  // показувати покупцю вибір сортування
   sortOptions: ['price_asc', 'price_desc', 'popular', 'name'], // які варіанти показувати (фіксований порядок)
   sortDefault: '',     // '' = ручний порядок з адмінки; або один із ключів вище
+  sortAlign: 'left',   // вирівнювання дропдауна: 'left' | 'center' | 'right'
+  sortPosition: 'below', // положення відносно вкладок категорій: 'above' | 'below'
   // Режим відкриття товару: 'modal' — модальне вікно (за замовч.), 'page' — окрема сторінка /product/ID
   productPageMode: 'modal',
   // Ширина сторінки оформлення замовлення (px). За замовч. 600. Власник регулює в адмінці.
