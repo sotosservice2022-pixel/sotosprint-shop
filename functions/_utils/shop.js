@@ -286,6 +286,8 @@ const DEFAULT_SETTINGS = {
   facebookPixelId: '',            // Facebook Pixel ID
   // Файлове сховище R2
   storageQuotaMB: 5000,           // ліміт у MB (≈5 ГБ; безкоштовний ліміт R2 — 10 ГБ)
+  orderPhotoAutoCleanup: false,   // авто-видалення фото старих замовлень (ліниве, при заході в адмінку, раз на добу)
+  orderPhotoCleanupDays: 365,     // фото замовлень старші за N днів видаляються (за замовч. = TTL замовлення)
   // === Боковые баннеры (до 3 штук на каждой стороне) ===
   bannerWidth: 180,
   // Старі поля залишаємо для зворотньої сумісності — мігруються в sideBanners при першому читанні
@@ -1057,6 +1059,56 @@ export async function cleanupOrphanProductPhotos(env, oldProducts, newProducts) 
     }
     return { deleted: orphans.length };
   } catch { return { deleted: 0 }; }
+}
+
+// Видалити фото замовлень (папка orders/) старші за N днів за датою завантаження в R2.
+// dryRun=true — лише порахувати. Повертає { scanned, matched, deleted, matchedBytes }.
+// Використовується і ручною кнопкою, і лінивим автоматом (settings).
+export async function cleanupOrderPhotos(env, days, dryRun = false) {
+  const result = { scanned: 0, matched: 0, deleted: 0, matchedBytes: 0 };
+  if (!env.STORAGE) return result;
+  const d = Math.max(1, parseInt(days, 10) || 0);
+  if (!d) return result;
+  const cutoffMs = Date.now() - d * 24 * 60 * 60 * 1000;
+  let cursor;
+  let batch = [];
+  const flush = async () => {
+    if (!batch.length) return;
+    if (!dryRun) { try { await env.STORAGE.delete(batch); } catch {} }
+    result.deleted += batch.length;
+    batch = [];
+  };
+  do {
+    const list = await env.STORAGE.list({ prefix: 'orders/', cursor, limit: 1000 });
+    for (const obj of list.objects) {
+      result.scanned++;
+      const uploadedMs = obj.uploaded ? new Date(obj.uploaded).getTime() : 0;
+      if (uploadedMs && uploadedMs < cutoffMs) {
+        result.matched++;
+        result.matchedBytes += obj.size || 0;
+        if (!dryRun) { batch.push(obj.key); if (batch.length >= 1000) await flush(); }
+      }
+    }
+    cursor = list.truncated ? list.cursor : undefined;
+  } while (cursor);
+  await flush();
+  return result;
+}
+
+// Ліниве авто-очищення: викликається при заході в адмінку. Реально працює не частіше
+// разу на добу (мітка orderPhotoCleanup_last у KV). Без cron — підходить для Pages.
+// Best-effort: будь-яка помилка тихо ігнорується, на роботу адмінки не впливає.
+export async function maybeAutoCleanupOrderPhotos(env) {
+  try {
+    if (!env.STORAGE || !env.SHOP_KV) return;
+    const s = await getSettings(env);
+    if (s.orderPhotoAutoCleanup !== true) return;
+    const last = parseInt(await env.SHOP_KV.get('orderPhotoCleanup_last'), 10) || 0;
+    if (Date.now() - last < 24 * 60 * 60 * 1000) return; // вже чистили за останню добу
+    // Ставимо мітку ДО роботи, щоб паралельні заходи не запускали очищення двічі
+    await env.SHOP_KV.put('orderPhotoCleanup_last', String(Date.now()));
+    await cleanupOrderPhotos(env, s.orderPhotoCleanupDays || 365, false);
+  } catch {}
 }
 
 // Рекурсивно замінити рядок oldUrl→newUrl у будь-якій JSON-структурі. Повертає [нова_структура, лічільник].

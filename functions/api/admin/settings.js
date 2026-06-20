@@ -1,9 +1,11 @@
 // GET/POST /api/admin/settings — настройки магазина
-import { getSettings, saveSettings, checkAuthAsync, unauthorized, jsonResp, notifyLimitHit, classifyLimitError } from '../../_utils/shop.js';
+import { getSettings, saveSettings, checkAuthAsync, unauthorized, jsonResp, notifyLimitHit, classifyLimitError, maybeAutoCleanupOrderPhotos } from '../../_utils/shop.js';
 
-export async function onRequestGet({ request, env }) {
+export async function onRequestGet({ request, env, waitUntil }) {
   if (!(await checkAuthAsync(request, env))) return unauthorized();
   const settings = await getSettings(env);
+  // Ліниве авто-очищення фото старих замовлень (раз на добу, у фоні, не блокує відповідь).
+  try { (waitUntil ? waitUntil : (p => p))(maybeAutoCleanupOrderPhotos(env)); } catch {}
   return jsonResp({ ok: true, settings });
 }
 

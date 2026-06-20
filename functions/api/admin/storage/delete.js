@@ -1,6 +1,7 @@
 // POST /api/admin/storage/delete — видалення файлів з R2
 // Body: { key: string } | { keys: string[] } | { action: 'wipe-all', confirm: 'YES' }
-import { checkAuthAsync, jsonResp } from '../../../_utils/shop.js';
+//     | { action: 'cleanup-orders', days: number, dryRun?: boolean }
+import { checkAuthAsync, jsonResp, cleanupOrderPhotos } from '../../../_utils/shop.js';
 
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
@@ -8,6 +9,29 @@ export async function onRequestPost({ request, env }) {
 
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалідний JSON' }, 400); }
+
+  // Очищення фото замовлень старших за N днів (тільки папка orders/).
+  // Орієнтуємось на дату завантаження файлу в R2 (obj.uploaded). dryRun — лише порахувати, не видаляти.
+  if (body.action === 'cleanup-orders') {
+    const days = Math.max(1, parseInt(body.days, 10) || 0);
+    if (!days) return jsonResp({ ok: false, error: 'Вкажіть кількість днів (≥1)' }, 400);
+    const dryRun = body.dryRun === true;
+    try {
+      const r = await cleanupOrderPhotos(env, days, dryRun);
+      return jsonResp({
+        ok: true,
+        action: 'cleanup-orders',
+        dryRun,
+        days,
+        scanned: r.scanned,
+        matched: r.matched,
+        deleted: dryRun ? 0 : r.deleted,
+        matchedMB: +(r.matchedBytes / 1024 / 1024).toFixed(2),
+      });
+    } catch (e) {
+      return jsonResp({ ok: false, error: 'Помилка очищення: ' + e.message }, 500);
+    }
+  }
 
   // Повне видалення сховища
   if (body.action === 'wipe-all') {
