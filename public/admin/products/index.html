@@ -327,7 +327,7 @@
   </div>
 
   <!-- ↕️ Сортування товарів (для покупця) -->
-  <div class="card" id="sortCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+  <div class="card no-collapse" id="sortCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 id="sortHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">↕️ Сортування товарів (для покупця)</h2>
     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
       <input type="checkbox" id="sortEnabled" />
@@ -376,7 +376,7 @@
   </div>
 
   <!-- 🏷 Код товару (артикул) -->
-  <div class="card" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+  <div class="card no-collapse" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 id="productCodeHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">🏷 Код товару (артикул)</h2>
     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
       <input type="checkbox" id="productCodeEnabled" />
@@ -522,10 +522,11 @@ async function loadAll() {
       if (sortAlignEl) sortAlignEl.value = ['left', 'center', 'right'].includes(appSettings.sortAlign) ? appSettings.sortAlign : 'left';
       renderCategories();
       // Робимо блоки згортуваними (за замовчуванням згорнуті, щоб не заважали)
+      // Усі ці картки мають no-collapse → їх НЕ чіпає глобальний _admin-ui.js.
+      // Робимо згортуваними локально (стрілка ▸ зліва від заголовка) — єдиний вигляд для всіх.
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
-      // sortCard і productCodeCard НЕ мають класу no-collapse — їх автоматично робить
-      // згортуваними глобальний _admin-ui.js (кнопка ▾ у кутку + клік по заголовку), як у всіх інших карток.
-      // Тому локальний makeCollapsible тут НЕ викликаємо, щоб не було двох конфліктних систем.
+      makeCollapsible(document.getElementById('sortCard'), document.getElementById('sortHeading'), 'collapse_sort', true);
+      makeCollapsible(document.getElementById('productCodeCard'), document.getElementById('productCodeHeading'), 'collapse_productcode', true);
     }
     renderList();
     makeCollapsible(document.getElementById('priceBulkCard'), document.getElementById('priceBulkHeading'), 'collapse_pricebulk', true);
