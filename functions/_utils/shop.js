@@ -285,7 +285,7 @@ const DEFAULT_SETTINGS = {
   googleTagManagerId: '',         // GTM-XXXXXXX
   facebookPixelId: '',            // Facebook Pixel ID
   // Файлове сховище R2
-  storageQuotaMB: 200,            // ліміт у MB
+  storageQuotaMB: 5000,           // ліміт у MB (≈5 ГБ; безкоштовний ліміт R2 — 10 ГБ)
   // === Боковые баннеры (до 3 штук на каждой стороне) ===
   bannerWidth: 180,
   // Старі поля залишаємо для зворотньої сумісності — мігруються в sideBanners при першому читанні
