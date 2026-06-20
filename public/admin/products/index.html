@@ -523,8 +523,9 @@ async function loadAll() {
       renderCategories();
       // Робимо блоки згортуваними (за замовчуванням згорнуті, щоб не заважали)
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
-      makeCollapsible(document.getElementById('sortCard'), document.getElementById('sortHeading'), 'collapse_sort', true);
-      makeCollapsible(document.getElementById('productCodeCard'), document.getElementById('productCodeHeading'), 'collapse_productcode', true);
+      // sortCard і productCodeCard НЕ мають класу no-collapse — їх автоматично робить
+      // згортуваними глобальний _admin-ui.js (кнопка ▾ у кутку + клік по заголовку), як у всіх інших карток.
+      // Тому локальний makeCollapsible тут НЕ викликаємо, щоб не було двох конфліктних систем.
     }
     renderList();
     makeCollapsible(document.getElementById('priceBulkCard'), document.getElementById('priceBulkHeading'), 'collapse_pricebulk', true);
