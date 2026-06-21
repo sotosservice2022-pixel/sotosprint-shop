@@ -1160,11 +1160,17 @@ export async function cleanupOldOrders(env, days, dryRun = false) {
 
 // Ліниве авто-очищення: викликається при заході в адмінку. Реально працює не частіше
 // разу на добу (мітка orderPhotoCleanup_last у KV). Без cron — підходить для Pages.
-// Завжди orphan-режим (без чекбоксу): прибирає фото замовлень, яких уже немає в KV.
+// Orphan-режим: прибирає фото замовлень, яких уже немає в KV.
+// Має сенс ЛИШЕ коли ввімкнено TTL (orderTtlEnabled): тоді Cloudflare сам стирає прострочені
+// замовлення, а їхні фото в R2 лишаються — їх і підбирає ця функція. Якщо TTL вимкнено,
+// замовлення видаляються тільки нашим кодом (deleteOrder одразу прибирає й фото) — осиротіти
+// нічому, тож фонову перевірку пропускаємо.
 // Best-effort: будь-яка помилка тихо ігнорується, на роботу адмінки не впливає.
 export async function maybeAutoCleanupOrderPhotos(env) {
   try {
     if (!env.STORAGE || !env.SHOP_KV) return;
+    const s = await getSettings(env);
+    if (s.orderTtlEnabled === false) return; // TTL вимкнено — осиротілих фото не буває
     const last = parseInt(await env.SHOP_KV.get('orderPhotoCleanup_last'), 10) || 0;
     if (Date.now() - last < 24 * 60 * 60 * 1000) return; // вже чистили за останню добу
     // Ставимо мітку ДО роботи, щоб паралельні заходи не запускали очищення двічі
