@@ -2,7 +2,7 @@
 // Body: { kvKeys: [...], action: 'delete' | 'read' | 'unread' | 'done' | 'undone' }
 // Или { action: 'delete-all', confirm: 'YES' } — удалить ВСЕ заказы
 // Или { action: 'cleanup-old', days: N, dryRun?: bool } — удалить заказы старше N дней (текст+фото)
-import { listOrders, deleteOrder, updateOrder, checkAuthAsync, jsonResp, invalidateOrdersCache, cleanupOldOrders } from '../../_utils/shop.js';
+import { listOrders, deleteOrder, updateOrder, checkAuthAsync, jsonResp, invalidateOrdersCache, cleanupOldOrders, cleanupOldOrderPhotosKeepOrder } from '../../_utils/shop.js';
 
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
@@ -21,6 +21,26 @@ export async function onRequestPost({ request, env }) {
       const r = await cleanupOldOrders(env, days, dryRun);
       if (!dryRun) await invalidateOrdersCache();
       return jsonResp({ ok: true, action: 'cleanup-old', dryRun, days, scanned: r.scanned, matched: r.matched, deleted: dryRun ? 0 : r.deleted });
+    } catch (e) {
+      return jsonResp({ ok: false, error: 'Помилка очищення: ' + e.message }, 500);
+    }
+  }
+
+  // Видалити ЛИШЕ фото старих замовлень (текст лишається). dryRun — лише порахувати.
+  if (action === 'cleanup-old-photos') {
+    const days = Math.max(1, parseInt(body.days, 10) || 0);
+    if (!days) return jsonResp({ ok: false, error: 'Вкажіть кількість днів (≥1)' }, 400);
+    const dryRun = body.dryRun === true;
+    try {
+      const r = await cleanupOldOrderPhotosKeepOrder(env, days, dryRun);
+      if (!dryRun) await invalidateOrdersCache();
+      return jsonResp({
+        ok: true, action: 'cleanup-old-photos', dryRun, days,
+        scanned: r.scanned, matched: r.matched,
+        deletedPhotos: dryRun ? 0 : r.deletedPhotos,
+        matchedPhotos: r.deletedPhotos,
+        matchedMB: +(r.matchedBytes / 1024 / 1024).toFixed(2),
+      });
     } catch (e) {
       return jsonResp({ ok: false, error: 'Помилка очищення: ' + e.message }, 500);
     }

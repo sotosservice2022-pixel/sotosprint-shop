@@ -150,6 +150,23 @@
     <div id="cleanupOrdersMsg" style="font-size: 13px; color: #374151; margin-top: 10px;"></div>
   </div>
 
+  <!-- РУЧНЕ ВИДАЛЕННЯ ЛИШЕ ФОТО СТАРИХ ЗАМОВЛЕНЬ -->
+  <div class="card">
+    <h2>🖼 Видалити фото старих замовлень (заказ лишається)</h2>
+    <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">
+      Прибирає з R2 <strong>лише фото</strong> замовлень старших за вказану кількість днів — сам заказ (текст) лишається в базі.
+      Спочатку «Порахувати», потім «Видалити». Незворотньо.
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <label style="font-size: 13px; color: #374151;">Старші за</label>
+      <input type="number" id="cleanupPhotosDays" value="365" min="1" max="3650" step="1" style="width: 90px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
+      <label style="font-size: 13px; color: #374151;">днів</label>
+      <button class="btn btn-secondary btn-icon" onclick="cleanupOldOrderPhotos(true)">🔍 Порахувати</button>
+      <button class="btn btn-danger js-del" onclick="cleanupOldOrderPhotos(false)">🗑 Видалити фото</button>
+    </div>
+    <div id="cleanupPhotosMsg" style="font-size: 13px; color: #374151; margin-top: 10px;"></div>
+  </div>
+
   <!-- ЗАГРУЗКА -->
   <div class="card">
     <h2>📤 Завантажити нові файли</h2>
@@ -621,6 +638,36 @@ async function cleanupOldOrders(dryRun) {
     } else {
       if (resEl) resEl.innerHTML = `✅ Видалено <strong>${data.deleted}</strong> замовлень (разом із фото).`;
       toast(`✅ Видалено: ${data.deleted}`);
+      await loadFiles();
+    }
+  } catch (e) { if (resEl) resEl.textContent = ''; toast('❌ ' + e.message, 'error'); }
+}
+
+// Ручне видалення ЛИШЕ фото старих замовлень (текст лишається). dryRun — лише порахувати.
+async function cleanupOldOrderPhotos(dryRun) {
+  const days = parseInt(document.getElementById('cleanupPhotosDays').value, 10);
+  if (!days || days < 1) { toast('Вкажіть кількість днів (≥1)', 'error'); return; }
+  if (!dryRun) {
+    if (deleteGuard()) return;
+    if (!confirm(`Видалити фото замовлень старших за ${days} днів?\nСам заказ (текст) лишиться. Дію не скасувати.`)) return;
+  }
+  const resEl = document.getElementById('cleanupPhotosMsg');
+  if (resEl) resEl.textContent = dryRun ? '🔍 Рахую…' : '🗑 Видаляю…';
+  try {
+    const r = await fetch('/api/admin/orders-bulk', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cleanup-old-photos', days, dryRun }),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    if (dryRun) {
+      if (resEl) resEl.innerHTML = data.matched
+        ? `🔍 Знайдено <strong>${data.matched}</strong> замовлень із фото (${data.matchedPhotos} фото, ${data.matchedMB} MB) старших за ${days} днів. Натисни «🗑 Видалити фото».`
+        : `✅ Немає фото у замовленнях старших за ${days} днів.`;
+    } else {
+      if (resEl) resEl.innerHTML = `✅ Видалено <strong>${data.deletedPhotos}</strong> фото (${data.matchedMB} MB) з ${data.matched} замовлень. Заказы лишились.`;
+      toast(`✅ Видалено фото: ${data.deletedPhotos}`);
       await loadFiles();
     }
   } catch (e) { if (resEl) resEl.textContent = ''; toast('❌ ' + e.message, 'error'); }

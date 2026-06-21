@@ -1158,6 +1158,51 @@ export async function cleanupOldOrders(env, days, dryRun = false) {
   return result;
 }
 
+// Видалити ЛИШЕ фото старих замовлень (R2), сам заказ (текст у KV) лишається.
+// Замовлення старші за N днів — у них чистимо photos[] у записі й прибираємо файли з R2.
+// dryRun=true — лише порахувати. Повертає { scanned, matched, deletedPhotos, matchedBytes }.
+export async function cleanupOldOrderPhotosKeepOrder(env, days, dryRun = false) {
+  const result = { scanned: 0, matched: 0, deletedPhotos: 0, matchedBytes: 0 };
+  if (!env.SHOP_KV) return result;
+  const d = Math.max(1, parseInt(days, 10) || 0);
+  if (!d) return result;
+  const cutoffMs = Date.now() - d * 24 * 60 * 60 * 1000;
+  const oldKeys = [];
+  let cursor;
+  do {
+    const list = await env.SHOP_KV.list({ prefix: 'order_', cursor, limit: 1000 });
+    for (const k of list.keys) {
+      const m = /^order_(\d+)_/.exec(k.name);
+      if (!m) continue; // службові ключі (order_meta тощо)
+      result.scanned++;
+      const createdMs = parseInt(m[1], 10) || 0;
+      if (createdMs && createdMs < cutoffMs) oldKeys.push(k.name);
+    }
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+  for (const key of oldKeys) {
+    const order = await getOrder(env, key);
+    if (!order || !Array.isArray(order.photos) || !order.photos.length) continue;
+    const photoKeys = order.photos.map(p => p && p.key).filter(Boolean);
+    if (!photoKeys.length) continue;
+    result.matched++;
+    for (const p of order.photos) result.matchedBytes += (p && p.size) || 0;
+    if (!dryRun) {
+      if (env.STORAGE) {
+        for (let i = 0; i < photoKeys.length; i += 1000) {
+          try { await env.STORAGE.delete(photoKeys.slice(i, i + 1000)); } catch {}
+        }
+      }
+      result.deletedPhotos += photoKeys.length;
+      // Прибираємо посилання на фото із запису, але саме замовлення лишаємо.
+      await updateOrder(env, key, { photos: [], photosCleaned: true });
+    } else {
+      result.deletedPhotos += photoKeys.length;
+    }
+  }
+  return result;
+}
+
 // Ліниве авто-очищення: викликається при заході в адмінку. Реально працює не частіше
 // разу на добу (мітка orderPhotoCleanup_last у KV). Без cron — підходить для Pages.
 // Orphan-режим: прибирає фото замовлень, яких уже немає в KV.
