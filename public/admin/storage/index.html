@@ -110,29 +110,22 @@
     </div>
   </div>
 
-  <!-- ОЧИЩЕННЯ ФОТО ЗАМОВЛЕНЬ -->
+  <!-- ОЧИЩЕННЯ ФОТО ЗАМОВЛЕНЬ (orphan) -->
   <div class="card">
-    <h2>🧹 Очистити фото замовлень</h2>
+    <h2>🧹 Очистити «осиротілі» фото замовлень</h2>
     <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">
-      Видаляє з R2 фото клієнтів зі <strong>старих замовлень</strong> (папка <code>orders/</code>), щоб не накопичувались.
+      Видаляє з R2 фото з папки <code>orders/</code>, чиє <strong>замовлення вже видалено</strong> (запис у базі зник).
+      Замовлення зникають автоматично через заданий строк (див. налаштування TTL у розділі «Замовлення»), а фото лишаються — ця кнопка їх прибирає.
       Чіпає <u>тільки</u> фото замовлень — товари, логотипи й банери не торкаються.
-      Спочатку натисни «Порахувати», щоб побачити обсяг, потім — «Видалити».
+      Спочатку «Порахувати», потім — «Видалити».
     </div>
     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-      <label style="font-size: 13px; color: #374151;">Старші за</label>
-      <input type="number" id="cleanupDays" value="365" min="1" max="3650" step="1" oninput="syncCleanupDaysLabel()" style="width: 80px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
-      <label style="font-size: 13px; color: #374151;">днів</label>
-      <button class="btn btn-secondary btn-icon" onclick="cleanupOrders(true)">🔍 Порахувати</button>
-      <button class="btn btn-danger js-del" onclick="cleanupOrders(false)">🗑 Видалити</button>
+      <button class="btn btn-secondary btn-icon" onclick="cleanupOrphans(true)">🔍 Порахувати</button>
+      <button class="btn btn-danger js-del" onclick="cleanupOrphans(false)">🗑 Видалити осиротілі</button>
     </div>
     <div id="cleanupResult" style="font-size: 13px; color: #374151; margin-top: 10px;"></div>
-    <hr style="border: none; border-top: 1px solid #eef0f3; margin: 14px 0;" />
-    <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #374151; cursor: pointer;">
-      <input type="checkbox" id="autoCleanupEnabled" onchange="saveAutoCleanup()" />
-      <span><strong>🤖 Автоматично</strong> видаляти фото замовлень старші за <span id="autoCleanupDaysLabel">365</span> днів</span>
-    </label>
-    <div style="font-size: 12px; color: #6b7280; margin-top: 6px;">
-      Працює у фоні при заході в адмінку, не частіше разу на добу. Кількість днів береться з поля вище (зберігається при ввімкненні).
+    <div style="font-size: 12px; color: #6b7280; margin-top: 10px;">
+      🤖 Те саме автоматично виконується у фоні при заході в адмінку, не частіше разу на добу — окремо вмикати не треба.
     </div>
   </div>
 
@@ -308,14 +301,6 @@ async function loadFiles() {
       // За замовчуванням замкнено (true), якщо в налаштуваннях не задано інакше
       deleteLocked = s.storageDeleteLocked !== false;
       renderDeleteLock();
-      // Авто-очищення фото замовлень
-      const autoEl = document.getElementById('autoCleanupEnabled');
-      if (autoEl) autoEl.checked = s.orderPhotoAutoCleanup === true;
-      const days = parseInt(s.orderPhotoCleanupDays, 10) || 365;
-      const daysInput = document.getElementById('cleanupDays');
-      if (daysInput && document.activeElement !== daysInput) daysInput.value = days;
-      const lbl = document.getElementById('autoCleanupDaysLabel');
-      if (lbl) lbl.textContent = days;
     }
     renderQuota();
     renderCrumbs();
@@ -558,12 +543,11 @@ async function wipeAll() {
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
-async function cleanupOrders(dryRun) {
-  const days = parseInt(document.getElementById('cleanupDays').value, 10);
-  if (!days || days < 1) { toast('Вкажіть кількість днів (≥1)', 'error'); return; }
+// Orphan-очищення: фото замовлень, чий запис уже видалено з бази. Без днів.
+async function cleanupOrphans(dryRun) {
   if (!dryRun) {
     if (deleteGuard()) return;
-    if (!confirm(`Видалити фото замовлень старші за ${days} днів?\nТовари, логотипи та банери НЕ торкаються. Дію не скасувати.`)) return;
+    if (!confirm('Видалити «осиротілі» фото замовлень (запис яких уже видалено з бази)?\nТовари, логотипи та банери НЕ торкаються. Дію не скасувати.')) return;
   }
   const resEl = document.getElementById('cleanupResult');
   resEl.textContent = dryRun ? '🔍 Рахую…' : '🗑 Видаляю…';
@@ -571,51 +555,20 @@ async function cleanupOrders(dryRun) {
     const r = await fetch('/api/admin/storage/delete', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cleanup-orders', days, dryRun }),
+      body: JSON.stringify({ action: 'cleanup-orphans', dryRun }),
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
     if (dryRun) {
       resEl.innerHTML = data.matched
-        ? `🔍 Знайдено <strong>${data.matched}</strong> фото (${data.matchedMB} MB) старших за ${days} днів. Натисни «🗑 Видалити», щоб прибрати.`
-        : `✅ Немає фото замовлень старших за ${days} днів.`;
+        ? `🔍 Знайдено <strong>${data.matched}</strong> осиротілих фото (${data.matchedMB} MB). Натисни «🗑 Видалити осиротілі», щоб прибрати.`
+        : '✅ Осиротілих фото немає — сховище чисте.';
     } else {
       resEl.innerHTML = `✅ Видалено <strong>${data.deleted}</strong> фото (${data.matchedMB} MB).`;
       toast(`✅ Видалено: ${data.deleted}`);
       await loadFiles();
     }
   } catch (e) { resEl.textContent = ''; toast('❌ ' + e.message, 'error'); }
-}
-
-// Оновлює напис «…старші за N днів» біля чекбокса при зміні поля днів.
-function syncCleanupDaysLabel() {
-  const days = Math.max(1, parseInt(document.getElementById('cleanupDays').value, 10) || 365);
-  const lbl = document.getElementById('autoCleanupDaysLabel');
-  if (lbl) lbl.textContent = days;
-}
-
-// Зберігає стан чекбокса автомата + поточну кількість днів (read-modify-write налаштувань).
-async function saveAutoCleanup() {
-  const enabled = document.getElementById('autoCleanupEnabled').checked;
-  const days = Math.max(1, parseInt(document.getElementById('cleanupDays').value, 10) || 365);
-  document.getElementById('autoCleanupDaysLabel').textContent = days;
-  try {
-    const r = await fetch('/api/admin/settings', { credentials: 'include' });
-    const data = await r.json();
-    const s = data.settings || {};
-    s.orderPhotoAutoCleanup = enabled;
-    s.orderPhotoCleanupDays = days;
-    const r2 = await fetch('/api/admin/settings', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(s),
-    });
-    if (!r2.ok) throw new Error('Помилка збереження');
-    toast(enabled ? `✅ Автоочищення увімкнено (${days} днів)` : '✅ Автоочищення вимкнено');
-  } catch (e) {
-    toast('❌ ' + e.message, 'error');
-    document.getElementById('autoCleanupEnabled').checked = !enabled; // откат візуально
-  }
 }
 
 function renderQuota() {

@@ -286,8 +286,9 @@ const DEFAULT_SETTINGS = {
   facebookPixelId: '',            // Facebook Pixel ID
   // Файлове сховище R2
   storageQuotaMB: 5000,           // ліміт у MB (≈5 ГБ; безкоштовний ліміт R2 — 10 ГБ)
-  orderPhotoAutoCleanup: false,   // авто-видалення фото старих замовлень (ліниве, при заході в адмінку, раз на добу)
-  orderPhotoCleanupDays: 365,     // фото замовлень старші за N днів видаляються (за замовч. = TTL замовлення)
+  // Автовидалення замовлень (TTL у Cloudflare KV). Фото в R2 не мають TTL — їх чистить orphan-очищення.
+  orderTtlEnabled: true,          // true — замовлення видаляються автоматично через orderTtlDays; false — зберігати назавжди
+  orderTtlDays: 365,              // через скільки днів видаляти замовлення (текст у KV)
   // === Боковые баннеры (до 3 штук на каждой стороне) ===
   bannerWidth: 180,
   // Старі поля залишаємо для зворотньої сумісності — мігруються в sideBanners при першому читанні
@@ -581,12 +582,24 @@ export async function getShopVersion(env) {
 function paddedTs() {
   return String(Date.now()).padStart(15, '0');
 }
+// Опції TTL для KV.put на основі налаштувань: { expirationTtl } або {} (зберігати назавжди).
+// orderTtlEnabled:false → без TTL (вічно). Інакше orderTtlDays (мін. 1, дефолт 365).
+async function orderTtlOpts(env) {
+  try {
+    const s = await getSettings(env);
+    if (s.orderTtlEnabled === false) return {};
+    const days = Math.max(1, parseInt(s.orderTtlDays, 10) || 365);
+    return { expirationTtl: days * 24 * 60 * 60 };
+  } catch {
+    return { expirationTtl: 365 * 24 * 60 * 60 };
+  }
+}
 export async function saveOrder(env, order) {
   if (!env.SHOP_KV) return;
   const key = `order_${paddedTs()}_${order.id}`;
   order.kvKey = key;
-  // Храним заказы 1 год по TTL — чтобы не разрастались
-  await env.SHOP_KV.put(key, JSON.stringify(order), { expirationTtl: 365 * 24 * 60 * 60 });
+  // TTL заказа — настраивается в админке (orderTtlEnabled/orderTtlDays). Пусто = хранить вечно.
+  await env.SHOP_KV.put(key, JSON.stringify(order), await orderTtlOpts(env));
   // Обновляем счётчик непрочитанных (чтобы /api/admin/orders-stats не делал list)
   await bumpOrderMeta(env, { newUnread: true, latest: order });
 }
@@ -664,7 +677,7 @@ export async function updateOrder(env, kvKey, patch) {
   const cur = await getOrder(env, kvKey);
   if (!cur) return null;
   const updated = { ...cur, ...patch };
-  await env.SHOP_KV.put(kvKey, JSON.stringify(updated), { expirationTtl: 365 * 24 * 60 * 60 });
+  await env.SHOP_KV.put(kvKey, JSON.stringify(updated), await orderTtlOpts(env));
   // Якщо переходимо з непрочитаного у прочитане — зменшуємо лічильник
   if (!cur.isRead && updated.isRead) {
     await bumpOrderMeta(env, { markedRead: true });
@@ -1061,15 +1074,30 @@ export async function cleanupOrphanProductPhotos(env, oldProducts, newProducts) 
   } catch { return { deleted: 0 }; }
 }
 
-// Видалити фото замовлень (папка orders/) старші за N днів за датою завантаження в R2.
-// dryRun=true — лише порахувати. Повертає { scanned, matched, deleted, matchedBytes }.
-// Використовується і ручною кнопкою, і лінивим автоматом (settings).
-export async function cleanupOrderPhotos(env, days, dryRun = false) {
+// Набір живих orderId з імен ключів KV (order_<ts>_<id>) — без читання значень (дешево).
+async function liveOrderIds(env) {
+  const ids = new Set();
+  if (!env.SHOP_KV) return ids;
+  let cursor;
+  do {
+    const list = await env.SHOP_KV.list({ prefix: 'order_', cursor, limit: 1000 });
+    for (const k of list.keys) {
+      const m = /^order_\d+_(.+)$/.exec(k.name); // order_<paddedTs>_<id>
+      if (m) ids.add(m[1]);
+    }
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+  return ids;
+}
+
+// Orphan-очищення: видаляє фото з R2 (папка orders/<orderId>/...), чий заказ уже не існує в KV.
+// Замовлення видаляється автоматично через TTL (orderTtlDays) — а фото в R2 TTL не мають,
+// тож цей прохід прибирає «осиротілі» фото. dryRun=true — лише порахувати.
+// Повертає { scanned, matched, deleted, matchedBytes }.
+export async function cleanupOrphanOrderPhotos(env, dryRun = false) {
   const result = { scanned: 0, matched: 0, deleted: 0, matchedBytes: 0 };
-  if (!env.STORAGE) return result;
-  const d = Math.max(1, parseInt(days, 10) || 0);
-  if (!d) return result;
-  const cutoffMs = Date.now() - d * 24 * 60 * 60 * 1000;
+  if (!env.STORAGE || !env.SHOP_KV) return result;
+  const live = await liveOrderIds(env);
   let cursor;
   let batch = [];
   const flush = async () => {
@@ -1082,8 +1110,9 @@ export async function cleanupOrderPhotos(env, days, dryRun = false) {
     const list = await env.STORAGE.list({ prefix: 'orders/', cursor, limit: 1000 });
     for (const obj of list.objects) {
       result.scanned++;
-      const uploadedMs = obj.uploaded ? new Date(obj.uploaded).getTime() : 0;
-      if (uploadedMs && uploadedMs < cutoffMs) {
+      const m = /^orders\/([^/]+)\//.exec(obj.key); // orders/<orderId>/...
+      const oid = m ? m[1] : null;
+      if (oid && !live.has(oid)) {
         result.matched++;
         result.matchedBytes += obj.size || 0;
         if (!dryRun) { batch.push(obj.key); if (batch.length >= 1000) await flush(); }
@@ -1095,19 +1124,52 @@ export async function cleanupOrderPhotos(env, days, dryRun = false) {
   return result;
 }
 
+// Видалити старі замовлення повністю (текст у KV + фото в R2) старші за N днів.
+// Дату беремо з paddedTimestamp у ключі (order_<ts>_<id>) — це момент створення замовлення.
+// dryRun=true — лише порахувати. Повертає { scanned, matched, deleted }.
+export async function cleanupOldOrders(env, days, dryRun = false) {
+  const result = { scanned: 0, matched: 0, deleted: 0 };
+  if (!env.SHOP_KV) return result;
+  const d = Math.max(1, parseInt(days, 10) || 0);
+  if (!d) return result;
+  const cutoffMs = Date.now() - d * 24 * 60 * 60 * 1000;
+  const toDelete = [];
+  let cursor;
+  do {
+    const list = await env.SHOP_KV.list({ prefix: 'order_', cursor, limit: 1000 });
+    for (const k of list.keys) {
+      const m = /^order_(\d+)_/.exec(k.name);
+      if (!m) continue; // службові ключі (order_meta тощо)
+      result.scanned++;
+      const createdMs = parseInt(m[1], 10) || 0;
+      if (createdMs && createdMs < cutoffMs) {
+        result.matched++;
+        toDelete.push(k.name);
+      }
+    }
+    cursor = list.list_complete ? undefined : list.cursor;
+  } while (cursor);
+  if (!dryRun) {
+    for (const key of toDelete) {
+      await deleteOrder(env, key); // видаляє запис у KV + фото в R2
+      result.deleted++;
+    }
+  }
+  return result;
+}
+
 // Ліниве авто-очищення: викликається при заході в адмінку. Реально працює не частіше
 // разу на добу (мітка orderPhotoCleanup_last у KV). Без cron — підходить для Pages.
+// Завжди orphan-режим (без чекбоксу): прибирає фото замовлень, яких уже немає в KV.
 // Best-effort: будь-яка помилка тихо ігнорується, на роботу адмінки не впливає.
 export async function maybeAutoCleanupOrderPhotos(env) {
   try {
     if (!env.STORAGE || !env.SHOP_KV) return;
-    const s = await getSettings(env);
-    if (s.orderPhotoAutoCleanup !== true) return;
     const last = parseInt(await env.SHOP_KV.get('orderPhotoCleanup_last'), 10) || 0;
     if (Date.now() - last < 24 * 60 * 60 * 1000) return; // вже чистили за останню добу
     // Ставимо мітку ДО роботи, щоб паралельні заходи не запускали очищення двічі
     await env.SHOP_KV.put('orderPhotoCleanup_last', String(Date.now()));
-    await cleanupOrderPhotos(env, s.orderPhotoCleanupDays || 365, false);
+    await cleanupOrphanOrderPhotos(env, false);
   } catch {}
 }
 

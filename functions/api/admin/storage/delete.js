@@ -1,7 +1,7 @@
 // POST /api/admin/storage/delete — видалення файлів з R2
 // Body: { key: string } | { keys: string[] } | { action: 'wipe-all', confirm: 'YES' }
-//     | { action: 'cleanup-orders', days: number, dryRun?: boolean }
-import { checkAuthAsync, jsonResp, cleanupOrderPhotos } from '../../../_utils/shop.js';
+//     | { action: 'cleanup-orphans', dryRun?: boolean }  — фото замовлень, яких уже немає в KV
+import { checkAuthAsync, jsonResp, cleanupOrphanOrderPhotos } from '../../../_utils/shop.js';
 
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
@@ -10,19 +10,16 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалідний JSON' }, 400); }
 
-  // Очищення фото замовлень старших за N днів (тільки папка orders/).
-  // Орієнтуємось на дату завантаження файлу в R2 (obj.uploaded). dryRun — лише порахувати, не видаляти.
-  if (body.action === 'cleanup-orders') {
-    const days = Math.max(1, parseInt(body.days, 10) || 0);
-    if (!days) return jsonResp({ ok: false, error: 'Вкажіть кількість днів (≥1)' }, 400);
+  // Orphan-очищення: фото з папки orders/<id>/..., чий заказ уже видалено з KV.
+  // dryRun — лише порахувати, не видаляти.
+  if (body.action === 'cleanup-orphans') {
     const dryRun = body.dryRun === true;
     try {
-      const r = await cleanupOrderPhotos(env, days, dryRun);
+      const r = await cleanupOrphanOrderPhotos(env, dryRun);
       return jsonResp({
         ok: true,
-        action: 'cleanup-orders',
+        action: 'cleanup-orphans',
         dryRun,
-        days,
         scanned: r.scanned,
         matched: r.matched,
         deleted: dryRun ? 0 : r.deleted,

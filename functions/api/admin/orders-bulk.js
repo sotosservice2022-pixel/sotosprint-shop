@@ -1,7 +1,8 @@
 // POST /api/admin/orders-bulk — массовые операции над заказами
 // Body: { kvKeys: [...], action: 'delete' | 'read' | 'unread' | 'done' | 'undone' }
 // Или { action: 'delete-all', confirm: 'YES' } — удалить ВСЕ заказы
-import { listOrders, deleteOrder, updateOrder, checkAuthAsync, jsonResp, invalidateOrdersCache } from '../../_utils/shop.js';
+// Или { action: 'cleanup-old', days: N, dryRun?: bool } — удалить заказы старше N дней (текст+фото)
+import { listOrders, deleteOrder, updateOrder, checkAuthAsync, jsonResp, invalidateOrdersCache, cleanupOldOrders } from '../../_utils/shop.js';
 
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
@@ -9,6 +10,21 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалидний JSON' }, 400); }
   const action = String(body.action || '').toLowerCase();
+
+  // Видалити старі замовлення (текст у KV + фото в R2) старші за N днів.
+  // dryRun — лише порахувати, скільки потрапить під видалення.
+  if (action === 'cleanup-old') {
+    const days = Math.max(1, parseInt(body.days, 10) || 0);
+    if (!days) return jsonResp({ ok: false, error: 'Вкажіть кількість днів (≥1)' }, 400);
+    const dryRun = body.dryRun === true;
+    try {
+      const r = await cleanupOldOrders(env, days, dryRun);
+      if (!dryRun) await invalidateOrdersCache();
+      return jsonResp({ ok: true, action: 'cleanup-old', dryRun, days, scanned: r.scanned, matched: r.matched, deleted: dryRun ? 0 : r.deleted });
+    } catch (e) {
+      return jsonResp({ ok: false, error: 'Помилка очищення: ' + e.message }, 500);
+    }
+  }
 
   if (action === 'delete-all') {
     if (body.confirm !== 'YES') {
