@@ -152,7 +152,7 @@
   </div>
 
   <!-- Ручне видалення старих замовлень -->
-  <div id="cleanupOldOrdersCard" style="display: none; margin-top: 14px; padding: 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px;">
+  <div id="cleanupOldOrdersCard" style="margin-top: 14px; padding: 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px;">
     <strong style="color: #9a3412;">🧹 Видалити старі замовлення (текст + фото)</strong>
     <div class="hint" style="margin: 6px 0 10px;">
       Достроково прибирає замовлення старші за вказану кількість днів — разом із фото в R2.
@@ -257,8 +257,6 @@ async function loadOrders() {
       const s = settingsResp?.settings || {};
       const banner = document.getElementById('bulkOpsBanner');
       if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
-      const cleanupCard = document.getElementById('cleanupOldOrdersCard');
-      if (cleanupCard) cleanupCard.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
       // TTL замовлень
       const ttlEn = document.getElementById('orderTtlEnabled');
       if (ttlEn) ttlEn.checked = s.orderTtlEnabled !== false;
