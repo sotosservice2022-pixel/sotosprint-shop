@@ -130,43 +130,6 @@
     <div class="hint" style="color: #7f1d1d;">Незворотня операція. Видалить ВСІ замовлення без можливості відновлення.</div>
     <button class="btn btn-danger" style="margin-top: 8px;" onclick="deleteAll()">🗑 Видалити все</button>
   </div>
-
-  <!-- Автовидалення старих замовлень (TTL) -->
-  <div style="margin-top: 14px; padding: 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 10px;">
-    <strong>🗓 Автоматичне видалення старих замовлень</strong>
-    <div class="hint" style="margin: 6px 0 10px;">
-      Замовлення (текст і фото) автоматично видаляються через заданий строк. Якщо вимкнути — зберігаються назавжди.
-      Зміна впливає на нові та оновлені замовлення.
-    </div>
-    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
-      <input type="checkbox" id="orderTtlEnabled" onchange="saveOrderTtl()" />
-      <span>Видаляти замовлення автоматично</span>
-    </label>
-    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-      <label style="font-size: 13px; color: #374151;">Через</label>
-      <input type="number" id="orderTtlDays" value="365" min="1" max="3650" step="1" style="width: 90px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
-      <label style="font-size: 13px; color: #374151;">днів</label>
-      <button class="btn btn-secondary btn-icon" onclick="saveOrderTtl()">💾 Зберегти строк</button>
-    </div>
-    <div id="orderTtlMsg" style="font-size: 12px; color: #6b7280; margin-top: 8px;"></div>
-  </div>
-
-  <!-- Ручне видалення старих замовлень -->
-  <div id="cleanupOldOrdersCard" style="margin-top: 14px; padding: 14px; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 10px;">
-    <strong style="color: #9a3412;">🧹 Видалити старі замовлення (текст + фото)</strong>
-    <div class="hint" style="margin: 6px 0 10px;">
-      Достроково прибирає замовлення старші за вказану кількість днів — разом із фото в R2.
-      Спочатку «Порахувати», потім «Видалити». Незворотньо.
-    </div>
-    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-      <label style="font-size: 13px; color: #374151;">Старші за</label>
-      <input type="number" id="cleanupOrdersDays" value="365" min="1" max="3650" step="1" style="width: 90px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
-      <label style="font-size: 13px; color: #374151;">днів</label>
-      <button class="btn btn-secondary btn-icon" onclick="cleanupOldOrders(true)">🔍 Порахувати</button>
-      <button class="btn btn-danger" onclick="cleanupOldOrders(false)">🗑 Видалити старі</button>
-    </div>
-    <div id="cleanupOrdersMsg" style="font-size: 13px; color: #374151; margin-top: 10px;"></div>
-  </div>
 </div>
 
 <div class="overlay" id="overlay" onclick="closeDetails()"></div>
@@ -257,11 +220,6 @@ async function loadOrders() {
       const s = settingsResp?.settings || {};
       const banner = document.getElementById('bulkOpsBanner');
       if (banner) banner.style.display = (s.showBulkOperations === false) ? 'none' : 'block';
-      // TTL замовлень
-      const ttlEn = document.getElementById('orderTtlEnabled');
-      if (ttlEn) ttlEn.checked = s.orderTtlEnabled !== false;
-      const ttlDays = document.getElementById('orderTtlDays');
-      if (ttlDays && document.activeElement !== ttlDays) ttlDays.value = parseInt(s.orderTtlDays, 10) || 365;
       // Sync lock-reorder з налаштувань (cross-device)
       if (typeof syncLockReorder === 'function') syncLockReorder(s);
     }
@@ -382,63 +340,6 @@ async function deleteAll() {
     toast(`✅ Видалено: ${data.deleted}`);
     await loadOrders();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
-}
-
-// Зберегти налаштування TTL замовлень (read-modify-write).
-async function saveOrderTtl() {
-  const enabled = document.getElementById('orderTtlEnabled').checked;
-  const days = Math.max(1, parseInt(document.getElementById('orderTtlDays').value, 10) || 365);
-  const msg = document.getElementById('orderTtlMsg');
-  if (msg) msg.textContent = '💾 Зберігаю…';
-  try {
-    const r = await fetch('/api/admin/settings', { credentials: 'include' });
-    const data = await r.json();
-    const s = data.settings || {};
-    s.orderTtlEnabled = enabled;
-    s.orderTtlDays = days;
-    const r2 = await fetch('/api/admin/settings', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(s),
-    });
-    if (!r2.ok) throw new Error('Помилка збереження');
-    if (msg) msg.textContent = enabled
-      ? `✅ Замовлення видаляються через ${days} днів.`
-      : '✅ Автовидалення вимкнено — замовлення зберігаються назавжди.';
-    toast('✅ Збережено');
-  } catch (e) {
-    if (msg) msg.textContent = '';
-    toast('❌ ' + e.message, 'error');
-  }
-}
-
-// Ручне видалення старих замовлень (текст + фото). dryRun — лише порахувати.
-async function cleanupOldOrders(dryRun) {
-  const days = parseInt(document.getElementById('cleanupOrdersDays').value, 10);
-  if (!days || days < 1) { toast('Вкажіть кількість днів (≥1)', 'error'); return; }
-  if (!dryRun) {
-    if (!confirm(`Видалити замовлення старші за ${days} днів — разом із фото?\nДію не скасувати.`)) return;
-  }
-  const msg = document.getElementById('cleanupOrdersMsg');
-  if (msg) msg.textContent = dryRun ? '🔍 Рахую…' : '🗑 Видаляю…';
-  try {
-    const r = await fetch('/api/admin/orders-bulk', {
-      method: 'POST', credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cleanup-old', days, dryRun }),
-    });
-    const data = await r.json();
-    if (!data.ok) throw new Error(data.error);
-    if (dryRun) {
-      if (msg) msg.innerHTML = data.matched
-        ? `🔍 Знайдено <strong>${data.matched}</strong> замовлень старших за ${days} днів. Натисни «🗑 Видалити старі», щоб прибрати.`
-        : `✅ Немає замовлень старших за ${days} днів.`;
-    } else {
-      if (msg) msg.innerHTML = `✅ Видалено <strong>${data.deleted}</strong> замовлень (разом із фото).`;
-      toast(`✅ Видалено: ${data.deleted}`);
-      await loadOrders();
-    }
-  } catch (e) { if (msg) msg.textContent = ''; toast('❌ ' + e.message, 'error'); }
 }
 
 function setFilter(f) {

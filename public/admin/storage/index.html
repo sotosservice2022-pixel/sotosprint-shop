@@ -110,23 +110,44 @@
     </div>
   </div>
 
-  <!-- ОЧИЩЕННЯ ФОТО ЗАМОВЛЕНЬ (orphan) -->
+  <!-- АВТОВИДАЛЕННЯ СТАРИХ ЗАМОВЛЕНЬ (TTL) -->
   <div class="card">
-    <h2>🧹 Очистити «осиротілі» фото замовлень</h2>
+    <h2>🗓 Автоматичне видалення старих замовлень</h2>
     <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">
-      Видаляє з R2 фото з папки <code>orders/</code>, чиє <strong>замовлення вже видалено</strong> (запис у базі зник).
-      Замовлення зникають автоматично через заданий строк (див. налаштування TTL у розділі «Замовлення»), а фото лишаються — ця кнопка їх прибирає.
-      Чіпає <u>тільки</u> фото замовлень — товари, логотипи й банери не торкаються.
-      Спочатку «Порахувати», потім — «Видалити».
+      Замовлення (текст і фото) автоматично видаляються через заданий строк. Якщо вимкнути — зберігаються назавжди.
+      Зміна впливає на нові та оновлені замовлення.
+    </div>
+    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+      <input type="checkbox" id="orderTtlEnabled" onchange="saveOrderTtl()" />
+      <span>Видаляти замовлення автоматично</span>
+    </label>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+      <label style="font-size: 13px; color: #374151;">Через</label>
+      <input type="number" id="orderTtlDays" value="365" min="1" max="3650" step="1" style="width: 90px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
+      <label style="font-size: 13px; color: #374151;">днів</label>
+      <button class="btn btn-secondary btn-icon" onclick="saveOrderTtl()">💾 Зберегти строк</button>
+    </div>
+    <div id="orderTtlMsg" style="font-size: 12px; color: #6b7280; margin-top: 8px;"></div>
+    <div style="font-size: 12px; color: #6b7280; margin-top: 8px;">
+      🤖 Фото видалених замовлень прибираються з R2 автоматично у фоні при заході в адмінку (не частіше разу на добу).
+    </div>
+  </div>
+
+  <!-- РУЧНЕ ВИДАЛЕННЯ СТАРИХ ЗАМОВЛЕНЬ -->
+  <div class="card">
+    <h2>🧹 Видалити старі замовлення (текст + фото)</h2>
+    <div style="font-size: 13px; color: #6b7280; margin-bottom: 10px;">
+      Достроково прибирає замовлення старші за вказану кількість днів — разом із фото в R2.
+      Спочатку «Порахувати», потім «Видалити». Незворотньо.
     </div>
     <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-      <button class="btn btn-secondary btn-icon" onclick="cleanupOrphans(true)">🔍 Порахувати</button>
-      <button class="btn btn-danger js-del" onclick="cleanupOrphans(false)">🗑 Видалити осиротілі</button>
+      <label style="font-size: 13px; color: #374151;">Старші за</label>
+      <input type="number" id="cleanupOrdersDays" value="365" min="1" max="3650" step="1" style="width: 90px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
+      <label style="font-size: 13px; color: #374151;">днів</label>
+      <button class="btn btn-secondary btn-icon" onclick="cleanupOldOrders(true)">🔍 Порахувати</button>
+      <button class="btn btn-danger js-del" onclick="cleanupOldOrders(false)">🗑 Видалити старі</button>
     </div>
-    <div id="cleanupResult" style="font-size: 13px; color: #374151; margin-top: 10px;"></div>
-    <div style="font-size: 12px; color: #6b7280; margin-top: 10px;">
-      🤖 Те саме автоматично виконується у фоні при заході в адмінку, не частіше разу на добу — окремо вмикати не треба.
-    </div>
+    <div id="cleanupOrdersMsg" style="font-size: 13px; color: #374151; margin-top: 10px;"></div>
   </div>
 
   <!-- ЗАГРУЗКА -->
@@ -301,6 +322,11 @@ async function loadFiles() {
       // За замовчуванням замкнено (true), якщо в налаштуваннях не задано інакше
       deleteLocked = s.storageDeleteLocked !== false;
       renderDeleteLock();
+      // TTL замовлень
+      const ttlEn = document.getElementById('orderTtlEnabled');
+      if (ttlEn) ttlEn.checked = s.orderTtlEnabled !== false;
+      const ttlDays = document.getElementById('orderTtlDays');
+      if (ttlDays && document.activeElement !== ttlDays) ttlDays.value = parseInt(s.orderTtlDays, 10) || 365;
     }
     renderQuota();
     renderCrumbs();
@@ -543,32 +569,61 @@ async function wipeAll() {
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 
-// Orphan-очищення: фото замовлень, чий запис уже видалено з бази. Без днів.
-async function cleanupOrphans(dryRun) {
-  if (!dryRun) {
-    if (deleteGuard()) return;
-    if (!confirm('Видалити «осиротілі» фото замовлень (запис яких уже видалено з бази)?\nТовари, логотипи та банери НЕ торкаються. Дію не скасувати.')) return;
-  }
-  const resEl = document.getElementById('cleanupResult');
-  resEl.textContent = dryRun ? '🔍 Рахую…' : '🗑 Видаляю…';
+// Зберегти налаштування TTL замовлень (read-modify-write).
+async function saveOrderTtl() {
+  const enabled = document.getElementById('orderTtlEnabled').checked;
+  const days = Math.max(1, parseInt(document.getElementById('orderTtlDays').value, 10) || 365);
+  const msg = document.getElementById('orderTtlMsg');
+  if (msg) msg.textContent = '💾 Зберігаю…';
   try {
-    const r = await fetch('/api/admin/storage/delete', {
+    const r = await fetch('/api/admin/settings', { credentials: 'include' });
+    const s = (await r.json()).settings || {};
+    s.orderTtlEnabled = enabled;
+    s.orderTtlDays = days;
+    const r2 = await fetch('/api/admin/settings', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'cleanup-orphans', dryRun }),
+      body: JSON.stringify(s),
+    });
+    if (!r2.ok) throw new Error('Помилка збереження');
+    if (msg) msg.textContent = enabled
+      ? `✅ Замовлення видаляються через ${days} днів.`
+      : '✅ Автовидалення вимкнено — замовлення зберігаються назавжди.';
+    toast('✅ Збережено');
+  } catch (e) {
+    if (msg) msg.textContent = '';
+    toast('❌ ' + e.message, 'error');
+  }
+}
+
+// Ручне видалення старих замовлень (текст + фото). dryRun — лише порахувати.
+async function cleanupOldOrders(dryRun) {
+  const days = parseInt(document.getElementById('cleanupOrdersDays').value, 10);
+  if (!days || days < 1) { toast('Вкажіть кількість днів (≥1)', 'error'); return; }
+  if (!dryRun) {
+    if (deleteGuard()) return;
+    if (!confirm(`Видалити замовлення старші за ${days} днів — разом із фото?\nДію не скасувати.`)) return;
+  }
+  const resEl = document.getElementById('cleanupOrdersMsg');
+  if (resEl) resEl.textContent = dryRun ? '🔍 Рахую…' : '🗑 Видаляю…';
+  try {
+    const r = await fetch('/api/admin/orders-bulk', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'cleanup-old', days, dryRun }),
     });
     const data = await r.json();
     if (!data.ok) throw new Error(data.error);
     if (dryRun) {
-      resEl.innerHTML = data.matched
-        ? `🔍 Знайдено <strong>${data.matched}</strong> осиротілих фото (${data.matchedMB} MB). Натисни «🗑 Видалити осиротілі», щоб прибрати.`
-        : '✅ Осиротілих фото немає — сховище чисте.';
+      if (resEl) resEl.innerHTML = data.matched
+        ? `🔍 Знайдено <strong>${data.matched}</strong> замовлень старших за ${days} днів. Натисни «🗑 Видалити старі», щоб прибрати.`
+        : `✅ Немає замовлень старших за ${days} днів.`;
     } else {
-      resEl.innerHTML = `✅ Видалено <strong>${data.deleted}</strong> фото (${data.matchedMB} MB).`;
+      if (resEl) resEl.innerHTML = `✅ Видалено <strong>${data.deleted}</strong> замовлень (разом із фото).`;
       toast(`✅ Видалено: ${data.deleted}`);
       await loadFiles();
     }
-  } catch (e) { resEl.textContent = ''; toast('❌ ' + e.message, 'error'); }
+  } catch (e) { if (resEl) resEl.textContent = ''; toast('❌ ' + e.message, 'error'); }
 }
 
 function renderQuota() {
