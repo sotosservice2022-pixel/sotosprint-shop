@@ -184,9 +184,14 @@
         <div class="hint">Google їх майже не використовує, але Bing/Yahoo — так.</div>
       </div>
       <div>
-        <label>URL картинки для превʼю в соцмережах (1200×630 px)</label>
-        <input type="text" id="seoOgImage" placeholder="https://agprnt.com/og-image.jpg" />
-        <div class="hint">Що видно у Facebook/Telegram/Viber коли ділишся посиланням.</div>
+        <label>Картинка превʼю для соцмереж (Open Graph, 1200×630 px)</label>
+        <input type="file" id="ogImageFile" accept="image/*" />
+        <div class="hint">Що видно у Facebook/Telegram/Viber/Google коли ділишся посиланням. Рекомендовано 1200×630 (JPG/PNG). Якщо порожньо — стандартна картинка сайту.</div>
+        <div id="ogImagePreviewWrap" style="margin-top: 8px; display: none; align-items: center; gap: 12px;">
+          <img id="ogImagePreview" style="width: 160px; height: 84px; object-fit: cover; border-radius: 6px; background: #f3f4f6; border: 1px solid #e5e7eb;" />
+          <button class="btn btn-danger btn-icon" type="button" onclick="clearOgImage()">Прибрати</button>
+        </div>
+        <input type="hidden" id="seoOgImage" />
       </div>
       <div style="background: #eff6ff; border-radius: 8px; padding: 12px; color: #1d4ed8; font-size: 13px;">
         <strong>📌 Як зареєструвати сайт у Google:</strong>
@@ -325,6 +330,7 @@
 
 <script src="/admin/_admin-ui.js"></script>
 <script src="/admin/_admin.js"></script>
+<script src="/admin/_r2-upload.js"></script>
 <script>
 let settings = {};
 
@@ -372,6 +378,7 @@ function render() {
   document.getElementById('seoDescription').value = settings.seoDescription || '';
   document.getElementById('seoKeywords').value = settings.seoKeywords || '';
   document.getElementById('seoOgImage').value = settings.seoOgImage || '';
+  showOgImagePreview();
   document.getElementById('seoGoogleVerification').value = settings.seoGoogleVerification || '';
   // Аналітика
   document.getElementById('googleAnalyticsId').value = settings.googleAnalyticsId || '';
@@ -588,6 +595,41 @@ async function testCfToken() {
     result.style.color = '#dc2626';
   }
 }
+
+// === Картинка превʼю для соцмереж (Open Graph) ===
+function showOgImagePreview() {
+  const url = settings.seoOgImage || '';
+  const wrap = document.getElementById('ogImagePreviewWrap');
+  const img = document.getElementById('ogImagePreview');
+  if (url) {
+    // /api/storage/... показуємо як є; для стабільного шляху додаємо cache-bust
+    img.src = url;
+    wrap.style.display = 'flex';
+  } else {
+    wrap.style.display = 'none';
+  }
+}
+async function onOgImageFile(e) {
+  const file = e.target.files?.[0]; if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('Потрібне зображення (JPG/PNG)', 'error'); return; }
+  try {
+    toast('Завантаження…');
+    // Стискаємо до 1200px по довшій стороні — типовий розмір OG (1200×630).
+    const url = await uploadToR2(file, { compress: true, maxSide: 1200, quality: 0.85, prefix: 'ogimage', folder: 'branding' });
+    settings.seoOgImage = url;
+    document.getElementById('seoOgImage').value = url;
+    showOgImagePreview();
+    toast('✅ Картинку завантажено (не забудь «Зберегти»)');
+  } catch (err) { toast('Помилка: ' + err.message, 'error'); }
+}
+function clearOgImage() {
+  if (!confirm('Прибрати власну картинку превʼю? Повернеться стандартна.')) return;
+  settings.seoOgImage = '';
+  document.getElementById('seoOgImage').value = '';
+  const f = document.getElementById('ogImageFile'); if (f) f.value = '';
+  showOgImagePreview();
+}
+document.getElementById('ogImageFile')?.addEventListener('change', onOgImageFile);
 
 loadAll();
 </script>

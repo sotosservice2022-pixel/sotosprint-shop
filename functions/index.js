@@ -58,9 +58,14 @@ export async function onRequest(context) {
   }
 
   if (ogImage) {
+    // Як і з favicon: НЕ підставляємо пряме /api/storage/... (заблоковано в robots.txt — краулери
+    // соцмереж не завантажать). Натомість стабільний /og-image.jpg (functions/og-image.jpg.js
+    // динамічно віддає поточну картинку з налаштувань, цей шлях дозволений у robots.txt).
+    // og:image вимагає АБСОЛЮТНИЙ URL (Facebook відкидає відносні) — будуємо з origin запиту.
+    const ogUrl = new URL('/og-image.jpg', new URL(request.url).origin).toString();
     rw = rw
-      .on('meta[property="og:image"]', { element(el) { el.setAttribute('content', ogImage); } })
-      .on('meta[name="twitter:image"]', { element(el) { el.setAttribute('content', ogImage); } });
+      .on('meta[property="og:image"]', { element(el) { el.setAttribute('content', ogUrl); } })
+      .on('meta[name="twitter:image"]', { element(el) { el.setAttribute('content', ogUrl); } });
   }
 
   if (favicon) {
