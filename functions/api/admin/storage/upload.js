@@ -75,13 +75,31 @@ export async function onRequestPost({ request, env }) {
     }, 413);
   }
 
-  // Унікальне ім'я: timestamp + оригінальне ім'я; опційно в папці (folder)
-  const customName = (form.get('name') || '').toString().trim();
-  const baseName = sanitizeName(customName || file.name || 'file');
-  const ts = Date.now().toString(36);
-  // Папка: явно з форми, інакше — за префіксом імені файлу (запасний варіант для старого кешу клієнта)
-  const folder = sanitizeFolder(form.get('folder')) || folderFromName(file.name);
-  const key = folder ? `${folder}/${ts}_${baseName}` : `${ts}_${baseName}`;
+  // Режим відновлення з бекапу: rawKey — записати файл у ТОЧНИЙ ключ, як він був
+  // (напр. orders/<id>/1_1_photo.jpg або products/abc_logo.png), без timestamp і без
+  // зміни структури. Потрібно, щоб посилання в товарах/замовленнях зійшлися 1-в-1.
+  // Тільки для адмінки (auth перевірено вище). Дозволяємо лише безпечні символи у шляху.
+  // rawKey приходить URL-кодованим (EscapeDataString) — щоб кирилиця в іменах фото не
+  // билась у curl.exe на Windows. Декодуємо назад у справжній ключ.
+  let rawKey = (form.get('rawKey') || '').toString().trim();
+  if (rawKey) { try { rawKey = decodeURIComponent(rawKey); } catch (_) {} }
+  let key;
+  if (rawKey) {
+    // Захист від виходу за межі: без '..', без початкового '/', лише дозволені символи.
+    const cleaned = rawKey.replace(/^\/+/, '');
+    if (cleaned.includes('..') || !/^[a-zA-Z0-9а-яА-ЯіІїЇєЄґҐ._\-\/]+$/.test(cleaned)) {
+      return jsonResp({ ok: false, error: 'Недопустимий ключ' }, 400);
+    }
+    key = cleaned;
+  } else {
+    // Унікальне ім'я: timestamp + оригінальне ім'я; опційно в папці (folder)
+    const customName = (form.get('name') || '').toString().trim();
+    const baseName = sanitizeName(customName || file.name || 'file');
+    const ts = Date.now().toString(36);
+    // Папка: явно з форми, інакше — за префіксом імені файлу (запасний варіант для старого кешу клієнта)
+    const folder = sanitizeFolder(form.get('folder')) || folderFromName(file.name);
+    key = folder ? `${folder}/${ts}_${baseName}` : `${ts}_${baseName}`;
+  }
 
   try {
     await env.STORAGE.put(key, file.stream(), {
