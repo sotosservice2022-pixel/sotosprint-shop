@@ -23,6 +23,34 @@ async function listAllKvKeys(env) {
   return keys;
 }
 
+// GET /api/admin/backup — миттєве завантаження повного дампу KV у JSON (без збереження в R2).
+// Використовує кнопка «📥 Завантажити бекап» на головній адмінки. У дамп входять ВСІ ключі KV,
+// включно із замовленнями клієнтів (order_<ts>_<id>), налаштуваннями та товарами.
+// Формат сумісний із /api/admin/restore ({ keys: {...} }).
+export async function onRequestGet({ request, env }) {
+  if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
+  if (!env.SHOP_KV) return jsonResp({ ok: false, error: 'KV не доступний' }, 500);
+  try {
+    const keys = await listAllKvKeys(env);
+    const data = { version: 1, created: new Date().toISOString(), keys: {} };
+    for (const key of keys) {
+      if (key.startsWith('visit_seen_')) continue; // тимчасові ключі — не роздуваємо бекап
+      data.keys[key] = await env.SHOP_KV.get(key);
+    }
+    const json = JSON.stringify(data);
+    const ts = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    return new Response(json, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Disposition': `attachment; filename="agprnt-backup-${ts}.json"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (e) {
+    return jsonResp({ ok: false, error: e.message }, 500);
+  }
+}
+
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
   let body;
