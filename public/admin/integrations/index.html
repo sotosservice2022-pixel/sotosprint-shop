@@ -187,11 +187,29 @@
         <label>Картинка превʼю для соцмереж (Open Graph, 1200×630 px)</label>
         <input type="file" id="ogImageFile" accept="image/*" />
         <div class="hint">Що видно у Facebook/Telegram/Viber/Google коли ділишся посиланням. Рекомендовано 1200×630 (JPG/PNG). Якщо порожньо — стандартна картинка сайту.</div>
-        <div id="ogImagePreviewWrap" style="margin-top: 8px; display: none; align-items: center; gap: 12px;">
-          <img id="ogImagePreview" style="width: 160px; height: 84px; object-fit: cover; border-radius: 6px; background: #f3f4f6; border: 1px solid #e5e7eb;" />
-          <button class="btn btn-danger btn-icon" type="button" onclick="clearOgImage()">Прибрати</button>
+        <!-- Превʼю показуємо ЗАВЖДИ: реальний /og-image.jpg (своя картинка або стандартна) -->
+        <div id="ogImagePreviewWrap" style="margin-top: 10px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+          <a id="ogImageLink" href="/og-image.jpg" target="_blank" rel="noopener" title="Відкрити в новій вкладці">
+            <img id="ogImagePreview" style="width: 200px; height: 105px; object-fit: cover; border-radius: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; display: block;" />
+          </a>
+          <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span id="ogImageStatus" style="font-size: 13px; color: #374151;"></span>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+              <a class="btn btn-secondary btn-icon" id="ogImageOpenBtn" href="/og-image.jpg" target="_blank" rel="noopener">🔍 Відкрити</a>
+              <button class="btn btn-danger btn-icon" type="button" id="ogImageClearBtn" onclick="clearOgImage()" style="display:none;">🗑 Прибрати свою</button>
+            </div>
+          </div>
         </div>
         <input type="hidden" id="seoOgImage" />
+        <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 10px 12px; margin-top: 12px; font-size: 12px; color: #92400e;">
+          <strong>♻️ Після зміни картинки оновіть кеш соцмереж</strong> (вони кешують прев'ю надовго, інакше показуватиметься стара):
+          <ul style="margin: 6px 0 0 16px; padding: 0;">
+            <li><strong>Facebook / Instagram:</strong> <a href="https://developers.facebook.com/tools/debug/" target="_blank" rel="noopener">developers.facebook.com/tools/debug</a> → встав <code>https://agprnt.com/</code> → «Scrape Again».</li>
+            <li><strong>Telegram:</strong> у будь-якому чаті напиши боту <code>@WebpageBot</code> посилання <code>https://agprnt.com/</code> — він скине кеш.</li>
+            <li><strong>Viber/WhatsApp:</strong> окремого інструмента немає — кеш оновлюється сам за кілька днів (можна додати <code>?v=2</code> до посилання для миттєвого тесту).</li>
+            <li><strong>Перевірити як виглядає:</strong> <a href="https://www.opengraph.xyz/url/https%3A%2F%2Fagprnt.com" target="_blank" rel="noopener">opengraph.xyz</a> — показує прев'ю для всіх соцмереж одразу.</li>
+          </ul>
+        </div>
       </div>
       <div style="background: #eff6ff; border-radius: 8px; padding: 12px; color: #1d4ed8; font-size: 13px;">
         <strong>📌 Як зареєструвати сайт у Google:</strong>
@@ -597,17 +615,23 @@ async function testCfToken() {
 }
 
 // === Картинка превʼю для соцмереж (Open Graph) ===
+// Превʼю показуємо ЗАВЖДИ — завантажуємо реальний /og-image.jpg (свою або стандартну),
+// щоб було видно, що саме побачать у соцмережах. cache-bust — щоб одразу бачити зміну.
 function showOgImagePreview() {
-  const url = settings.seoOgImage || '';
-  const wrap = document.getElementById('ogImagePreviewWrap');
+  const custom = !!(settings.seoOgImage || '').trim();
+  const bust = '?t=' + Date.now();
   const img = document.getElementById('ogImagePreview');
-  if (url) {
-    // /api/storage/... показуємо як є; для стабільного шляху додаємо cache-bust
-    img.src = url;
-    wrap.style.display = 'flex';
-  } else {
-    wrap.style.display = 'none';
-  }
+  if (img) img.src = '/og-image.jpg' + bust;
+  const openA = document.getElementById('ogImageOpenBtn');
+  const linkA = document.getElementById('ogImageLink');
+  if (openA) openA.href = '/og-image.jpg' + bust;
+  if (linkA) linkA.href = '/og-image.jpg' + bust;
+  const status = document.getElementById('ogImageStatus');
+  if (status) status.innerHTML = custom
+    ? '✅ Завантажено <strong>власну</strong> картинку.'
+    : 'ℹ️ Зараз показується <strong>стандартна</strong> картинка сайту. Завантаж файл вище, щоб замінити.';
+  const clearBtn = document.getElementById('ogImageClearBtn');
+  if (clearBtn) clearBtn.style.display = custom ? '' : 'none';
 }
 async function onOgImageFile(e) {
   const file = e.target.files?.[0]; if (!file) return;
