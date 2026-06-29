@@ -1216,12 +1216,31 @@ function openTrackModal() {
     } catch { _isPreview = false; }
   }
   if (shop.shopEnabled === false && !_isPreview) {
+    // Шапку закритого магазину будуємо ТАК САМО, як у renderShop: окремі desktop/mobile
+    // заголовки (інакше на мобільному показувався б основний), клас позиції title-${pos}
+    // і 3 зони (інакше назва прилипає ліворуч, а не центрується) + fitTopbarTitle (інакше
+    // підрізає/не підганяє розмір).
+    const _dTitle = renderTitle(shop.title || '');
+    const _mTitle = shop.mobileTitle ? renderTitle(shop.mobileTitle) : _dTitle;
+    const _titleH1 = `<h1><span class="title-desktop">${_dTitle}</span><span class="title-mobile">${_mTitle}</span></h1>`;
+    // Позиція назви — як у renderShop (нова система positions з легасі-фолбеком).
+    let _pos = 'left';
+    if (shop.topbarPositions && shop.topbarPositions.title) _pos = shop.topbarPositions.title;
+    else if (shop.topbarLayout === 'centered-title') _pos = 'center';
+    const _absCls = shop.titleAbsoluteCenter ? ' title-absolute-center' : '';
     document.getElementById('app').innerHTML = `
-      <div class="topbar"><h1>${renderTitle(shop.title || '')}</h1></div>
+      <div class="topbar title-${_pos}${_absCls}">
+        <div class="topbar-zone left">${_pos === 'left' ? _titleH1 : ''}</div>
+        <div class="topbar-zone center">${_pos === 'center' ? _titleH1 : ''}</div>
+        <div class="topbar-zone right">${_pos === 'right' ? _titleH1 : ''}</div>
+      </div>
       <div class="wrap">
         <div class="closed-card">${escapeHtml(shop.shopDisabledMessage || '🚫 Магазин закритий')}</div>
       </div>
     `;
+    setTimeout(fitTopbarTitle, 50);
+    setTimeout(fitTopbarTitle, 300);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitTopbarTitle()).catch(() => {});
     return;
   }
   // Банер-нагадування адміну, що магазин закритий, а він дивиться в режимі прев'ю.

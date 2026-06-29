@@ -126,6 +126,16 @@
       var z = (e.key === 'z' || e.key === 'Z'), y = (e.key === 'y' || e.key === 'Y');
       if ((e.ctrlKey || e.metaKey) && z && !e.shiftKey) { e.preventDefault(); self.undo(); }
       else if ((e.ctrlKey || e.metaKey) && (y || (z && e.shiftKey))) { e.preventDefault(); self.redo(); }
+      // Enter у compact-режимі: вставляємо чистий <br>, а не <div>/<p>. У compact санітайзер
+      // не дозволяє блокові теги, тож браузерний <div> від Enter інакше втрачав би перенос
+      // (і перебудова DOM збивала раніше застосований шрифт). Shift+Enter і так дає <br>.
+      else if (e.key === 'Enter' && !e.shiftKey && self.mode === 'compact') {
+        e.preventDefault();
+        exec('insertLineBreak');
+        self.saveSelection();
+        self.sync();
+        self.record();
+      }
     });
     // Надійно: будь-яка зміна виділення в документі, що потрапляє в наше поле — зберігаємо одразу.
     // Це усуває «перша дія не спрацьовує» (коли клікнув у поле, але keyup/mouseup ще не було).

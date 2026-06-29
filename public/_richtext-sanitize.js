@@ -104,6 +104,15 @@
 
       // Невідомий/недозволений форматний тег — розгортаємо (лишаємо дітей).
       if (!allowed[effTag]) {
+        // Блокові теги (p/div/li/ul/ol) візуально створюють новий рядок. У compact-режимі
+        // вони не дозволені (allowed без P), тож без цього перенос рядка (Enter, який браузер
+        // у contenteditable обгортає в <div>) зникав би. Вставляємо <br> на межі блоку —
+        // але лише якщо BR дозволений, уже є попередній вміст і останній вузол ще не <br>.
+        var isBlock = (effTag === 'P' || effTag === 'LI' || effTag === 'UL' || effTag === 'OL');
+        if (isBlock && allowed.BR && target.lastChild &&
+            !(target.lastChild.nodeType === 1 && target.lastChild.tagName === 'BR')) {
+          target.appendChild(doc.createElement('br'));
+        }
         walk(node, target, allowed, doc);
         continue;
       }
