@@ -135,6 +135,9 @@
         </div>
       </div>
       <div><label>Підзаголовок</label><input type="text" id="subtitle" /></div>
+      <div><label>📱 Підзаголовок для мобільних (опціонально)</label><textarea id="mobileSubtitle" rows="2" placeholder="Якщо порожньо — на телефоні підзаголовок не показується взагалі" style="resize: vertical; line-height: 1.3;"></textarea>
+        <div class="hint">Показується на екранах ≤700px <b>замість</b> звичайного підзаголовка. Якщо поле порожнє — на мобільному підзаголовок не виводиться (звичайний підзаголовок на телефоні не показується).</div>
+      </div>
       <div class="grid grid-2">
         <div><label>Заголовок «Каталог»</label><input type="text" id="catalogTitle" /></div>
         <div><label>Заголовок кошика</label><input type="text" id="cartTitle" /></div>
@@ -836,7 +839,7 @@ function updateMobilePreview() {
 }
 
 const TEXT_FIELDS = [
-  'title','subtitle','catalogTitle','cartTitle','addToCartText','inCartText','proceedCheckoutText','mobileTitle','browserTabTitle',
+  'title','subtitle','mobileSubtitle','catalogTitle','cartTitle','addToCartText','inCartText','proceedCheckoutText','mobileTitle','browserTabTitle',
   'checkoutTitle','submitText','successText','emptyCartText','uploadHint',
   'requiredFieldError','phoneErrorText','noPhotosError','totalPhotosError','networkErrorText',
   'preparingText','sendingText','retryingText','shopDisabledMessage','newOrderToastText',
@@ -966,6 +969,7 @@ function render() {
     initRichText('#title', { mode: 'compact' });
     initRichText('#mobileTitle', { mode: 'compact' });
     initRichText('#subtitle', { mode: 'compact' });
+    initRichText('#mobileSubtitle', { mode: 'compact' });
     initRichText('#catalogTitle', { mode: 'compact' });
   }
   // Запам'ятовуємо topbarTitleSize щоб правильно показати превʼю мобільного

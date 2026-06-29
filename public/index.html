@@ -356,6 +356,13 @@
     .sub.align-left { text-align: left; }
     .sub.align-center { text-align: center; }
     .sub.align-right { text-align: right; }
+    /* Підзаголовок: окремий для desktop / mobile. На моб. показуємо лише mobile-варіант;
+       якщо моб. підзаголовок порожній — на телефоні не рендериться взагалі (немає елемента). */
+    .subtitle-mobile { display: none; }
+    @media (max-width: 700px) {
+      .subtitle-desktop { display: none; }
+      .subtitle-mobile { display: block; }
+    }
     h2.section-title { font-size: 22px; margin: 8px 0 14px; }
     .cat-nav { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; padding: 4px; }
     .sort-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 0 4px; flex-wrap: wrap; }
@@ -1732,7 +1739,8 @@ function renderShop() {
     ${renderHomePromo('top')}
     ${renderHeroBanner()}
     <div class="wrap">
-      ${shop.subtitle ? `<p class="sub align-${shop.subtitleAlign || 'left'}">${renderRichCompact(shop.subtitle)}</p>` : ''}
+      ${shop.subtitle ? `<p class="sub subtitle-desktop align-${shop.subtitleAlign || 'left'}">${renderRichCompact(shop.subtitle)}</p>` : ''}
+      ${shop.mobileSubtitle && shop.mobileSubtitle.trim() ? `<p class="sub subtitle-mobile align-${shop.subtitleAlign || 'left'}">${renderRichCompact(shop.mobileSubtitle)}</p>` : ''}
       ${renderHomePromo('aboveCatalog')}
       ${shop.catalogTitle && shop.catalogTitle.trim() ? `<h2 class="section-title">${renderRichCompact(shop.catalogTitle)}</h2>` : ''}
       ${shop.sortPosition === 'above' ? renderSortBar() : ''}
