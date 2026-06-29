@@ -73,6 +73,16 @@
     }
     * { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; }
+    /* Кнопки на мобільному: тап по тексту НЕ повинен виділяти текст і блокувати клік.
+       Глобально для всіх <button> (каталог, модалка товару, сторінка товару, кошик) —
+       щоб не лишилось місць, де натискання «промахується» через виділення тексту.
+       touch-action:manipulation прибирає затримку 300ms і подвійний тап-зум на кнопці. */
+    button {
+      -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+    }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg); color: var(--text); min-height: 100vh; padding-bottom: 40px;
@@ -190,17 +200,13 @@
       .topbar h1 {
         font-size: calc(var(--topbar-title-size, 17px) * 0.85);
         white-space: normal;
-        display: -webkit-box;
-        -webkit-line-clamp: 3;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        /* НЕ використовуємо -webkit-box/-webkit-line-clamp: при різнокаліберних рядках
+           (великий AGPRNT + дрібний підзаголовок) -webkit-box-orient:vertical підрізав
+           ВЕРХ першого (великого) рядка, бо рахує висоту по середній лінії. Звичайний
+           блок із line-height і без clamp переносить коректно і нічого не зрізає зверху. */
+        display: block;
+        overflow: visible;
         line-height: 1.25;
-        /* БЕЗ жорсткого max-height: line-clamp:3 сам обмежує 3 рядками. Раніше max-height
-           рахувався під ОДНОРІДНИЙ розмір шрифту, але в заголовку рядки бувають різного
-           розміру (20px/13px) — і реальні 3 рядки виходили вищими за max-height, через що
-           ВЕРХ першого рядка підрізало. Невеликий padding-top захищає верхні виносні
-           елементи (акценти/емодзі) від обрізання краєм overflow:hidden. */
-        padding-top: 2px;
         flex: 1 1 0;          /* на мобільному стискаємось щоб помістилось з лого */
         min-width: 0;
       }
@@ -221,6 +227,12 @@
         min-width: 0;
       }
       .topbar { align-items: flex-start; padding-top: 10px; padding-bottom: 10px; }
+      /* ВАЖЛИВО: рядок grid у шапці визначався висотою кошика (~44px), а заголовок у 3 рядки
+         (~96px) переповнював центральну зону симетрично — і ВЕРХ назви вилазив над фоном шапки
+         та зрізався її краєм. Робимо центральну зону вирівняною по верху і дозволяємо їй рости:
+         зона тягнеться під весь заголовок, рядок grid росте за нею, шапка обіймає назву. */
+      .topbar .topbar-zone.center { align-items: flex-start; align-self: stretch; }
+      .topbar .topbar-zone.center h1 { align-self: flex-start; }
     }
     .title-mobile { display: none; }
     @media (max-width: 700px) {
