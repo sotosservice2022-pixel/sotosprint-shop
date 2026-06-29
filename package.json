@@ -4,6 +4,8 @@
   "description": "Sotosprint - photo printing shop on Cloudflare Pages",
   "scripts": {
     "deploy": "wrangler pages deploy public --project-name=agprnt-shop --branch=main --commit-dirty=true",
+    "deploy:reserve": "wrangler pages deploy public --project-name=tehno-store --branch=main --commit-dirty=true",
+    "deploy:all": "npm run deploy && npm run deploy:reserve && git push",
     "kv:create": "wrangler kv namespace create SHOP_KV"
   },
   "devDependencies": {
