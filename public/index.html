@@ -1222,25 +1222,24 @@ function openTrackModal() {
     // підрізає/не підганяє розмір).
     const _dTitle = renderTitle(shop.title || '');
     const _mTitle = shop.mobileTitle ? renderTitle(shop.mobileTitle) : _dTitle;
-    const _titleH1 = `<h1><span class="title-desktop">${_dTitle}</span><span class="title-mobile">${_mTitle}</span></h1>`;
     // Позиція назви — як у renderShop (нова система positions з легасі-фолбеком).
     let _pos = 'left';
     if (shop.topbarPositions && shop.topbarPositions.title) _pos = shop.topbarPositions.title;
     else if (shop.topbarLayout === 'centered-title') _pos = 'center';
-    const _absCls = shop.titleAbsoluteCenter ? ' title-absolute-center' : '';
+    // У закритому магазині заголовок — ЄДИНИЙ елемент шапки. Не використовуємо grid-зони
+    // (порожні бокові зони ховаються через :empty{display:none}, і grid-центрування ламається —
+    // назва з'їжджає ліворуч), і не absolute-center (виймає з потоку → шапка не росте під текст,
+    // підрізає). Натомість простий блоковий h1 на всю ширину з text-align під позицію —
+    // і центрується коректно, і шапка вільно росте під 2-3 рядки.
+    const _align = _pos === 'center' ? 'center' : (_pos === 'right' ? 'right' : 'left');
     document.getElementById('app').innerHTML = `
-      <div class="topbar title-${_pos}${_absCls}">
-        <div class="topbar-zone left">${_pos === 'left' ? _titleH1 : ''}</div>
-        <div class="topbar-zone center">${_pos === 'center' ? _titleH1 : ''}</div>
-        <div class="topbar-zone right">${_pos === 'right' ? _titleH1 : ''}</div>
+      <div class="topbar topbar-closed" style="display:block;">
+        <h1 style="text-align:${_align}; max-width:100%; overflow-wrap:anywhere; display:block; -webkit-line-clamp:unset; overflow:visible; white-space:normal;"><span class="title-desktop">${_dTitle}</span><span class="title-mobile">${_mTitle}</span></h1>
       </div>
       <div class="wrap">
         <div class="closed-card">${escapeHtml(shop.shopDisabledMessage || '🚫 Магазин закритий')}</div>
       </div>
     `;
-    setTimeout(fitTopbarTitle, 50);
-    setTimeout(fitTopbarTitle, 300);
-    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitTopbarTitle()).catch(() => {});
     return;
   }
   // Банер-нагадування адміну, що магазин закритий, а він дивиться в режимі прев'ю.
