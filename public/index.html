@@ -178,8 +178,26 @@
       .topbar .header-menu { transform: translateX(var(--menu-offset-x-mobile, 0)); }
       .topbar .cart-btn { transform: translateX(var(--cart-offset-x-mobile, 0)); }
       .topbar .cart-btn:active { transform: translateX(var(--cart-offset-x-mobile, 0)) scale(.97); }
+      /* ВАЖЛИВО: на мобільному НЕ використовуємо absolute-center для назви.
+         position:absolute (top:0;bottom:0) виймає назву з потоку → шапка не задає
+         під неї висоту, а заголовок у 2-3 рядки (~96px) центрується у короткій
+         шапці (~44px від кошика) і вилазить ВНИЗ/ВГОРУ та зрізається.
+         Повертаємо зону в потік і центруємо текстом — тоді рядок grid росте під
+         заголовок, шапка обіймає його (так само як у закритому магазині). */
       .topbar.title-absolute-center .topbar-zone.center {
-        transform: translateX(-50%) translateX(var(--title-offset-x-mobile, 0));
+        position: static;
+        left: auto; top: auto; bottom: auto;
+        transform: translateX(var(--title-offset-x-mobile, 0));
+        justify-self: stretch;
+        align-self: stretch;
+        align-items: flex-start;
+        max-width: 100%;
+        pointer-events: auto;
+      }
+      .topbar.title-absolute-center .topbar-zone.center h1,
+      .topbar.title-absolute-center .topbar-zone.center a.title-link {
+        text-align: center;
+        width: 100%;
       }
       .topbar.title-absolute-center h1,
       .topbar.title-absolute-center a.title-link { transform: none; }
