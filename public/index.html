@@ -194,8 +194,13 @@
         -webkit-line-clamp: 3;
         -webkit-box-orient: vertical;
         overflow: hidden;
-        line-height: 1.2;
-        max-height: calc(var(--topbar-title-size, 17px) * 0.85 * 1.2 * 3);
+        line-height: 1.25;
+        /* БЕЗ жорсткого max-height: line-clamp:3 сам обмежує 3 рядками. Раніше max-height
+           рахувався під ОДНОРІДНИЙ розмір шрифту, але в заголовку рядки бувають різного
+           розміру (20px/13px) — і реальні 3 рядки виходили вищими за max-height, через що
+           ВЕРХ першого рядка підрізало. Невеликий padding-top захищає верхні виносні
+           елементи (акценти/емодзі) від обрізання краєм overflow:hidden. */
+        padding-top: 2px;
         flex: 1 1 0;          /* на мобільному стискаємось щоб помістилось з лого */
         min-width: 0;
       }
