@@ -121,17 +121,32 @@
       </div>
       <div><label>📱 Заголовок для мобільних (опціонально, коротший)</label><textarea id="mobileTitle" rows="2" placeholder="Якщо порожньо — використовується звичайний" oninput="updateMobilePreview()" style="resize: vertical; line-height: 1.3;"></textarea>
         <div class="hint">Показується на екранах ≤700px замість основного. Корисно якщо назва довга та не вміщається. Перенос рядка — натисни <b>Enter</b> (мітка <code>\n</code> теж працює).</div>
-        <!-- Превʼю того, як буде виглядати на мобільному -->
+        <!-- Превʼю того, як буде виглядати на мобільному — поряд для 375px і 395px -->
         <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px;">
-          <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю на мобільному (ширина екрану 375px):</div>
-          <div id="mobilePreviewBox" style="width: 343px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="display: flex; align-items: flex-start; gap: 8px;">
-              <div style="font-size: 20px; flex-shrink: 0;">📷</div>
-              <div id="mobilePreviewTitle" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">AGPRNT</div>
-              <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю (ширина екрану 375px):</div>
+              <div id="mobilePreviewBox375" style="width: 343px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <div style="font-size: 20px; flex-shrink: 0;">📷</div>
+                  <div id="mobilePreviewTitle375" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">AGPRNT</div>
+                  <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
+                </div>
+              </div>
+              <div id="mobilePreviewWarn375" style="font-size: 11px; margin-top: 6px;"></div>
+            </div>
+            <div>
+              <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю (ширина екрану 395px):</div>
+              <div id="mobilePreviewBox395" style="width: 363px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                  <div style="font-size: 20px; flex-shrink: 0;">📷</div>
+                  <div id="mobilePreviewTitle395" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">AGPRNT</div>
+                  <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
+                </div>
+              </div>
+              <div id="mobilePreviewWarn395" style="font-size: 11px; margin-top: 6px;"></div>
             </div>
           </div>
-          <div id="mobilePreviewWarn" style="font-size: 11px; margin-top: 6px;"></div>
         </div>
       </div>
       <div><label>Підзаголовок</label><input type="text" id="subtitle" /></div>
@@ -784,13 +799,18 @@
 let settings = {};
 
 // === Превʼю мобільного заголовку ===
-// Показує як назва буде виглядати на мобільному (max 3 рядка, зменшений шрифт)
+// Показує як назва буде виглядати на мобільному (max 3 рядка, зменшений шрифт).
+// Рендеримо два превʼю поряд — для ширини екрану 375px і 395px.
 function updateMobilePreview() {
+  renderMobilePreview('mobilePreviewTitle375', 'mobilePreviewWarn375');
+  renderMobilePreview('mobilePreviewTitle395', 'mobilePreviewWarn395');
+}
+
+function renderMobilePreview(titleId, warnId) {
   const input = document.getElementById('mobileTitle');
   const fallback = document.getElementById('title');
-  const previewBox = document.getElementById('mobilePreviewBox');
-  const previewTitle = document.getElementById('mobilePreviewTitle');
-  const warn = document.getElementById('mobilePreviewWarn');
+  const previewTitle = document.getElementById(titleId);
+  const warn = document.getElementById(warnId);
   if (!input || !previewTitle) return;
 
   // Текст: якщо mobileTitle порожнє — використовується звичайний title
