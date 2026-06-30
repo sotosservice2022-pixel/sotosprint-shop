@@ -121,27 +121,44 @@
       </div>
       <div><label>📱 Заголовок для мобільних (опціонально, коротший)</label><textarea id="mobileTitle" rows="2" placeholder="Якщо порожньо — використовується звичайний" oninput="updateMobilePreview()" style="resize: vertical; line-height: 1.3;"></textarea>
         <div class="hint">Показується на екранах ≤700px замість основного. Корисно якщо назва довга та не вміщається. Перенос рядка — натисни <b>Enter</b> (мітка <code>\n</code> теж працює).</div>
-        <!-- Превʼю того, як буде виглядати на мобільному — поряд для 375px і 395px -->
+        <!-- Превʼю того, як буде виглядати на мобільному — поряд для 375px і 395px.
+             Розкладка 1:1 з реальною шапкою сайту: грід max-content/1fr/max-content,
+             заголовок по центру на всю ширину, кошик справа, лого — лише якщо є картинка.
+             Бокс = реальна ширина екрану (375/395), padding 16px як на сайті. -->
+        <style>
+          .mprev-topbar { display: grid; grid-template-columns: minmax(0,max-content) minmax(0,1fr) minmax(0,max-content);
+            align-items: flex-start; gap: 12px; padding: 10px 16px; background: #fff; }
+          .mprev-zone { display: flex; gap: 12px; min-width: 0; }
+          .mprev-zone.left { justify-self: start; }
+          .mprev-zone.center { justify-self: stretch; align-self: stretch; align-items: flex-start; max-width: 100%; min-width: 0; }
+          .mprev-zone.right { justify-self: end; justify-content: flex-end; }
+          .mprev-zone:empty { display: none; }
+          .mprev-title { font-weight: 700; line-height: 1.25; flex: 1 1 0; min-width: 0; max-width: 100%;
+            white-space: normal; text-align: center; width: 100%; word-break: break-word; }
+          .mprev-cart { flex-shrink: 0; display: inline-flex; align-items: center; padding: 8px 12px;
+            background: #3b82f6; color: #fff; border-radius: 8px; font-size: 13px; }
+          .mprev-logo { flex-shrink: 0; font-size: 20px; }
+        </style>
         <div style="margin-top: 10px; padding: 10px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 8px;">
           <div style="display: flex; flex-wrap: wrap; gap: 16px;">
             <div>
               <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю (ширина екрану 375px):</div>
-              <div id="mobilePreviewBox375" style="width: 343px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; align-items: flex-start; gap: 8px;">
-                  <div style="font-size: 20px; flex-shrink: 0;">📷</div>
-                  <div id="mobilePreviewTitle375" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">AGPRNT</div>
-                  <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
+              <div style="width: 375px; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
+                <div class="mprev-topbar">
+                  <div class="mprev-zone left" id="mobilePreviewLogo375"></div>
+                  <div class="mprev-zone center"><div class="mprev-title" id="mobilePreviewTitle375">AGPRNT</div></div>
+                  <div class="mprev-zone right"><div class="mprev-cart">🛒</div></div>
                 </div>
               </div>
               <div id="mobilePreviewWarn375" style="font-size: 11px; margin-top: 6px;"></div>
             </div>
             <div>
               <div style="font-size: 11px; color: #6b7280; margin-bottom: 6px;">📱 Превʼю (ширина екрану 395px):</div>
-              <div id="mobilePreviewBox395" style="width: 363px; max-width: 100%; padding: 10px 12px; background: #fff; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; align-items: flex-start; gap: 8px;">
-                  <div style="font-size: 20px; flex-shrink: 0;">📷</div>
-                  <div id="mobilePreviewTitle395" style="font-size: 14.45px; font-weight: 700; line-height: 1.2; word-break: break-word; flex: 1;">AGPRNT</div>
-                  <div style="flex-shrink: 0; padding: 4px 8px; background: #3b82f6; color: white; border-radius: 4px; font-size: 11px;">🛒</div>
+              <div style="width: 395px; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden;">
+                <div class="mprev-topbar">
+                  <div class="mprev-zone left" id="mobilePreviewLogo395"></div>
+                  <div class="mprev-zone center"><div class="mprev-title" id="mobilePreviewTitle395">AGPRNT</div></div>
+                  <div class="mprev-zone right"><div class="mprev-cart">🛒</div></div>
                 </div>
               </div>
               <div id="mobilePreviewWarn395" style="font-size: 11px; margin-top: 6px;"></div>
@@ -802,6 +819,13 @@ let settings = {};
 // Показує як назва буде виглядати на мобільному (max 3 рядка, зменшений шрифт).
 // Рендеримо два превʼю поряд — для ширини екрану 375px і 395px.
 function updateMobilePreview() {
+  // Лого в превʼю показуємо лише якщо на сайті реально є картинка лого (logoEnabled + logoImage).
+  // На agprnt лого-картинки немає → заголовок займає всю ширину (як на телефоні).
+  const hasLogo = !!(settings && settings.logoEnabled && settings.logoImage);
+  ['mobilePreviewLogo375','mobilePreviewLogo395'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = hasLogo ? '<span class="mprev-logo">📷</span>' : '';
+  });
   renderMobilePreview('mobilePreviewTitle375', 'mobilePreviewWarn375');
   renderMobilePreview('mobilePreviewTitle395', 'mobilePreviewWarn395');
 }
@@ -831,25 +855,21 @@ function renderMobilePreview(titleId, warnId) {
   } else {
     previewTitle.innerHTML = text.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])).replace(/\r?\n|\\n/g, '<br>');
   }
-  previewTitle.style.display = '-webkit-box';
-  previewTitle.style.webkitLineClamp = '3';
-  previewTitle.style.webkitBoxOrient = 'vertical';
-  previewTitle.style.overflow = 'hidden';
-  previewTitle.style.whiteSpace = 'normal';
-  previewTitle.style.lineHeight = '1.2';
-  previewTitle.style.wordBreak = 'break-word';
+  // Розкладку/перенос задає CSS .mprev-title (block, line-height:1.25, без line-clamp —
+  // так само як реальна шапка сайту після фіксу). Тут НЕ перевизначаємо display/clamp,
+  // інакше превʼю розійдеться з телефоном (як і було — показувало 3 рядки замість 2).
 
   // Перевіряємо скільки рядків зайняв
   setTimeout(() => {
     const h = previewTitle.offsetHeight;
-    const lineH = mobileSize * 1.2;
+    const lineH = mobileSize * 1.25;
     const lines = Math.max(1, Math.round(h / lineH));
     let msg = '';
     let color = '#16a34a';
     if (lines === 1) msg = '✅ Поміщається в 1 рядок';
     else if (lines === 2) { msg = '✅ Поміщається в 2 рядки'; color = '#16a34a'; }
-    else if (lines === 3) { msg = '⚠️ Займає 3 рядки — максимум що показується'; color = '#ca8a04'; }
-    else { msg = '🚨 Не вміщається — кінець обрізається. Зробіть текст коротшим або поставте окремий мобільний заголовок.'; color = '#dc2626'; }
+    else if (lines === 3) { msg = '⚠️ Займає 3 рядки — шапка стане вищою (текст не обрізається)'; color = '#ca8a04'; }
+    else { msg = '🚨 ' + lines + ' рядки — шапка займе багато місця. Краще зробити текст коротшим.'; color = '#dc2626'; }
     if (usingFallback) msg = '(використовується основний заголовок) ' + msg;
     if (warn) {
       warn.textContent = msg;
