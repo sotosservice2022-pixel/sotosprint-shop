@@ -74,8 +74,14 @@ export async function onRequestGet(context) {
       .on('meta[property="og:image"]', { element(el) { el.setAttribute('content', img); } })
       .on('meta[name="twitter:image"]', { element(el) { el.setAttribute('content', img); } });
   }
-  // og:url — канонічна адреса сторінки товару
-  rw = rw.on('meta[property="og:url"]', { element(el) { el.setAttribute('content', origin + '/product/' + encodeURIComponent(id)); } });
+  // og:url + canonical — канонічна адреса саме ЦІЄЇ сторінки товару.
+  // ВАЖЛИВО: у статичному index.html <link rel="canonical"> вказує на головну (/). Якщо його
+  // не переписати, кожна сторінка товару каже Google «моя канонічна версія — головна», і Google
+  // вважає товар дублем головної та НЕ індексує його. Тому обов'язково переписуємо canonical.
+  const productUrl = origin + '/product/' + encodeURIComponent(id);
+  rw = rw
+    .on('meta[property="og:url"]', { element(el) { el.setAttribute('content', productUrl); } })
+    .on('link[rel="canonical"]', { element(el) { el.setAttribute('href', productUrl); } });
 
   const out = rw.transform(res);
   // Невеликий кеш: контент залежить від товару, але змінюється рідко
