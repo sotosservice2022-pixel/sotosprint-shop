@@ -57,6 +57,24 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
+  <!-- PWA: ловимо подію встановлення ЯКОМОГА РАНІШЕ. Chrome кидає beforeinstallprompt
+       лише один раз і НЕ повторює її для слухачів, доданих пізніше. Якщо чекати на
+       завантаження налаштувань (setupPWA), подія встигає полетіти — і власна кнопка
+       «Встановити» не з'являється. Тому зберігаємо подію одразу в window, а кнопку
+       покаже setupPWA, коли впевниться, що PWA і кнопка ввімкнені. -->
+  <script>
+    window.addEventListener('beforeinstallprompt', function (e) {
+      e.preventDefault();
+      window._deferredInstallPrompt = e;
+      window.dispatchEvent(new Event('pwa-installable'));
+    });
+    window.addEventListener('appinstalled', function () {
+      window._deferredInstallPrompt = null;
+      var b = document.getElementById('pwaInstallBtn');
+      if (b) b.remove();
+    });
+  </script>
+
   <!-- Favicon: порожній за замовчуванням (data:,). Якщо в адмінці вибрано іконку —
        сервер (functions/index.js) підставляє faviconImage у цей link. -->
   <link rel="icon" href="data:," />
@@ -1048,7 +1066,7 @@ let currentImgIdx = 0;
 // enabled=false → знімаємо SW з реєстрації, чистимо кеші, прибираємо manifest-лінк.
 // Manifest-лінк стоїть статично в <head> (Chrome бачить його одразу). При вимкненому PWA
 // сам /manifest.webmanifest віддає 404, тож браузер його ігнорує.
-let _deferredInstallPrompt = null;
+// Подія встановлення зберігається в window._deferredInstallPrompt (ловить ранній слухач у <head>).
 
 function showInstallButton() {
   if (document.getElementById('pwaInstallBtn')) return;
@@ -1060,11 +1078,11 @@ function showInstallButton() {
     'background:var(--accent,#0b8aff);color:#fff;border:none;border-radius:24px;padding:12px 22px;' +
     'font-size:15px;font-weight:700;box-shadow:0 6px 20px rgba(11,138,255,.45);cursor:pointer;';
   btn.onclick = async () => {
-    if (!_deferredInstallPrompt) return;
+    if (!window._deferredInstallPrompt) return;
     btn.disabled = true;
-    _deferredInstallPrompt.prompt();
-    try { await _deferredInstallPrompt.userChoice; } catch (_) {}
-    _deferredInstallPrompt = null;
+    window._deferredInstallPrompt.prompt();
+    try { await window._deferredInstallPrompt.userChoice; } catch (_) {}
+    window._deferredInstallPrompt = null;
     btn.remove();
   };
   document.body.appendChild(btn);
@@ -1087,22 +1105,22 @@ async function setupPWA(enabled) {
     if (shop.pwaInstallButtonEnabled === false) {
       document.querySelector('link[rel="manifest"]')?.remove();
     }
-    // реєстрація service worker
+    // реєстрація service worker (потрібен для критерію «встановлюваності» Chrome)
     try { await navigator.serviceWorker.register('/sw.js'); } catch (_) {}
 
-    // Власна кнопка встановлення: Chrome кидає подію beforeinstallprompt, коли сайт
-    // відповідає критеріям. Перехоплюємо її й показуємо свою кнопку (зручніше, ніж шукати в меню).
-    window.addEventListener('beforeinstallprompt', (e) => {
-      e.preventDefault();
-      _deferredInstallPrompt = e;
-      // Якщо вже встановлено як застосунок — кнопку не показуємо.
-      // Окремий тумблер pwaInstallButtonEnabled: можна сховати кнопку, лишивши установку через меню браузера.
-      if (shop.pwaInstallButtonEnabled !== false && !window.matchMedia('(display-mode: standalone)').matches) showInstallButton();
-    });
-    window.addEventListener('appinstalled', () => {
-      _deferredInstallPrompt = null;
-      document.getElementById('pwaInstallBtn')?.remove();
-    });
+    // Власна кнопка встановлення. Саму подію beforeinstallprompt ловить РАННІЙ слухач
+    // у <head> (інакше вона губиться до цього моменту). Тут лише вирішуємо, чи показувати кнопку:
+    //  - кнопка ввімкнена (pwaInstallButtonEnabled !== false),
+    //  - подія вже спіймана (window._deferredInstallPrompt),
+    //  - застосунок ще не встановлено (не standalone-режим).
+    const maybeShowInstall = () => {
+      if (shop.pwaInstallButtonEnabled === false) return;
+      if (!window._deferredInstallPrompt) return;
+      if (window.matchMedia('(display-mode: standalone)').matches) return;
+      showInstallButton();
+    };
+    maybeShowInstall();                                    // подія могла прилетіти ще до setupPWA
+    window.addEventListener('pwa-installable', maybeShowInstall); // або прилетить трохи згодом
   } else {
     // Вимкнено — повне прибирання, щоб у клієнтів, які вже встановили, фіча відключилась
     try {
