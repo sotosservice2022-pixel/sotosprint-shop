@@ -148,9 +148,10 @@
       <summary style="cursor:pointer; font-size:13px; color:#6b7280; font-weight:600;">⚙️ Розширені (опис для пересоздання)</summary>
       <div style="margin-top:10px;">
         <textarea id="promptInput" rows="6" style="width:100%; font-family:inherit;" placeholder="Опис для AI. Англійською працює найкраще."></textarea>
-        <div style="display:flex; align-items:center; gap:10px; margin-top:6px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:8px; margin-top:6px; flex-wrap:wrap;">
+          <button type="button" id="promptSaveBtn" class="btn btn-primary btn-icon">💾 Зберегти промпт</button>
           <button type="button" id="promptResetBtn" class="btn btn-secondary btn-icon">↺ Повернути дефолтний</button>
-          <span class="hint" style="margin:0;">Тут дефолтний промпт для «Пересоздання». Можеш редагувати — зміни збережуться в цьому браузері.</span>
+          <span id="promptSaveMsg" class="hint" style="margin:0;">Промпт для «Пересоздання». Редагуй під себе і збережи.</span>
         </div>
       </div>
     </details>
@@ -838,17 +839,27 @@ function initRegenPrompt() {
   let saved = '';
   try { saved = localStorage.getItem('restoreRegenPrompt') || ''; } catch {}
   ta.value = saved || DEFAULT_REGEN_PROMPT;
-  ta.addEventListener('input', () => {
+  const msg = document.getElementById('promptSaveMsg');
+  const markDirty = () => { if (msg) { msg.textContent = '● Не збережено — натисни «Зберегти промпт»'; msg.style.color = '#b45309'; } };
+  const persist = () => {
     try {
-      // Якщо повернули дефолт — не засмічуємо localStorage
       if (ta.value.trim() === DEFAULT_REGEN_PROMPT.trim()) localStorage.removeItem('restoreRegenPrompt');
       else localStorage.setItem('restoreRegenPrompt', ta.value);
     } catch {}
-  });
-  const btn = document.getElementById('promptResetBtn');
-  if (btn) btn.onclick = () => {
+  };
+  // Автозбереження (підстраховка) + позначка «не збережено» при редагуванні
+  ta.addEventListener('input', () => { persist(); markDirty(); });
+  const saveBtn = document.getElementById('promptSaveBtn');
+  if (saveBtn) saveBtn.onclick = () => {
+    persist();
+    if (msg) { msg.textContent = '✓ Збережено'; msg.style.color = '#16a34a'; }
+    toast('Промпт збережено ✓');
+  };
+  const resetBtn = document.getElementById('promptResetBtn');
+  if (resetBtn) resetBtn.onclick = () => {
     ta.value = DEFAULT_REGEN_PROMPT;
     try { localStorage.removeItem('restoreRegenPrompt'); } catch {}
+    if (msg) { msg.textContent = '✓ Повернено до дефолтного'; msg.style.color = '#16a34a'; }
     toast('Промпт повернено до дефолтного');
   };
 }
