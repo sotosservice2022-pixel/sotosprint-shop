@@ -918,6 +918,12 @@ function editProduct(idx) {
     <h3 id="ed-heading">✏️ Редагування: <span id="ed-title">${escapeHtml(p.name || '')}</span></h3>
 
     <div class="section">
+      <h4>📷 Галерея (до 8 картинок · перша — головна)</h4>
+      <div class="gallery" id="gallery"></div>
+      <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною.</div>
+    </div>
+
+    <div class="section">
       <h4>Основне</h4>
       <div class="grid">
         <div><label>Назва</label><textarea data-prop="name" rows="2" style="resize:vertical; white-space:pre-wrap;" placeholder="Назва товару. Натисни Enter, щоб перенести на новий рядок (видно на картці й у вікні товару).">${escapeHtml(p.name || '')}</textarea><div style="font-size:11px; color:#6b7280; margin-top:3px;">↵ Enter — перенос рядка (щоб назва з 2 слів не розбивалась як попало). У кошику/замовленні буде в один рядок.</div></div>
@@ -985,12 +991,6 @@ function editProduct(idx) {
         <button class="btn btn-secondary btn-icon" type="button" onclick="addTier()">+ Додати поріг</button>
         <div class="hint">Базова «Ціна» вище — це ціна за 1 шт. Тут додай пороги: <b>від N шт → ціна за шт</b>. Коли клієнт набирає кількість ≥ порогу — <b>усі</b> штуки рахуються за цією ціною. Приклад: ціна 100₴, поріг «від 10 шт → 80₴»: за 10 шт буде 800₴ (по 80). Надбавки за варіанти та промокоди застосовуються поверх оптової ціни.</div>
       </div>
-    </div>
-
-    <div class="section">
-      <h4>📷 Галерея (до 8 картинок · перша — головна)</h4>
-      <div class="gallery" id="gallery"></div>
-      <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною.</div>
     </div>
 
     <div class="section">
