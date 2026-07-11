@@ -147,7 +147,11 @@
     <details style="margin-top:14px;">
       <summary style="cursor:pointer; font-size:13px; color:#6b7280; font-weight:600;">⚙️ Розширені (опис для пересоздання)</summary>
       <div style="margin-top:10px;">
-        <textarea id="promptInput" rows="3" style="width:100%;" placeholder="Залиш порожнім для дефолтного студійного опису. Англійською працює найкраще."></textarea>
+        <textarea id="promptInput" rows="6" style="width:100%; font-family:inherit;" placeholder="Опис для AI. Англійською працює найкраще."></textarea>
+        <div style="display:flex; align-items:center; gap:10px; margin-top:6px; flex-wrap:wrap;">
+          <button type="button" id="promptResetBtn" class="btn btn-secondary btn-icon">↺ Повернути дефолтний</button>
+          <span class="hint" style="margin:0;">Тут дефолтний промпт для «Пересоздання». Можеш редагувати — зміни збережуться в цьому браузері.</span>
+        </div>
       </div>
     </details>
 
@@ -817,8 +821,37 @@ async function confirmAttach() {
   setEngine(eng);
   refreshKeyStatus('gemini');
   refreshKeyStatus('openai');
+  initRegenPrompt();  // дефолтний промпт у поле «Розширені»
   loadItems();  // відновити галерею з минулої сесії
 })();
+
+// ---------- дефолтний промпт для «Пересоздання» (той самий, що на бекенді) ----------
+const DEFAULT_REGEN_PROMPT =
+  'Professional ecommerce product photography.\n' +
+  'Edit only the photograph.\n' +
+  'DO NOT change: product shape, packaging, colors, logos, labels, text, barcode, accessories.\n' +
+  'Improve: lighting, white balance, exposure, sharpness, perspective, studio background, realistic shadow.\n' +
+  'Photorealistic.';
+function initRegenPrompt() {
+  const ta = document.getElementById('promptInput');
+  if (!ta) return;
+  let saved = '';
+  try { saved = localStorage.getItem('restoreRegenPrompt') || ''; } catch {}
+  ta.value = saved || DEFAULT_REGEN_PROMPT;
+  ta.addEventListener('input', () => {
+    try {
+      // Якщо повернули дефолт — не засмічуємо localStorage
+      if (ta.value.trim() === DEFAULT_REGEN_PROMPT.trim()) localStorage.removeItem('restoreRegenPrompt');
+      else localStorage.setItem('restoreRegenPrompt', ta.value);
+    } catch {}
+  });
+  const btn = document.getElementById('promptResetBtn');
+  if (btn) btn.onclick = () => {
+    ta.value = DEFAULT_REGEN_PROMPT;
+    try { localStorage.removeItem('restoreRegenPrompt'); } catch {}
+    toast('Промпт повернено до дефолтного');
+  };
+}
 
 // ---------- ключі рушіїв (gemini / openai) ----------
 const PROVIDER_LABEL = { gemini: 'Gemini', openai: 'OpenAI' };
