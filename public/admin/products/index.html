@@ -479,6 +479,27 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- Перегляд фото товару (модалка): гортання ←/→, колесо, порівняти оригінал з AI-версією, видалити -->
+<div id="photoModal" onclick="closePhotoModal()" style="display:none; position:fixed; inset:0; z-index:3000; background:rgba(15,23,42,.72); align-items:center; justify-content:center;">
+  <div style="position:relative; background:#fff; border-radius:14px; padding:14px; width:min(92vw,760px); max-height:92vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,.4);" onclick="event.stopPropagation()">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">
+      <strong id="pmCounter" style="font-size:13px; color:#374151;"></strong>
+      <button type="button" onclick="closePhotoModal()" style="border:none; background:#f3f4f6; border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:16px; line-height:1;">✕</button>
+    </div>
+    <div style="position:relative; flex:1; min-height:0; display:flex; align-items:center; justify-content:center; background:#f8fafc; border-radius:10px; overflow:hidden;" id="pmStage">
+      <button type="button" onclick="pmNav(-1)" title="Попереднє (←)" style="position:absolute; left:8px; top:50%; transform:translateY(-50%); border:none; background:rgba(0,0,0,.55); color:#fff; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:20px; z-index:2;">‹</button>
+      <img id="pmImg" src="" style="max-width:100%; max-height:74vh; object-fit:contain; display:block;" />
+      <button type="button" onclick="pmNav(1)" title="Наступне (→)" style="position:absolute; right:8px; top:50%; transform:translateY(-50%); border:none; background:rgba(0,0,0,.55); color:#fff; width:40px; height:40px; border-radius:50%; cursor:pointer; font-size:20px; z-index:2;">›</button>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
+      <span id="pmMainTag" style="font-size:12px; color:#0b8aff; font-weight:700; display:none;">★ Головна</span>
+      <button type="button" class="btn btn-secondary btn-icon" id="pmMainBtn" onclick="pmSetMain()">★ Зробити головною</button>
+      <button type="button" class="btn btn-danger btn-icon" onclick="pmDelete()" style="margin-left:auto;">🗑 Видалити це фото</button>
+    </div>
+    <div class="hint" style="margin-top:6px;">Гортай стрілками ← →, колесом миші або клавішами. Порівняй оригінал з AI-версією і видали зайве.</div>
+  </div>
+</div>
+
 <script src="/admin/_admin-ui.js"></script>
 <script src="/admin/_r2-upload.js"></script>
 <script src="/_richtext-sanitize.js"></script>
@@ -1166,7 +1187,7 @@ function renderGallery(p) {
     item.className = 'gallery-item' + (i === 0 ? ' main' : '');
     item.innerHTML = `
       <div class="image-area">
-        <img src="${escapeAttr(img.url)}" />
+        <img src="${escapeAttr(img.url)}" style="cursor:zoom-in;" title="Відкрити перегляд" onclick="openPhotoModal(${i})" />
         ${i === 0 ? '<span class="main-tag">Головна</span>' : ''}
         <div class="actions">
           <button title="🪄 Обробити це фото AI (за замовчуванням)" onclick="aiRegenPhoto(${i})">🪄</button>
@@ -1296,6 +1317,71 @@ window.aiRegenPhoto = async function (i) {
     window.__aiRegenBusy = false;
   }
 };
+
+// === Модалка перегляду фото товару (гортання ←/→, колесо, видалення) ===
+let pmIndex = 0;
+function pmImages() { const p = products[currentIdx]; return (p && Array.isArray(p.images)) ? p.images : []; }
+function pmUrl(img) { return img ? (typeof img === 'object' ? img.url : img) : ''; }
+window.openPhotoModal = function (i) {
+  const imgs = pmImages();
+  if (!imgs.length) return;
+  pmIndex = Math.max(0, Math.min(i, imgs.length - 1));
+  document.getElementById('photoModal').style.display = 'flex';
+  pmRender();
+};
+window.closePhotoModal = function () { document.getElementById('photoModal').style.display = 'none'; };
+function pmRender() {
+  const imgs = pmImages();
+  if (!imgs.length) { closePhotoModal(); return; }
+  if (pmIndex >= imgs.length) pmIndex = imgs.length - 1;
+  const el = document.getElementById('pmImg');
+  if (el) el.src = pmUrl(imgs[pmIndex]);
+  const c = document.getElementById('pmCounter');
+  if (c) c.textContent = `Фото ${pmIndex + 1} / ${imgs.length}` + (pmIndex === 0 ? ' · головна' : '');
+  const mainTag = document.getElementById('pmMainTag');
+  const mainBtn = document.getElementById('pmMainBtn');
+  if (mainTag) mainTag.style.display = pmIndex === 0 ? '' : 'none';
+  if (mainBtn) mainBtn.style.display = pmIndex === 0 ? 'none' : '';
+}
+window.pmNav = function (delta) {
+  const imgs = pmImages();
+  if (!imgs.length) return;
+  pmIndex = (pmIndex + delta + imgs.length) % imgs.length; // по колу
+  pmRender();
+};
+window.pmSetMain = function () {
+  if (typeof setMain === 'function' && pmIndex > 0) {
+    setMain(pmIndex);      // переставляє поточне фото першим
+    pmIndex = 0;
+    pmRender();
+  }
+};
+window.pmDelete = function () {
+  const imgs = pmImages();
+  if (!imgs.length) return;
+  if (!confirm('Видалити це фото з товару?')) return;
+  if (typeof removeImage === 'function') removeImage(pmIndex);  // прибирає + перемальовує галерею
+  const left = pmImages();
+  if (!left.length) { closePhotoModal(); return; }
+  if (pmIndex >= left.length) pmIndex = left.length - 1;
+  pmRender();
+};
+// Колесо миші — гортання; клавіші ← → та Esc
+(function bindPhotoModalControls() {
+  const modal = document.getElementById('photoModal');
+  const stage = document.getElementById('pmStage');
+  if (stage) stage.addEventListener('wheel', (e) => {
+    if (document.getElementById('photoModal').style.display === 'none') return;
+    e.preventDefault();
+    pmNav(e.deltaY > 0 ? 1 : -1);
+  }, { passive: false });
+  document.addEventListener('keydown', (e) => {
+    if (!modal || modal.style.display === 'none') return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); pmNav(1); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); pmNav(-1); }
+    else if (e.key === 'Escape') { e.stopPropagation(); closePhotoModal(); }
+  }, true); // capture — щоб перехопити Escape раніше за глобальний «назад» адмінки
+})();
 
 window.setImgZoom = (i, val) => {
   const p = products[currentIdx];
