@@ -960,6 +960,15 @@ function editProduct(idx) {
       <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною. Кнопка 🪄 на фото — обробити його AI.</div>
       <div id="aiEngineInfo" style="margin-top:8px; font-size:12px; color:#374151; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; padding:7px 10px;"></div>
       <div id="aiRegenMsg" style="display:none; margin-top:8px; font-size:12.5px; line-height:1.45; border-radius:8px; padding:8px 30px 8px 10px; position:relative;"></div>
+      ${appSettings.aiDescribeEnabled ? `
+      <div id="aiDescribeBox" style="margin-top:10px; padding:10px 12px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:10px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-icon" type="button" onclick="aiDescribeFromPhoto()">🤖 Скласти з фото (AI)</button>
+          <span style="font-size:11px; color:#6b7280;">Безкоштовно (Gemini дивиться на головне фото). Нічого не змінює саме — ти обираєш, що вставити.</span>
+          <span id="aiDescribeStatus" style="font-size:11px; color:#6b7280; margin-left:auto; white-space:nowrap;"></span>
+        </div>
+        <div id="aiDescribeResult" style="margin-top:10px; display:none;"></div>
+      </div>` : ''}
     </div>
 
     <div class="section">
@@ -967,15 +976,6 @@ function editProduct(idx) {
       <div class="grid">
         <div><label>Назва</label><textarea data-prop="name" rows="2" style="resize:vertical; white-space:pre-wrap;" placeholder="Назва товару. Натисни Enter, щоб перенести на новий рядок (видно на картці й у вікні товару).">${escapeHtml(p.name || '')}</textarea><div style="font-size:11px; color:#6b7280; margin-top:3px;">↵ Enter — перенос рядка (щоб назва з 2 слів не розбивалась як попало). У кошику/замовленні буде в один рядок.</div></div>
         <div><label>Короткий опис (для модального вікна)</label><textarea rows="3" id="ed-description" data-prop="description">${escapeHtml(p.description || '')}</textarea></div>
-        ${appSettings.aiDescribeEnabled ? `
-        <div id="aiDescribeBox" style="padding:10px 12px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:10px;">
-          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-secondary btn-icon" type="button" onclick="aiDescribeFromPhoto()">🤖 Скласти з фото (AI)</button>
-            <span style="font-size:11px; color:#6b7280;">Безкоштовно (Gemini дивиться на головне фото). Нічого не змінює саме — ти обираєш, що вставити.</span>
-            <span id="aiDescribeStatus" style="font-size:11px; color:#6b7280; margin-left:auto; white-space:nowrap;"></span>
-          </div>
-          <div id="aiDescribeResult" style="margin-top:10px; display:none;"></div>
-        </div>` : ''}
         <div class="grid grid-3">
           <div><label>Ціна</label><input type="number" data-prop="price" value="${p.price || 0}" min="0" step="1" /></div>
           <div><label>Валюта</label><input type="text" data-prop="currency" value="${escapeAttr(p.currency || '₴')}" maxlength="5" /></div>
