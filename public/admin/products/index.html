@@ -383,6 +383,11 @@
       <input type="checkbox" id="aiDescribeEnabled" />
       <label for="aiDescribeEnabled" style="margin:0; font-weight:600; font-size:13px;">Показувати кнопку «Скласти з фото (AI)» у редакторі товару</label>
     </div>
+    <div style="margin-bottom: 10px; padding-left: 22px;">
+      <label style="font-weight:600; font-size:13px; display:block; margin-bottom:4px;">Модель Gemini (текстова)</label>
+      <input type="text" id="aiDescribeModelInput" placeholder="gemini-3.5-flash (за замовчуванням)" style="width:100%; max-width:340px; padding:9px 11px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; background:#fafbfc;" autocomplete="off" spellcheck="false" />
+      <div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Порожньо = <code>gemini-3.5-flash</code>. Якщо Google зніме модель — впиши сюди нову (напр. <code>gemini-3.1-flash-lite</code>) і збережи. Модель має бути текстова (БЕЗ <code>-image</code>).</div>
+    </div>
     <div style="font-size: 12px; color: #6b7280; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
       💡 У редакторі товару зʼявиться кнопка: Gemini подивиться на головне фото і запропонує <strong>назву, опис і характеристики</strong>. Нічого не змінюється саме — ти обираєш, що вставити. Безкоштовно (потрібен ключ Gemini у розділі «AI-обробка фото»). Зберігається кнопкою <strong>«💾 Зберегти все»</strong>.
     </div>
@@ -519,6 +524,8 @@ async function loadAll() {
       // Коди товарів (артикули)
       const aiDescEl = document.getElementById('aiDescribeEnabled');
       if (aiDescEl) aiDescEl.checked = appSettings.aiDescribeEnabled === true;
+      const aiDescModelEl = document.getElementById('aiDescribeModelInput');
+      if (aiDescModelEl) aiDescModelEl.value = appSettings.aiDescribeModel || '';
       const pcEnEl = document.getElementById('productCodeEnabled');
       const pcShowEl = document.getElementById('productCodeShow');
       if (pcEnEl) pcEnEl.checked = appSettings.productCodeEnabled === true;
@@ -1350,7 +1357,7 @@ window.aiDescribeFromPhoto = async function () {
     const r = await fetch('/api/admin/photo-describe', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ imageUrl }),
+      body: JSON.stringify({ imageUrl, model: (document.getElementById('aiDescribeModelInput')?.value || '').trim() || undefined }),
     });
     if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
     const d = await r.json();
@@ -2113,6 +2120,8 @@ async function saveAll(reopenEditor = true) {
     // === AI-опис товару з фото ===
     const aiDescEl = document.getElementById('aiDescribeEnabled');
     if (aiDescEl) serverSettings.aiDescribeEnabled = aiDescEl.checked;
+    const aiDescModelEl = document.getElementById('aiDescribeModelInput');
+    if (aiDescModelEl) serverSettings.aiDescribeModel = aiDescModelEl.value.trim();
     // === Коди товарів (артикули) ===
     const pcEnEl = document.getElementById('productCodeEnabled');
     const pcShowEl = document.getElementById('productCodeShow');
