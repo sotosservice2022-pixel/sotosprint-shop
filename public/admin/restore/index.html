@@ -134,11 +134,12 @@
       <div id="bgWrap">
         <div class="field-label">Фон</div>
         <select id="bgSelect">
-          <option value="white">⬜ Білий</option>
+          <option value="white">⬜ Білий (вирізати фон)</option>
           <option value="transparent">🔲 Прозорий (PNG)</option>
-          <option value="%23f4f6fa">🩶 Світло-сірий</option>
+          <option value="%23f4f6fa">🩶 Світло-сірий (вирізати фон)</option>
+          <option value="keep">📄 Не вирізати — лише освітлити (білі упаковки)</option>
         </select>
-        <div class="hint">Для «Покращення»: AI прибирає фон і ставить новий.</div>
+        <div class="hint">Вирізання фону може «з'їсти» краї білої упаковки на світлому столі — тоді обирай «Не вирізати»: текст лишається 1:1, стіл освітлюється.</div>
       </div>
     </div>
 
@@ -492,6 +493,12 @@ async function addFiles(fileList) {
 
 // ---------- обробка ----------
 function enhanceUrl(srcUrl, bg) {
+  // «Не вирізати»: біла упаковка на світлому столі — сегментація плутає біле з фоном
+  // і «їсть» краї коробки. Тому фон не чіпаємо, а лише освітлюємо стіл яскравістю/контрастом
+  // (значення підібрані на реальних фото) — весь текст лишається 1:1.
+  if (bg === 'keep') {
+    return `/cdn-cgi/image/brightness=1.22,contrast=1.12,saturation=0.95,fit=contain,width=1200,height=1200,gravity=center,sharpen=1,f=auto,q=90${srcUrl}`;
+  }
   const fmt = (bg === 'transparent') ? 'png' : 'auto';
   const bgPart = (bg === 'transparent') ? '' : (',background=' + bg);
   const opts = `segment=foreground${bgPart},fit=contain,width=1200,height=1200,gravity=center,sharpen=1,f=${fmt},q=90`;

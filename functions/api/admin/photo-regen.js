@@ -112,12 +112,15 @@ async function runCloudflare(env, src, prompt, width, height, cfModel) {
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
-      // не ретраїмо явно фатальні помилки конфігурації/ліміту
-      if (/binding|no such model|invalid|required propert|allocation|limit/i.test(msg)) break;
+      // не ретраїмо явно фатальні помилки конфігурації/ліміту/модерації
+      if (/binding|no such model|invalid|required propert|allocation|limit|flagged|3030/i.test(msg)) break;
       if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * attempt));
     }
   }
   const lastMsg = String(lastErr && lastErr.message || lastErr);
+  if (/flagged|3030/i.test(lastMsg)) {
+    throw new Error('Модерація Cloudflare помилково забракувала це фото (буває на нешкідливих товарах). Спробуй: інший ракурс/фото товару, трохи змінити опис, або переключись на Gemini/GPT.');
+  }
   if (/allocation|limit|quota|429/i.test(lastMsg)) {
     throw new Error('Вичерпано безкоштовний денний ліміт Workers AI (оновлюється о 02:00 за Києвом). Спробуй завтра або переключись на Gemini/GPT.');
   }
