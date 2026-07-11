@@ -9,6 +9,7 @@ import { checkAuthAsync, jsonResp } from '../../_utils/shop.js';
 const PROVIDERS = {
   gemini: { kv: 'ai_image_key', env: 'IMAGE_API_KEY' },
   openai: { kv: 'openai_image_key', env: 'OPENAI_API_KEY' },
+  modelscope: { kv: 'modelscope_image_key', env: 'MODELSCOPE_API_KEY' },
 };
 
 function resolveProvider(p) {
