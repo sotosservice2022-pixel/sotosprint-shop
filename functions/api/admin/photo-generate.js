@@ -120,7 +120,12 @@ async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
 // 2000 безкоштовних викликів/день; фішка Qwen-Edit — найакуратніша робота з ТЕКСТОМ на фото.
 // Асинхронний API: POST /v1/images/generations (X-ModelScope-Async-Mode) → task_id,
 // потім GET /v1/tasks/<id> до SUCCEED → output_images[0] (url картинки).
-const QWEN_API_BASE_DEFAULT = 'https://api-inference.modelscope.cn/v1';
+// Токени міжнародного modelscope.ai і китайського modelscope.cn — РІЗНІ, тому пробуємо
+// обидва домени; який спрацював — кодуємо в jobId ('ai:<id>' | 'cn:<id>'), щоб опитувати той самий.
+const QWEN_BASES = {
+  ai: 'https://api-inference.modelscope.ai/v1',
+  cn: 'https://api-inference.modelscope.cn/v1',
+};
 
 async function getQwenKey(env) {
   let key = env.MODELSCOPE_API_KEY;
@@ -129,8 +134,6 @@ async function getQwenKey(env) {
   }
   return key;
 }
-
-function qwenBase(env) { return (env.QWEN_API_BASE || QWEN_API_BASE_DEFAULT).replace(/\/+$/, ''); }
 
 // Старт задачі. imageUrl (публічний URL фото) → режим редагування, без нього — чиста генерація.
 async function startQwen(env, prompt, imageUrl, sizeStr) {
@@ -142,31 +145,47 @@ async function startQwen(env, prompt, imageUrl, sizeStr) {
   const body = { model, prompt };
   if (imageUrl) body.image_url = imageUrl;
   else if (sizeStr) body.size = sizeStr;
-  const r = await fetch(qwenBase(env) + '/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + key,
-      'Content-Type': 'application/json',
-      'X-ModelScope-Async-Mode': 'true',
-      'X-ModelScope-Task-Type': imageUrl ? 'image-to-image-generation' : 'text-to-image-generation',
-    },
-    body: JSON.stringify(body),
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = (data && (data.errors?.message || data.message || data.error)) || ('HTTP ' + r.status);
-    throw new Error('ModelScope: ' + String(msg).slice(0, 300));
+
+  const tryStart = async (tag) => {
+    const r = await fetch(QWEN_BASES[tag] + '/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json',
+        'X-ModelScope-Async-Mode': 'true',
+        'X-ModelScope-Task-Type': imageUrl ? 'image-to-image-generation' : 'text-to-image-generation',
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = (data && (data.errors?.message || data.message || data.error)) || ('HTTP ' + r.status);
+      const e = new Error('ModelScope: ' + String(msg).slice(0, 300));
+      e.isAuth = r.status === 401 || r.status === 403 || /authentication|token/i.test(String(msg));
+      throw e;
+    }
+    const taskId = data.task_id || data.taskId || (data.data && data.data.task_id);
+    if (!taskId) throw new Error('ModelScope не повернув ідентифікатор задачі');
+    return tag + ':' + taskId;
+  };
+
+  try {
+    return await tryStart('ai');   // міжнародний акаунт — найімовірніший
+  } catch (e) {
+    if (!e.isAuth) throw e;
+    return await tryStart('cn');   // токен може бути з китайського modelscope.cn
   }
-  const taskId = data.task_id || data.taskId || (data.data && data.data.task_id);
-  if (!taskId) throw new Error('ModelScope не повернув ідентифікатор задачі');
-  return taskId;
 }
 
 // Опитування задачі: { status:'completed', img } | { status:'pending' }; кидає при FAILED.
+// jobId має вигляд 'ai:<taskId>' або 'cn:<taskId>' — опитуємо той самий домен, де стартували.
 async function pollQwen(env, jobId) {
   const key = await getQwenKey(env);
   if (!key) throw new Error('Рушій Qwen не налаштовано (токен ModelScope зник?).');
-  const r = await fetch(qwenBase(env) + '/tasks/' + encodeURIComponent(jobId), {
+  const m = /^(ai|cn):(.+)$/.exec(String(jobId));
+  const base = m ? QWEN_BASES[m[1]] : QWEN_BASES.cn;
+  const taskId = m ? m[2] : String(jobId);
+  const r = await fetch(base + '/tasks/' + encodeURIComponent(taskId), {
     method: 'GET',
     headers: { 'Authorization': 'Bearer ' + key, 'X-ModelScope-Task-Type': 'image_generation' },
   });

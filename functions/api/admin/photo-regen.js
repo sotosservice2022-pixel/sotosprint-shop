@@ -139,28 +139,42 @@ async function startQwenEdit(env, request, sourceUrl, prompt) {
     try { key = await env.SHOP_KV.get('modelscope_image_key'); } catch (_) {}
   }
   if (!key) throw new Error('Рушій Qwen не налаштовано: встав токен ModelScope у блоці «🔑 Токен ModelScope» (безкоштовно на modelscope.ai).');
-  const base = (env.QWEN_API_BASE || 'https://api-inference.modelscope.cn/v1').replace(/\/+$/, '');
+  // Токени modelscope.ai і modelscope.cn різні — пробуємо обидва домени;
+  // робочий кодуємо в jobId ('ai:<id>'|'cn:<id>'), опитування піде на той самий.
+  const BASES = { ai: 'https://api-inference.modelscope.ai/v1', cn: 'https://api-inference.modelscope.cn/v1' };
   const model = env.QWEN_EDIT_MODEL || 'Qwen/Qwen-Image-Edit-2509';
   const origin = new URL(request.url).origin;
   const imageUrl = String(sourceUrl).startsWith('http') ? sourceUrl : origin + sourceUrl;
-  const r = await fetch(base + '/images/generations', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + key,
-      'Content-Type': 'application/json',
-      'X-ModelScope-Async-Mode': 'true',
-      'X-ModelScope-Task-Type': 'image-to-image-generation',
-    },
-    body: JSON.stringify({ model, prompt, image_url: imageUrl }),
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    const msg = (data && (data.errors?.message || data.message || data.error)) || ('HTTP ' + r.status);
-    throw new Error('ModelScope: ' + String(msg).slice(0, 300));
+
+  const tryStart = async (tag) => {
+    const r = await fetch(BASES[tag] + '/images/generations', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json',
+        'X-ModelScope-Async-Mode': 'true',
+        'X-ModelScope-Task-Type': 'image-to-image-generation',
+      },
+      body: JSON.stringify({ model, prompt, image_url: imageUrl }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      const msg = (data && (data.errors?.message || data.message || data.error)) || ('HTTP ' + r.status);
+      const e = new Error('ModelScope: ' + String(msg).slice(0, 300));
+      e.isAuth = r.status === 401 || r.status === 403 || /authentication|token/i.test(String(msg));
+      throw e;
+    }
+    const taskId = data.task_id || data.taskId || (data.data && data.data.task_id);
+    if (!taskId) throw new Error('ModelScope не повернув ідентифікатор задачі');
+    return tag + ':' + taskId;
+  };
+
+  try {
+    return await tryStart('ai');
+  } catch (e) {
+    if (!e.isAuth) throw e;
+    return await tryStart('cn');
   }
-  const taskId = data.task_id || data.taskId || (data.data && data.data.task_id);
-  if (!taskId) throw new Error('ModelScope не повернув ідентифікатор задачі');
-  return taskId;
 }
 
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
