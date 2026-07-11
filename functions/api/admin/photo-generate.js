@@ -62,8 +62,10 @@ const CF_FLUX_MODELS = {
 async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
   const model = env.CF_IMAGE_MODEL || CF_FLUX_MODELS[cfModel] || CF_FLUX_MODELS['4b'];
-  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 8;
-  if (!(steps >= 1 && steps <= 30)) steps = 8;
+  // Кроки: більше = чіткіше (ціна від кроків не залежить); 25 — з офіційного прикладу для 9B
+  const defSteps = model.includes('9b') ? 25 : 15;
+  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : defSteps;
+  if (!(steps >= 1 && steps <= 30)) steps = defSteps;
   const m = /^(\d+)x(\d+)$/.exec(String(sizeStr || '1024x1024'));
   const width = m ? parseInt(m[1], 10) : 1024;
   const height = m ? parseInt(m[2], 10) : 1024;

@@ -10,9 +10,11 @@
 import { checkAuthAsync, jsonResp, storageUrl } from '../../_utils/shop.js';
 
 const DEFAULT_PROMPT =
-  'Professional e-commerce product photograph of this exact item. ' +
-  'Keep the product shape, colors and any printed design EXACTLY as in the source image, unchanged. ' +
-  'Place it on a pure white seamless studio background with a soft, subtle, realistic shadow beneath. ' +
+  'Professional e-commerce product photograph of exactly the same items as in the source image. ' +
+  'Keep EVERY object from the source photo — the product AND its retail packaging box, hang tag and accessories. ' +
+  'Do not remove, add or replace anything. Preserve the exact shapes, colors, proportions, logos, ' +
+  'printed text and barcodes as in the source; do not invent or alter any lettering. ' +
+  'Place the same arrangement on a pure white seamless studio background with a soft, subtle, realistic shadow beneath. ' +
   'Bright even studio lighting, sharp focus, high-resolution clean catalog product shot, centered.';
 
 // base64 -> Uint8Array
@@ -73,9 +75,11 @@ const CF_FLUX_MODELS = {
 async function runCloudflare(env, src, prompt, width, height, cfModel) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
   const model = env.CF_IMAGE_MODEL || CF_FLUX_MODELS[cfModel] || CF_FLUX_MODELS['4b'];
-  // klein — дистильована модель, працює за малу к-сть кроків (більше ≠ краще, але дорожче)
-  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 8;
-  if (!(steps >= 1 && steps <= 30)) steps = 8;
+  // Кроки: більше = чіткіші деталі (ціна від кроків НЕ залежить — тарифікація за мегапікселі).
+  // 25 — значення з офіційного прикладу Cloudflare для klein 9B; для швидкої 4B трохи менше.
+  const defSteps = model.includes('9b') ? 25 : 15;
+  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : defSteps;
+  if (!(steps >= 1 && steps <= 30)) steps = defSteps;
 
   const callOnce = async () => {
     // FLUX.2 на Workers AI приймає multipart-форму: prompt + input_image_0..3 (файли)
