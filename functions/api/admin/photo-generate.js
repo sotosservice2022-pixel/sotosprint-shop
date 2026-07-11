@@ -57,13 +57,15 @@ async function loadRef(env, url) {
 const CF_FLUX_MODELS = {
   '4b': '@cf/black-forest-labs/flux-2-klein-4b',
   '9b': '@cf/black-forest-labs/flux-2-klein-9b',
+  // dev — найякісніший, але тариф за кроки: ~1-2 фото/день у безкоштовний ліміт
+  'dev': '@cf/black-forest-labs/flux-2-dev',
 };
 
 async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
   const model = env.CF_IMAGE_MODEL || CF_FLUX_MODELS[cfModel] || CF_FLUX_MODELS['4b'];
-  // Кроки: більше = чіткіше (ціна від кроків не залежить); 25 — з офіційного прикладу для 9B
-  const defSteps = model.includes('9b') ? 25 : 15;
+  // Кроки: для klein ціна від кроків не залежить, для dev — залежить (тримаємо 20)
+  const defSteps = model.includes('flux-2-dev') ? 20 : (model.includes('9b') ? 25 : 15);
   let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : defSteps;
   if (!(steps >= 1 && steps <= 30)) steps = defSteps;
   const m = /^(\d+)x(\d+)$/.exec(String(sizeStr || '1024x1024'));
@@ -310,7 +312,7 @@ export async function onRequestPost({ request, env }) {
     }
     // Безкоштовний FLUX.2 (Workers AI) → синхронно (klein швидка, у таймаут вкладається)
     if (engine === 'cloudflare') {
-      const cfModel = (body.cfModel === '9b') ? '9b' : '4b';
+      const cfModel = ['9b', 'dev'].includes(body.cfModel) ? body.cfModel : '4b';
       const out = await runCloudflareGen(env, prompt, refs, FORMAT_TO_SIZE[format], cfModel);
       const url = await putToR2(env, out.bytes, out.contentType, prefixMap.cloudflare);
       return jsonResp({ ok: true, status: 'completed', url, engine: 'cloudflare' });

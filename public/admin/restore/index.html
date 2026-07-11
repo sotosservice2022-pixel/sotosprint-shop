@@ -127,6 +127,7 @@
           <select id="cfModelSelect">
             <option value="4b" selected>⚡ FLUX швидкий (4B) — ~80 фото/день безкоштовно</option>
             <option value="9b">✨ FLUX якісний (9B) — ~6 фото/день безкоштовно</option>
+            <option value="dev">🏆 FLUX dev — найкращий, ~1-2 фото/день безкоштовно, повільний</option>
           </select>
         </div>
       </div>
@@ -354,7 +355,7 @@ function setEngine(e) {
   document.getElementById('cfModelWrap').style.display = (e === 'cloudflare') ? '' : 'none';
   savePrefs();
 }
-function getCfModel() { return document.getElementById('cfModelSelect').value === '9b' ? '9b' : '4b'; }
+function getCfModel() { const v = document.getElementById('cfModelSelect').value; return ['9b', 'dev'].includes(v) ? v : '4b'; }
 document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
 document.querySelectorAll('#engineSeg button').forEach(b => b.onclick = () => setEngine(b.dataset.engine));
 document.getElementById('bgSelect').onchange = savePrefs;
@@ -770,7 +771,7 @@ async function confirmAttach() {
   if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
   const p = loadPrefs();
   if (p.bg) document.getElementById('bgSelect').value = p.bg;
-  if (p.cfModel === '9b' || p.cfModel === '4b') document.getElementById('cfModelSelect').value = p.cfModel;
+  if (['9b', '4b', 'dev'].includes(p.cfModel)) document.getElementById('cfModelSelect').value = p.cfModel;
   setMode(p.mode || 'enhance');
   let eng = p.engine;
   if (!['premium', 'gpt', 'cloudflare'].includes(eng)) eng = 'premium';

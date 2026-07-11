@@ -69,14 +69,17 @@ async function loadSource(env, sourceUrl) {
 const CF_FLUX_MODELS = {
   '4b': '@cf/black-forest-labs/flux-2-klein-4b',
   '9b': '@cf/black-forest-labs/flux-2-klein-9b',
+  // dev — найякісніший FLUX на Workers AI, АЛЕ тарифікується за кроки:
+  // ~225 нейронів × кроки → при 20 кроках ~4500 нейронів = 1-2 фото/день безкоштовно.
+  'dev': '@cf/black-forest-labs/flux-2-dev',
 };
 
 async function runCloudflare(env, src, prompt, width, height, cfModel) {
   if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
   const model = env.CF_IMAGE_MODEL || CF_FLUX_MODELS[cfModel] || CF_FLUX_MODELS['4b'];
-  // Кроки: більше = чіткіші деталі (ціна від кроків НЕ залежить — тарифікація за мегапікселі).
-  // 25 — значення з офіційного прикладу Cloudflare для klein 9B; для швидкої 4B трохи менше.
-  const defSteps = model.includes('9b') ? 25 : 15;
+  // Кроки: для klein ціна від кроків НЕ залежить (тариф за мегапікселі), для dev — залежить!
+  // 25 — з офіційного прикладу Cloudflare для klein 9B; dev тримаємо на 20 (баланс ціна/якість).
+  const defSteps = model.includes('flux-2-dev') ? 20 : (model.includes('9b') ? 25 : 15);
   let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : defSteps;
   if (!(steps >= 1 && steps <= 30)) steps = defSteps;
 
@@ -226,7 +229,7 @@ export async function onRequestPost({ request, env }) {
     const modelOverride = (body.model && String(body.model).trim()) || '';
     const gptQuality = (body.quality && String(body.quality).trim()) || '';
     const gptSize = (body.size && String(body.size).trim()) || '';
-    const cfModel = (body.cfModel === '9b') ? '9b' : '4b'; // модель FLUX для безкоштовного рушія
+    const cfModel = ['9b', 'dev'].includes(body.cfModel) ? body.cfModel : '4b'; // модель FLUX для безкоштовного рушія
     let out;
     if (engine === 'gpt') out = await runGPT(env, src, prompt, modelOverride, gptQuality, gptSize);
     else if (engine === 'premium') out = await runPremium(env, src, prompt);
