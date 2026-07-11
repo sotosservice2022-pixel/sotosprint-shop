@@ -376,6 +376,18 @@
   </div>
 
   <!-- 🏷 Код товару (артикул) -->
+  <!-- 🤖 AI-опис товару з фото -->
+  <div class="card no-collapse" id="aiDescribeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 id="aiDescribeHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">🤖 AI-опис товару з фото</h2>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+      <input type="checkbox" id="aiDescribeEnabled" />
+      <label for="aiDescribeEnabled" style="margin:0; font-weight:600; font-size:13px;">Показувати кнопку «Скласти з фото (AI)» у редакторі товару</label>
+    </div>
+    <div style="font-size: 12px; color: #6b7280; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+      💡 У редакторі товару зʼявиться кнопка: Gemini подивиться на головне фото і запропонує <strong>назву, опис і характеристики</strong>. Нічого не змінюється саме — ти обираєш, що вставити. Безкоштовно (потрібен ключ Gemini у розділі «AI-обробка фото»). Зберігається кнопкою <strong>«💾 Зберегти все»</strong>.
+    </div>
+  </div>
+
   <div class="card no-collapse" id="productCodeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 id="productCodeHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">🏷 Код товару (артикул)</h2>
     <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
@@ -505,6 +517,8 @@ async function loadAll() {
       if (allTabEl) allTabEl.checked = appSettings.showAllCategoriesTab !== false;
       if (defNameEl) defNameEl.value = appSettings.defaultCategoryName || 'Усі товари';
       // Коди товарів (артикули)
+      const aiDescEl = document.getElementById('aiDescribeEnabled');
+      if (aiDescEl) aiDescEl.checked = appSettings.aiDescribeEnabled === true;
       const pcEnEl = document.getElementById('productCodeEnabled');
       const pcShowEl = document.getElementById('productCodeShow');
       if (pcEnEl) pcEnEl.checked = appSettings.productCodeEnabled === true;
@@ -526,6 +540,7 @@ async function loadAll() {
       // Робимо згортуваними локально (стрілка ▸ зліва від заголовка) — єдиний вигляд для всіх.
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
       makeCollapsible(document.getElementById('sortCard'), document.getElementById('sortHeading'), 'collapse_sort', true);
+      makeCollapsible(document.getElementById('aiDescribeCard'), document.getElementById('aiDescribeHeading'), 'collapse_aidescribe', true);
       makeCollapsible(document.getElementById('productCodeCard'), document.getElementById('productCodeHeading'), 'collapse_productcode', true);
     }
     renderList();
@@ -900,6 +915,15 @@ function editProduct(idx) {
       <div class="grid">
         <div><label>Назва</label><textarea data-prop="name" rows="2" style="resize:vertical; white-space:pre-wrap;" placeholder="Назва товару. Натисни Enter, щоб перенести на новий рядок (видно на картці й у вікні товару).">${escapeHtml(p.name || '')}</textarea><div style="font-size:11px; color:#6b7280; margin-top:3px;">↵ Enter — перенос рядка (щоб назва з 2 слів не розбивалась як попало). У кошику/замовленні буде в один рядок.</div></div>
         <div><label>Короткий опис (для модального вікна)</label><textarea rows="3" id="ed-description" data-prop="description">${escapeHtml(p.description || '')}</textarea></div>
+        ${appSettings.aiDescribeEnabled ? `
+        <div id="aiDescribeBox" style="padding:10px 12px; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:10px;">
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-icon" type="button" onclick="aiDescribeFromPhoto()">🤖 Скласти з фото (AI)</button>
+            <span style="font-size:11px; color:#6b7280;">Безкоштовно (Gemini дивиться на головне фото). Нічого не змінює саме — ти обираєш, що вставити.</span>
+            <span id="aiDescribeStatus" style="font-size:11px; color:#6b7280; margin-left:auto; white-space:nowrap;"></span>
+          </div>
+          <div id="aiDescribeResult" style="margin-top:10px; display:none;"></div>
+        </div>` : ''}
         <div class="grid grid-3">
           <div><label>Ціна</label><input type="number" data-prop="price" value="${p.price || 0}" min="0" step="1" /></div>
           <div><label>Валюта</label><input type="text" data-prop="currency" value="${escapeAttr(p.currency || '₴')}" maxlength="5" /></div>
@@ -1051,8 +1075,9 @@ function editProduct(idx) {
     renderList();
   });
   // Rich-text редактор на опис товару (підключається після data-prop обробників —
-  // віджет диспатчить синтетичний 'input', тож p.description оновлюється сам)
-  if (window.initRichText) initRichText('#ed-description', { mode: 'full' });
+  // віджет диспатчить синтетичний 'input', тож p.description оновлюється сам).
+  // Зберігаємо handle, щоб AI-опис міг оновити віджет після заповнення поля.
+  window.__edDescRt = (window.initRichText ? initRichText('#ed-description', { mode: 'full' }) : null);
   // #2: наявність товару
   const showStockEl = document.getElementById('ed-showstock');
   const stockWrap = document.getElementById('ed-stock-wrap');
@@ -1304,6 +1329,102 @@ window.addAttr = () => {
   const p = products[currentIdx];
   p.attributes.push({ label: '', value: '' });
   renderAttrs(p);
+};
+
+// === AI-опис товару з фото (безкоштовна текстова Gemini) ===
+// Нічого не застосовує саме — показує результат, адмін тисне «Вставити» на потрібне.
+function mainImageUrl(p) {
+  const first = (p.images && p.images.length) ? p.images[0] : null;
+  const u = first ? (typeof first === 'object' ? first.url : first) : (p.image || '');
+  return u || '';
+}
+window.aiDescribeFromPhoto = async function () {
+  const p = products[currentIdx];
+  if (!p) return;
+  const imageUrl = mainImageUrl(p);
+  const status = document.getElementById('aiDescribeStatus');
+  const box = document.getElementById('aiDescribeResult');
+  if (!imageUrl) { if (status) { status.textContent = 'Спершу додай фото товару'; status.style.color = '#b45309'; } return; }
+  if (status) { status.textContent = '🤖 Gemini дивиться на фото…'; status.style.color = '#6b7280'; }
+  try {
+    const r = await fetch('/api/admin/photo-describe', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ imageUrl }),
+    });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const d = await r.json();
+    if (!d.ok) throw new Error(d.error || 'Помилка');
+    window.__aiDescribe = d; // зберігаємо для кнопок «Вставити»
+    if (status) { status.textContent = 'Готово — обери, що вставити'; status.style.color = '#16a34a'; }
+    renderAiDescribeResult(d);
+  } catch (e) {
+    if (status) { status.textContent = '⚠️ ' + e.message; status.style.color = '#b91c1c'; }
+  }
+};
+function renderAiDescribeResult(d) {
+  const box = document.getElementById('aiDescribeResult');
+  if (!box) return;
+  const attrsPreview = (d.attributes || []).map(a => `<div style="font-size:12px;">• <b>${escapeHtml(a.label)}:</b> ${escapeHtml(a.value)}</div>`).join('') || '<div style="font-size:12px; color:#9ca3af;">— немає —</div>';
+  box.style.display = '';
+  box.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <div style="background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <b style="font-size:12px; color:#374151;">Назва</b>
+          <button class="btn btn-primary btn-icon" type="button" onclick="aiApply('name')">Вставити ↴</button>
+        </div>
+        <div style="font-size:13px; margin-top:4px;">${escapeHtml(d.name || '—')}</div>
+      </div>
+      <div style="background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <b style="font-size:12px; color:#374151;">Опис</b>
+          <button class="btn btn-primary btn-icon" type="button" onclick="aiApply('description')">Вставити ↴</button>
+        </div>
+        <div style="font-size:13px; margin-top:4px; white-space:pre-wrap;">${escapeHtml(d.description || '—')}</div>
+      </div>
+      <div style="background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:8px 10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <b style="font-size:12px; color:#374151;">Характеристики (${(d.attributes || []).length})</b>
+          <button class="btn btn-primary btn-icon" type="button" onclick="aiApply('attributes')" ${(d.attributes||[]).length ? '' : 'disabled'}>Додати ↴</button>
+        </div>
+        <div style="margin-top:4px;">${attrsPreview}</div>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-secondary btn-icon" type="button" onclick="aiApply('all')">✅ Вставити все</button>
+        <button class="btn btn-secondary btn-icon" type="button" onclick="document.getElementById('aiDescribeResult').style.display='none'">Сховати</button>
+      </div>
+    </div>`;
+}
+window.aiApply = function (what) {
+  const d = window.__aiDescribe;
+  const p = products[currentIdx];
+  if (!d || !p) return;
+  if ((what === 'name' || what === 'all') && d.name) {
+    const ta = document.querySelector('#editor [data-prop="name"]');
+    if (ta) { ta.value = d.name; ta.dispatchEvent(new Event('input', { bubbles: true })); }
+  }
+  if ((what === 'description' || what === 'all') && d.description) {
+    const ta = document.getElementById('ed-description');
+    if (ta) {
+      ta.value = d.description;
+      ta.dispatchEvent(new Event('input', { bubbles: true })); // оновлює p.description
+      if (window.__edDescRt && window.__edDescRt.reload) window.__edDescRt.reload(); // оновлює віджет
+    }
+  }
+  if ((what === 'attributes' || what === 'all') && Array.isArray(d.attributes) && d.attributes.length) {
+    if (!Array.isArray(p.attributes)) p.attributes = [];
+    const have = new Set(p.attributes.map(a => (a.label || '').trim().toLowerCase()));
+    // приберемо порожній останній рядок, якщо є
+    p.attributes = p.attributes.filter(a => (a.label || a.value));
+    for (const a of d.attributes) {
+      if (have.has((a.label || '').trim().toLowerCase())) continue;
+      p.attributes.push({ label: a.label, value: a.value });
+      have.add((a.label || '').trim().toLowerCase());
+    }
+    renderAttrs(p);
+  }
+  if (typeof toast === 'function') toast('Вставлено ✓ — не забудь «Зберегти»');
 };
 
 // === Шильдики ===
@@ -1989,6 +2110,9 @@ async function saveAll(reopenEditor = true) {
     if (appSettings && Array.isArray(appSettings.badgeColors)) {
       serverSettings.badgeColors = appSettings.badgeColors;
     }
+    // === AI-опис товару з фото ===
+    const aiDescEl = document.getElementById('aiDescribeEnabled');
+    if (aiDescEl) serverSettings.aiDescribeEnabled = aiDescEl.checked;
     // === Коди товарів (артикули) ===
     const pcEnEl = document.getElementById('productCodeEnabled');
     const pcShowEl = document.getElementById('productCodeShow');
