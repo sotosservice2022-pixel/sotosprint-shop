@@ -349,7 +349,7 @@ const MODE_HINTS = {
 };
 const ENGINE_HINTS = {
   cloudflare: '🆓 FLUX.2 (Cloudflare) — безкоштовно, ключі не потрібні. Якість нижча за Gemini/GPT: дрібний текст/штрихкоди можуть спотворюватись.',
-  qwen: '🀄 Qwen-Image-Edit (ModelScope) — безкоштовно 2000/день, найкраще з безкоштовних тримає ТЕКСТ на фото. Потрібен токен (блок «🔑 Токен ModelScope»). Обробка може йти 1-2 хв.',
+  qwen: '🀄 Qwen-Image-Edit (ModelScope) — безкоштовно 2000/день, найкраще з безкоштовних тримає ТЕКСТ на фото. Потрібен токен (блок «🔑 Токен ModelScope»). НЕ швидкий: черга 5-15 хв на фото.',
   premium: '💎 Gemini — найкраща якість, ~$0.02–0.04/фото. Потрібен ключ (блок «🔑 Ключ Gemini»).',
   gpt: '🤖 GPT (gpt-image-1) — теж висока якість, ~$0.01–0.17/фото. Потрібен ключ (блок «🔑 Ключ OpenAI»).',
 };
@@ -437,9 +437,12 @@ async function awaitAiResult(d, onTick) {
   const jobId = d.jobId;
   const jobEngine = d.engine || undefined; // 'qwen' опитується інакше, ніж GPT
   const started = Date.now();
-  const MAX_MS = 5 * 60 * 1000; // 5 хв стелі на одну генерацію
+  // Стеля очікування: Qwen на безкоштовній черзі ModelScope реально рахує 5-15 хв,
+  // тому даємо йому більше; решті рушіїв — 5 хв як і було.
+  const MAX_MS = (jobEngine === 'qwen' ? 20 : 5) * 60 * 1000;
+  const POLL_MS = jobEngine === 'qwen' ? 6000 : 3000;
   while (Date.now() - started < MAX_MS) {
-    await new Promise(res => setTimeout(res, 3000));
+    await new Promise(res => setTimeout(res, POLL_MS));
     if (typeof onTick === 'function') onTick(Math.round((Date.now() - started) / 1000));
     const r = await fetch('/api/admin/photo-generate', {
       method: 'POST', credentials: 'include',
@@ -450,7 +453,9 @@ async function awaitAiResult(d, onTick) {
     if (pd.status === 'completed' && pd.url) return pd.url;
     // status:'pending' — продовжуємо опитувати
   }
-  throw new Error('Генерація триває надто довго. Спробуй ще раз або якість нижче.');
+  throw new Error(jobEngine === 'qwen'
+    ? 'Черга ModelScope зараз перевантажена (понад 20 хв). Спробуй пізніше або іншим рушієм.'
+    : 'Генерація триває надто довго. Спробуй ще раз або якість нижче.');
 }
 
 async function generateNow() {
