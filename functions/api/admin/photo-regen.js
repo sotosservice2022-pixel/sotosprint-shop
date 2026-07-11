@@ -129,59 +129,6 @@ async function runCloudflare(env, src, prompt, width, height, cfModel) {
   throw new Error('FLUX (Cloudflare) не зміг обробити фото після кількох спроб: ' + lastMsg + '. Спробуй ще раз або переключись на Gemini/GPT.');
 }
 
-// --- Безкоштовний рушій: Qwen-Image-Edit через ModelScope (2000 викликів/день) ---
-// Асинхронний: тут лише СТАРТ задачі (повертаємо jobId), опитування робить фронт
-// через /api/admin/photo-generate {action:'poll', engine:'qwen'}. Фішка Qwen-Edit —
-// найакуратніша серед безкоштовних робота з текстом на фото.
-async function startQwenEdit(env, request, sourceUrl, prompt) {
-  let key = env.MODELSCOPE_API_KEY;
-  if (!key && env.SHOP_KV) {
-    try { key = await env.SHOP_KV.get('modelscope_image_key'); } catch (_) {}
-  }
-  if (!key) throw new Error('Рушій Qwen не налаштовано: встав токен ModelScope у блоці «🔑 Токен ModelScope» (безкоштовно на modelscope.ai).');
-  // Токени modelscope.ai і modelscope.cn різні — пробуємо обидва домени;
-  // робочий кодуємо в jobId ('ai:<id>'|'cn:<id>'), опитування піде на той самий.
-  const BASES = { ai: 'https://api-inference.modelscope.ai/v1', cn: 'https://api-inference.modelscope.cn/v1' };
-  const model = env.QWEN_EDIT_MODEL || 'Qwen/Qwen-Image-Edit-2509';
-  const origin = new URL(request.url).origin;
-  const imageUrl = String(sourceUrl).startsWith('http') ? sourceUrl : origin + sourceUrl;
-
-  const tryStart = async (tag) => {
-    const r = await fetch(BASES[tag] + '/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + key,
-        'Content-Type': 'application/json',
-        'X-ModelScope-Async-Mode': 'true',
-        'X-ModelScope-Task-Type': 'image-to-image-generation',
-      },
-      body: JSON.stringify({ model, prompt, image_url: imageUrl }),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      const msg = (data && (data.errors?.message || data.message || data.error)) || ('HTTP ' + r.status);
-      const e = new Error('ModelScope: ' + String(msg).slice(0, 300));
-      e.isAuth = r.status === 401 || r.status === 403 || /authentication|token/i.test(String(msg));
-      throw e;
-    }
-    const taskId = data.task_id || data.taskId || (data.data && data.data.task_id);
-    if (!taskId) throw new Error('ModelScope не повернув ідентифікатор задачі');
-    return tag + ':' + taskId;
-  };
-
-  try {
-    return await tryStart('ai');
-  } catch (e) {
-    if (!e.isAuth) throw e;
-    try {
-      return await tryStart('cn');
-    } catch (e2) {
-      // Обидва домени відмовили — показуємо повідомлення міжнародного (.ai)
-      throw e2.isAuth ? e : e2;
-    }
-  }
-}
-
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
 async function runPremium(env, { buf, contentType }, prompt) {
   // Ключ: спочатку секрет IMAGE_API_KEY, інакше — збережений в адмінці (KV ai_image_key)
@@ -271,18 +218,13 @@ export async function onRequestPost({ request, env }) {
 
   const sourceUrl = body.sourceUrl;
   const prompt = (body.prompt && String(body.prompt).trim()) || DEFAULT_PROMPT;
-  const allowed = ['premium', 'gpt', 'cloudflare', 'qwen'];
+  const allowed = ['premium', 'gpt', 'cloudflare'];
   const engine = allowed.includes(body.engine) ? body.engine : 'premium';
   let width = parseInt(body.width, 10); if (!(width >= 256 && width <= 2048)) width = 1024;
   let height = parseInt(body.height, 10); if (!(height >= 256 && height <= 2048)) height = 1024;
   const prefixMap = { premium: 'regen-pro', gpt: 'regen-gpt', cloudflare: 'regen-cf' };
 
   try {
-    // Qwen — асинхронний: віддаємо jobId, фронт опитує /photo-generate {action:'poll', engine:'qwen'}
-    if (engine === 'qwen') {
-      const jobId = await startQwenEdit(env, request, sourceUrl, prompt);
-      return jsonResp({ ok: true, status: 'pending', jobId, engine: 'qwen' });
-    }
     const src = await loadSource(env, sourceUrl);
     const modelOverride = (body.model && String(body.model).trim()) || '';
     const gptQuality = (body.quality && String(body.quality).trim()) || '';

@@ -116,104 +116,6 @@ async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
   throw new Error('FLUX (Cloudflare) не зміг згенерувати зображення: ' + lastMsg + '. Спробуй ще раз або переключись на Gemini/GPT.');
 }
 
-// --- Безкоштовний рушій: Qwen-Image / Qwen-Image-Edit через ModelScope API-Inference ---
-// 2000 безкоштовних викликів/день; фішка Qwen-Edit — найакуратніша робота з ТЕКСТОМ на фото.
-// Асинхронний API: POST /v1/images/generations (X-ModelScope-Async-Mode) → task_id,
-// потім GET /v1/tasks/<id> до SUCCEED → output_images[0] (url картинки).
-// Токени міжнародного modelscope.ai і китайського modelscope.cn — РІЗНІ, тому пробуємо
-// обидва домени; який спрацював — кодуємо в jobId ('ai:<id>' | 'cn:<id>'), щоб опитувати той самий.
-const QWEN_BASES = {
-  ai: 'https://api-inference.modelscope.ai/v1',
-  cn: 'https://api-inference.modelscope.cn/v1',
-};
-
-async function getQwenKey(env) {
-  let key = env.MODELSCOPE_API_KEY;
-  if (!key && env.SHOP_KV) {
-    try { key = await env.SHOP_KV.get('modelscope_image_key'); } catch (_) {}
-  }
-  return key;
-}
-
-// Старт задачі. imageUrl (публічний URL фото) → режим редагування, без нього — чиста генерація.
-async function startQwen(env, prompt, imageUrl, sizeStr) {
-  const key = await getQwenKey(env);
-  if (!key) throw new Error('Рушій Qwen не налаштовано: встав токен ModelScope у блоці «🔑 Токен ModelScope» (безкоштовно на modelscope.ai).');
-  const model = imageUrl
-    ? (env.QWEN_EDIT_MODEL || 'Qwen/Qwen-Image-Edit-2509')
-    : (env.QWEN_T2I_MODEL || 'Qwen/Qwen-Image');
-  const body = { model, prompt };
-  if (imageUrl) body.image_url = imageUrl;
-  else if (sizeStr) body.size = sizeStr;
-
-  const tryStart = async (tag) => {
-    const r = await fetch(QWEN_BASES[tag] + '/images/generations', {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + key,
-        'Content-Type': 'application/json',
-        'X-ModelScope-Async-Mode': 'true',
-        'X-ModelScope-Task-Type': imageUrl ? 'image-to-image-generation' : 'text-to-image-generation',
-      },
-      body: JSON.stringify(body),
-    });
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      const msg = (data && (data.errors?.message || data.message || data.error)) || ('HTTP ' + r.status);
-      const e = new Error('ModelScope: ' + String(msg).slice(0, 300));
-      e.isAuth = r.status === 401 || r.status === 403 || /authentication|token/i.test(String(msg));
-      throw e;
-    }
-    const taskId = data.task_id || data.taskId || (data.data && data.data.task_id);
-    if (!taskId) throw new Error('ModelScope не повернув ідентифікатор задачі');
-    return tag + ':' + taskId;
-  };
-
-  try {
-    return await tryStart('ai');   // міжнародний акаунт — найімовірніший
-  } catch (e) {
-    if (!e.isAuth) throw e;
-    try {
-      return await tryStart('cn'); // токен може бути з китайського modelscope.cn
-    } catch (e2) {
-      // Обидва домени відмовили — показуємо повідомлення міжнародного (.ai), воно
-      // зазвичай інформативніше (напр., «Please bind your Alibaba Cloud account…»)
-      throw e2.isAuth ? e : e2;
-    }
-  }
-}
-
-// Опитування задачі: { status:'completed', img } | { status:'pending' }; кидає при FAILED.
-// jobId має вигляд 'ai:<taskId>' або 'cn:<taskId>' — опитуємо той самий домен, де стартували.
-async function pollQwen(env, jobId) {
-  const key = await getQwenKey(env);
-  if (!key) throw new Error('Рушій Qwen не налаштовано (токен ModelScope зник?).');
-  const m = /^(ai|cn):(.+)$/.exec(String(jobId));
-  const base = m ? QWEN_BASES[m[1]] : QWEN_BASES.cn;
-  const taskId = m ? m[2] : String(jobId);
-  const r = await fetch(base + '/tasks/' + encodeURIComponent(taskId), {
-    method: 'GET',
-    headers: { 'Authorization': 'Bearer ' + key, 'X-ModelScope-Task-Type': 'image_generation' },
-  });
-  const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error('ModelScope: HTTP ' + r.status + ' ' + JSON.stringify(data).slice(0, 200));
-  const st = String(data.task_status || data.status || '').toUpperCase();
-  if (st === 'SUCCEED' || st === 'SUCCEEDED') {
-    const outUrl = Array.isArray(data.output_images) && data.output_images[0];
-    if (!outUrl) throw new Error('ModelScope не повернув зображення');
-    const imgResp = await fetch(outUrl);
-    if (!imgResp.ok) throw new Error('Не вдалося завантажити результат (HTTP ' + imgResp.status + ')');
-    const buf = await imgResp.arrayBuffer();
-    const ct = imgResp.headers.get('content-type') || 'image/png';
-    return { status: 'completed', img: { bytes: new Uint8Array(buf), contentType: ct } };
-  }
-  if (st === 'FAILED' || st === 'CANCELED') {
-    const msg = (data.errors && (data.errors.message || data.errors.code)) || st;
-    throw new Error('Qwen не впорався: ' + String(msg).slice(0, 300));
-  }
-  return { status: 'pending' };
-}
-
 // --- Gemini: генерація (текст + опціональні референси) ---
 async function runPremium(env, prompt, refs, aspectRatio) {
   let apiKey = env.IMAGE_API_KEY;
@@ -362,20 +264,19 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалідний JSON' }, 400); }
 
-  const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt', cloudflare: 'gen-cf', qwen: 'qwen' };
+  const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt', cloudflare: 'gen-cf' };
 
-  // === ОПИТУВАННЯ фонового завдання (action:'poll', jobId, engine?) ===
-  // Спільне для GPT (OpenAI background) і Qwen (ModelScope async). Кожен запит короткий →
-  // не впирається в таймаут шлюзу. Коли completed — зберігаємо картинку в R2 і повертаємо url.
+  // === ОПИТУВАННЯ фонового GPT-завдання (action:'poll', jobId) ===
+  // Кожен запит короткий → не впирається в таймаут шлюзу. Коли completed — зберігаємо
+  // картинку в R2 і повертаємо url. Поки pending — клієнт опитує далі.
   if (body.action === 'poll') {
     const jobId = (body.jobId && String(body.jobId).trim()) || '';
     if (!jobId) return jsonResp({ ok: false, error: 'Немає jobId' }, 400);
-    const pollEngine = (body.engine === 'qwen') ? 'qwen' : 'gpt';
     try {
-      const res = pollEngine === 'qwen' ? await pollQwen(env, jobId) : await pollGPTBackground(env, jobId);
+      const res = await pollGPTBackground(env, jobId);
       if (res.status === 'completed') {
-        const url = await putToR2(env, res.img.bytes, res.img.contentType, prefixMap[pollEngine]);
-        return jsonResp({ ok: true, status: 'completed', url, engine: pollEngine });
+        const url = await putToR2(env, res.img.bytes, res.img.contentType, prefixMap.gpt);
+        return jsonResp({ ok: true, status: 'completed', url, engine: 'gpt' });
       }
       return jsonResp({ ok: true, status: 'pending' });
     } catch (e) {
@@ -386,7 +287,7 @@ export async function onRequestPost({ request, env }) {
   const prompt = (body.prompt && String(body.prompt).trim()) || '';
   if (!prompt) return jsonResp({ ok: false, error: 'Вкажи опис зображення (поле «Опис»)' }, 400);
 
-  const engine = ['gpt', 'cloudflare', 'qwen'].includes(body.engine) ? body.engine : 'premium';
+  const engine = ['gpt', 'cloudflare'].includes(body.engine) ? body.engine : 'premium';
   const refUrls = Array.isArray(body.refUrls) ? body.refUrls.slice(0, 4) : [];
 
   // Формат/орієнтація: квадрат | A4 книжкова (вертикальна) | A4 альбомна (горизонтальна)
@@ -395,15 +296,6 @@ export async function onRequestPost({ request, env }) {
   const format = ['square', 'a4p', 'a4l'].includes(body.format) ? body.format : 'square';
 
   try {
-    // Qwen (ModelScope) — асинхронний старт; референс передаємо ПУБЛІЧНИМ URL (їхній
-    // сервер сам його завантажить), тому байти фото не читаємо.
-    if (engine === 'qwen') {
-      const origin = new URL(request.url).origin;
-      const refUrl = refUrls[0] ? (String(refUrls[0]).startsWith('http') ? refUrls[0] : origin + refUrls[0]) : null;
-      const jobId = await startQwen(env, prompt, refUrl, FORMAT_TO_SIZE[format]);
-      return jsonResp({ ok: true, status: 'pending', jobId, engine: 'qwen' });
-    }
-
     const refs = [];
     for (const u of refUrls) {
       const ref = await loadRef(env, u);
