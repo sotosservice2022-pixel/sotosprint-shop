@@ -461,7 +461,7 @@ async function generateNow() {
     });
     const d = await parseAiResponse(r);
     item.afterUrl = await awaitAiResult(d, secs => { item.error = null; item.tick = secs; renderItem(item); });
-    item.tick = null; item.afterKind = 'regen'; item.status = 'done';
+    item.tick = null; item.afterKind = 'regen'; item.method = methodLabel('generate'); item.status = 'done';
   } catch (e) {
     item.status = 'err'; item.error = e.message; item.tick = null;
   }
@@ -493,6 +493,21 @@ async function addFiles(fileList) {
 }
 
 // ---------- обробка ----------
+// Людська позначка «чим оброблено» — пишеться на картку результату.
+// kind: 'enhance' | 'regen' | 'generate' (передаємо явно, бо mode на момент
+// повтору генерації може бути вже інший).
+function methodLabel(kind) {
+  if (kind === 'enhance') {
+    const bg = document.getElementById('bgSelect').value;
+    const bgNames = { white: 'білий фон', transparent: 'прозорий фон', '%23f4f6fa': 'сірий фон', keep: 'без вирізання, освітлено' };
+    return '🧼 Покращення · ' + (bgNames[bg] || bg);
+  }
+  const m = (kind === 'generate') ? '✨ Створення' : '🎨 Пересоздання';
+  if (engine === 'cloudflare') return m + ' · FLUX ' + getCfModel().toUpperCase();
+  if (engine === 'gpt') return m + ' · GPT (' + (getGptModel() || 'gpt-5.4-mini') + ')';
+  return m + ' · Gemini';
+}
+
 function enhanceUrl(srcUrl, bg) {
   // «Не вирізати»: біла упаковка на світлому столі — сегментація плутає біле з фоном
   // і «їсть» краї коробки. Тому фон не чіпаємо, а лише освітлюємо стіл яскравістю/контрастом
@@ -517,6 +532,7 @@ async function processOne(item) {
     if (mode === 'enhance') {
       item.afterUrl = enhanceUrl(item.srcUrl, bg);
       item.afterKind = 'enhance';
+      item.method = methodLabel('enhance');
     } else {
       // преміум-моделі стабільніше працюють із меншим вхідним фото — копія <=1024px.
       if (!item.regenSrcUrl) {
@@ -534,6 +550,7 @@ async function processOne(item) {
       });
       const d = await parseAiResponse(r);
       item.afterUrl = d.url; item.afterKind = 'regen';
+      item.method = methodLabel('regen');
     }
     item.status = 'done';
   } catch (e) {
@@ -578,7 +595,7 @@ async function retryGen(id) {
     });
     const d = await parseAiResponse(r);
     item.afterUrl = await awaitAiResult(d, secs => { item.error = null; item.tick = secs; renderItem(item); });
-    item.tick = null; item.afterKind = 'regen'; item.status = 'done';
+    item.tick = null; item.afterKind = 'regen'; item.method = methodLabel('generate'); item.status = 'done';
   } catch (e) {
     item.status = 'err'; item.error = e.message; item.tick = null;
   }
@@ -618,7 +635,7 @@ function saveItems() {
       .filter(i => i.srcUrl || i.afterUrl)  // завантажене фото АБО згенерований результат (URL переживають перезавантаження)
       .map(i => ({
         id: i.id, name: i.name, srcUrl: i.srcUrl || null, afterUrl: i.afterUrl || null,
-        afterKind: i.afterKind || null, regenSrcUrl: i.regenSrcUrl || null,
+        afterKind: i.afterKind || null, regenSrcUrl: i.regenSrcUrl || null, method: i.method || null,
         gen: i.gen || false, prompt: i.prompt || null, refUrl: i.refUrl || null, format: i.format || null,
         // транзитні стани не зберігаємо як є — інакше після перезавантаження «зависнуть»
         status: (i.status === 'uploading' || i.status === 'busy')
@@ -687,12 +704,17 @@ function renderItem(item) {
     <div class="item-actions">${stateBtns}
       <button class="btn btn-secondary btn-icon" onclick="removeItem('${item.id}')">🗑 Видалити</button>
     </div>`;
+  // Позначка «чим оброблено» — щоб серед результатів було видно режим/рушій/фон
+  const methodLine = (item.method && item.afterUrl)
+    ? `<div style="font-size:11px; color:#94a3b8; margin-top:2px; line-height:1.3;">${item.method}</div>`
+    : '';
   el.innerHTML = `
     <div class="ba">
       <div class="pane"><div class="cap">ДО</div>${beforePane}</div>
       <div class="pane"><div class="cap">ПІСЛЯ</div>${afterPane}</div>
     </div>
     <div class="status ${scls}">${stxt}</div>
+    ${methodLine}
     ${actions}`;
 }
 
