@@ -1,7 +1,9 @@
 // POST /api/admin/photo-describe — БЕЗКОШТОВНЕ авто-описання товару по фото.
-// Використовує ТЕКСТОВУ модель Gemini (gemini-2.5-flash) — вона «бачить» фото і повертає
-// ТЕКСТ (назву/опис/характеристики). Це НЕ генерація картинок, тому працює на безкоштовній
-// квоті Gemini (на відміну від gemini-2.5-flash-image).
+// Використовує ТЕКСТОВУ модель Gemini (за замовч. gemini-3.5-flash) — вона «бачить» фото і
+// повертає ТЕКСТ (назву/опис/характеристики). Це НЕ генерація картинок, тому працює на
+// безкоштовній квоті Gemini (на відміну від gemini-*-image).
+// Модель можна перевизначити через env GEMINI_TEXT_MODEL або body.model (Google періодично
+// знімає старі моделі — тоді просто вкажи нову тут).
 //
 // Тіло JSON: { imageUrl: '/api/storage/<key>' | 'https://...' , model?: string }
 // Повертає: { ok, name, description, attributes: [{label, value}] }
@@ -79,7 +81,7 @@ export async function onRequestPost({ request, env }) {
   // ТЕКСТОВА модель (не -image!): безкоштовна квота є. Можна перевизначити.
   const reqModel = (body.model && String(body.model).trim()) || '';
   const safeModel = /^[a-z0-9][\w.\-:]{1,80}$/i.test(reqModel) ? reqModel : '';
-  const model = safeModel || env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash';
+  const model = safeModel || env.GEMINI_TEXT_MODEL || 'gemini-3.5-flash';
 
   try {
     const img = await loadImage(env, request, imageUrl);
@@ -103,6 +105,9 @@ export async function onRequestPost({ request, env }) {
       const msg = data?.error?.message || ('HTTP ' + r.status);
       // 429 = вичерпана квота (безкоштовний текст теж має ліміти RPM/RPD)
       if (r.status === 429) return jsonResp({ ok: false, error: 'Ліміт запитів Gemini вичерпано. Зачекай хвилину і спробуй ще.' }, 429);
+      if (/no longer available|not found|not supported|deprecated/i.test(String(msg))) {
+        return jsonResp({ ok: false, error: 'Модель «' + model + '» більше недоступна. Онови GEMINI_TEXT_MODEL на актуальну (напр. gemini-3.5-flash) або передай іншу.' }, 500);
+      }
       return jsonResp({ ok: false, error: 'Gemini: ' + String(msg).slice(0, 300) }, 500);
     }
     const txt = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
