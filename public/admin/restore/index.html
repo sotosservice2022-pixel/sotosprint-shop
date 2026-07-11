@@ -116,12 +116,19 @@
       </div>
 
       <div id="engineWrap" style="display:none;">
-        <div class="field-label">Рушій (платно)</div>
+        <div class="field-label">Рушій</div>
         <div class="seg" id="engineSeg">
+          <button data-engine="cloudflare">🆓 FLUX</button>
           <button data-engine="premium" class="active">💎 Gemini</button>
           <button data-engine="gpt">🤖 GPT</button>
         </div>
         <div class="hint" id="engineHint"></div>
+        <div id="cfModelWrap" style="display:none; margin-top:8px;">
+          <select id="cfModelSelect">
+            <option value="4b" selected>⚡ FLUX швидкий (4B) — сотні фото/день безкоштовно</option>
+            <option value="9b">✨ FLUX якісний (9B) — ~7 фото/день безкоштовно</option>
+          </select>
+        </div>
       </div>
 
       <div id="bgWrap">
@@ -304,7 +311,7 @@ async function logout() {
 const LS = 'restorePagePrefs';
 function loadPrefs() { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } }
 function savePrefs() {
-  localStorage.setItem(LS, JSON.stringify({ mode, engine, bg: document.getElementById('bgSelect').value }));
+  localStorage.setItem(LS, JSON.stringify({ mode, engine, bg: document.getElementById('bgSelect').value, cfModel: document.getElementById('cfModelSelect').value }));
 }
 
 // ---------- стан ----------
@@ -319,9 +326,10 @@ let genRefFile = null;     // оригінальний файл референс
 const MODE_HINTS = {
   enhance: '✅ Реальний товар: прибираємо фон, кроп, різкість. Принт/текст лишається 1:1. Безкоштовно.',
   regen: '🎨 AI перемальовує фото у студійну якість. Ідеально для заготовок без принта. Для іменних — обережно (перевіряй текст).',
-  generate: '✨ Створює нове зображення за твоїм описом. Фото-приклад — необов\'язковий. Оплачується за ключем (Gemini/GPT).',
+  generate: '✨ Створює нове зображення за твоїм описом. Фото-приклад — необов\'язковий. Рушії: безкоштовний FLUX або платні Gemini/GPT.',
 };
 const ENGINE_HINTS = {
+  cloudflare: '🆓 FLUX.2 (Cloudflare) — безкоштовно, ключі не потрібні. Якість нижча за Gemini/GPT: дрібний текст/штрихкоди можуть спотворюватись.',
   premium: '💎 Gemini — найкраща якість, ~$0.02–0.04/фото. Потрібен ключ (блок «🔑 Ключ Gemini»).',
   gpt: '🤖 GPT (gpt-image-1) — теж висока якість, ~$0.01–0.17/фото. Потрібен ключ (блок «🔑 Ключ OpenAI»).',
 };
@@ -342,11 +350,14 @@ function setEngine(e) {
   engine = e;
   document.querySelectorAll('#engineSeg button').forEach(b => b.classList.toggle('active', b.dataset.engine === e));
   document.getElementById('engineHint').textContent = ENGINE_HINTS[e];
+  document.getElementById('cfModelWrap').style.display = (e === 'cloudflare') ? '' : 'none';
   savePrefs();
 }
+function getCfModel() { return document.getElementById('cfModelSelect').value === '9b' ? '9b' : '4b'; }
 document.querySelectorAll('#modeSeg button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
 document.querySelectorAll('#engineSeg button').forEach(b => b.onclick = () => setEngine(b.dataset.engine));
 document.getElementById('bgSelect').onchange = savePrefs;
+document.getElementById('cfModelSelect').onchange = savePrefs;
 
 // ---------- завантаження файлів ----------
 const dz = document.getElementById('dropZone');
@@ -443,6 +454,7 @@ async function generateNow() {
         prompt, engine, format: getGenFormat(),
         refUrls: genRefUrl ? [genRefUrl] : [],
         model: gptModel || undefined, quality: gptQuality || undefined,
+        cfModel: engine === 'cloudflare' ? getCfModel() : undefined,
       }),
     });
     const d = await parseAiResponse(r);
@@ -510,7 +522,7 @@ async function processOne(item) {
       const r = await fetch('/api/admin/photo-regen', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined }),
+        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined, cfModel: engine === 'cloudflare' ? getCfModel() : undefined }),
       });
       const d = await parseAiResponse(r);
       item.afterUrl = d.url; item.afterKind = 'regen';
@@ -553,6 +565,7 @@ async function retryGen(id) {
         format: item.format || getGenFormat(),
         refUrls: item.refUrl ? [item.refUrl] : [],
         model: gptModel || undefined, quality: gptQuality || undefined,
+        cfModel: engine === 'cloudflare' ? getCfModel() : undefined,
       }),
     });
     const d = await parseAiResponse(r);
@@ -750,9 +763,10 @@ async function confirmAttach() {
   if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
   const p = loadPrefs();
   if (p.bg) document.getElementById('bgSelect').value = p.bg;
+  if (p.cfModel === '9b' || p.cfModel === '4b') document.getElementById('cfModelSelect').value = p.cfModel;
   setMode(p.mode || 'enhance');
   let eng = p.engine;
-  if (eng !== 'premium' && eng !== 'gpt') eng = 'premium'; // міграція зі старого 'cloudflare'
+  if (!['premium', 'gpt', 'cloudflare'].includes(eng)) eng = 'premium';
   setEngine(eng);
   refreshKeyStatus('gemini');
   refreshKeyStatus('openai');

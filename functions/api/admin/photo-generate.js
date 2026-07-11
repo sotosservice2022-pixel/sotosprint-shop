@@ -3,7 +3,8 @@
 // Тіло JSON: {
 //   prompt: string                     // ОБОВ'ЯЗКОВО — опис, що згенерувати
 //   refUrls?: string[]                 // 0+ референсних фото (вже в R2, /api/storage/<key>)
-//   engine?: 'premium' | 'gpt'         // Gemini (премиум) або OpenAI GPT
+//   engine?: 'premium' | 'gpt' | 'cloudflare'  // Gemini, OpenAI GPT або безкоштовний FLUX.2 (Workers AI)
+//   cfModel?: '4b' | '9b'              // модель FLUX для engine='cloudflare' (типово 4b)
 //   model?, quality?, size?            // для GPT
 // }
 // Повертає: { ok, url: '/api/storage/<newKey>', engine }
@@ -48,6 +49,64 @@ async function loadRef(env, url) {
   const buf = await obj.arrayBuffer();
   const contentType = obj.httpMetadata?.contentType || 'image/jpeg';
   return { buf, contentType };
+}
+
+// --- Безкоштовний рушій: Cloudflare Workers AI — FLUX.2 [klein] ---
+// Генерація за описом; референси (0..4) передаються як input_image_0..3.
+// '4b' — швидка/дешева (сотні фото/день у безкоштовному ліміті), '9b' — якісніша (~7/день).
+const CF_FLUX_MODELS = {
+  '4b': '@cf/black-forest-labs/flux-2-klein-4b',
+  '9b': '@cf/black-forest-labs/flux-2-klein-9b',
+};
+
+async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
+  if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
+  const model = env.CF_IMAGE_MODEL || CF_FLUX_MODELS[cfModel] || CF_FLUX_MODELS['4b'];
+  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 8;
+  if (!(steps >= 1 && steps <= 30)) steps = 8;
+  const m = /^(\d+)x(\d+)$/.exec(String(sizeStr || '1024x1024'));
+  const width = m ? parseInt(m[1], 10) : 1024;
+  const height = m ? parseInt(m[2], 10) : 1024;
+
+  const callOnce = async () => {
+    const form = new FormData();
+    form.append('prompt', prompt);
+    refs.slice(0, 4).forEach((ref, i) => {
+      form.append('input_image_' + i, new Blob([ref.buf], { type: ref.contentType || 'image/jpeg' }), 'ref' + i + '.jpg');
+    });
+    form.append('steps', String(steps));
+    form.append('width', String(width));
+    form.append('height', String(height));
+    const fr = new Response(form);
+    const res = await env.AI.run(model, {
+      multipart: { body: fr.body, contentType: fr.headers.get('content-type') },
+    });
+    if (res && typeof res.image === 'string') return { bytes: b64ToBytes(res.image), contentType: 'image/png' };
+    if (typeof res === 'string') return { bytes: b64ToBytes(res), contentType: 'image/png' };
+    let ab;
+    if (res instanceof ArrayBuffer) ab = res;
+    else if (res && typeof res.arrayBuffer === 'function') ab = await res.arrayBuffer();
+    else ab = await new Response(res).arrayBuffer();
+    if (!ab || ab.byteLength === 0) throw new Error('Порожня відповідь від моделі');
+    return { bytes: new Uint8Array(ab), contentType: 'image/png' };
+  };
+
+  let lastErr;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      return await callOnce();
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e && e.message || e);
+      if (/binding|no such model|invalid|required propert|allocation|limit/i.test(msg)) break;
+      if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * attempt));
+    }
+  }
+  const lastMsg = String(lastErr && lastErr.message || lastErr);
+  if (/allocation|limit|quota|429/i.test(lastMsg)) {
+    throw new Error('Вичерпано безкоштовний денний ліміт Workers AI (оновлюється о 02:00 за Києвом). Спробуй завтра або переключись на Gemini/GPT.');
+  }
+  throw new Error('FLUX (Cloudflare) не зміг згенерувати зображення: ' + lastMsg + '. Спробуй ще раз або переключись на Gemini/GPT.');
 }
 
 // --- Gemini: генерація (текст + опціональні референси) ---
@@ -198,7 +257,7 @@ export async function onRequestPost({ request, env }) {
   let body;
   try { body = await request.json(); } catch { return jsonResp({ ok: false, error: 'Невалідний JSON' }, 400); }
 
-  const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt' };
+  const prefixMap = { premium: 'gen-pro', gpt: 'gen-gpt', cloudflare: 'gen-cf' };
 
   // === ОПИТУВАННЯ фонового GPT-завдання (action:'poll', jobId) ===
   // Кожен запит короткий → не впирається в таймаут шлюзу. Коли completed — зберігаємо
@@ -221,7 +280,7 @@ export async function onRequestPost({ request, env }) {
   const prompt = (body.prompt && String(body.prompt).trim()) || '';
   if (!prompt) return jsonResp({ ok: false, error: 'Вкажи опис зображення (поле «Опис»)' }, 400);
 
-  const engine = (body.engine === 'gpt') ? 'gpt' : 'premium';
+  const engine = ['gpt', 'cloudflare'].includes(body.engine) ? body.engine : 'premium';
   const refUrls = Array.isArray(body.refUrls) ? body.refUrls.slice(0, 4) : [];
 
   // Формат/орієнтація: квадрат | A4 книжкова (вертикальна) | A4 альбомна (горизонтальна)
@@ -243,6 +302,13 @@ export async function onRequestPost({ request, env }) {
     if (engine === 'gpt') {
       const jobId = await startGPTBackground(env, prompt, refs, gptQuality, gptSize, gptModel);
       return jsonResp({ ok: true, status: 'pending', jobId, engine: 'gpt' });
+    }
+    // Безкоштовний FLUX.2 (Workers AI) → синхронно (klein швидка, у таймаут вкладається)
+    if (engine === 'cloudflare') {
+      const cfModel = (body.cfModel === '9b') ? '9b' : '4b';
+      const out = await runCloudflareGen(env, prompt, refs, FORMAT_TO_SIZE[format], cfModel);
+      const url = await putToR2(env, out.bytes, out.contentType, prefixMap.cloudflare);
+      return jsonResp({ ok: true, status: 'completed', url, engine: 'cloudflare' });
     }
     // Gemini → синхронно (швидкий, у таймаут вкладається)
     const out = await runPremium(env, prompt, refs, FORMAT_TO_AR[format]);

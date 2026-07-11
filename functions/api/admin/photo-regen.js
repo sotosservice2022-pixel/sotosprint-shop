@@ -2,7 +2,8 @@
 // Тіло JSON: {
 //   sourceUrl: '/api/storage/<key>'   // вихідне фото (вже завантажене в R2)
 //   prompt?: string                    // опис; якщо нема — дефолтний студійний
-//   engine?: 'cloudflare' | 'premium'  // безкоштовний Workers AI FLUX або платний (Gemini)
+//   engine?: 'cloudflare' | 'premium' | 'gpt'  // безкоштовний Workers AI FLUX.2 або платні
+//   cfModel?: '4b' | '9b'              // модель FLUX для engine='cloudflare' (типово 4b)
 //   width?, height?: number            // розмір (за замовч. 1024)
 // }
 // Повертає: { ok, url: '/api/storage/<newKey>' }
@@ -57,42 +58,49 @@ async function loadSource(env, sourceUrl) {
   return { buf, contentType };
 }
 
-// --- Безкоштовний рушій: Cloudflare Workers AI — Stable Diffusion XL (img2img) ---
-// Стабільна GA-модель (на відміну від beta FLUX, що віддавав 3043). Вхід — байти фото <=1024px.
-// Налаштування через env: CF_IMAGE_MODEL, CF_IMG_STRENGTH (0..1), CF_IMG_STEPS (<=20).
-async function runCloudflare(env, src, prompt, width, height) {
-  if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
-  const model = env.CF_IMAGE_MODEL || '@cf/runwayml/stable-diffusion-v1-5-img2img';
-  let strength = env.CF_IMG_STRENGTH ? parseFloat(env.CF_IMG_STRENGTH) : 0.6;
-  if (!(strength > 0 && strength <= 1)) strength = 0.6;
-  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 20;
-  if (!(steps >= 1 && steps <= 20)) steps = 20;
+// --- Безкоштовний рушій: Cloudflare Workers AI — FLUX.2 [klein] (генерація + редагування) ---
+// Приймає вхідне фото як референс (input_image_0) і перемальовує за промптом.
+// Дві моделі на вибір із фронта (body.cfModel):
+//   '4b' → flux-2-klein-4b — дешева/швидка: у безкоштовний денний ліміт (10k нейронів)
+//          влазять СОТНІ фото — саме для масової обробки;
+//   '9b' → flux-2-klein-9b — якісніша, але ~1360 нейронів/фото → лише ~7 фото/день безкоштовно.
+// env.CF_IMAGE_MODEL перекриває все (повний id @cf/...), env.CF_IMG_STEPS — кроки (1..30).
+const CF_FLUX_MODELS = {
+  '4b': '@cf/black-forest-labs/flux-2-klein-4b',
+  '9b': '@cf/black-forest-labs/flux-2-klein-9b',
+};
 
-  const imageBytes = Array.from(new Uint8Array(src.buf)); // сирі байти файлу (JPEG/PNG)
+async function runCloudflare(env, src, prompt, width, height, cfModel) {
+  if (!env.AI) throw new Error('Workers AI не підключено (binding AI). Додай [ai] binding="AI" у wrangler.toml і задеплой.');
+  const model = env.CF_IMAGE_MODEL || CF_FLUX_MODELS[cfModel] || CF_FLUX_MODELS['4b'];
+  // klein — дистильована модель, працює за малу к-сть кроків (більше ≠ краще, але дорожче)
+  let steps = env.CF_IMG_STEPS ? parseInt(env.CF_IMG_STEPS, 10) : 8;
+  if (!(steps >= 1 && steps <= 30)) steps = 8;
 
   const callOnce = async () => {
-    const inputs = {
-      prompt,
-      negative_prompt: 'blurry, low quality, distorted, deformed, watermark, text, logo, extra objects, cropped',
-      image: imageBytes,
-      strength,
-      num_steps: steps,
-      guidance: 7.5,
-    };
-    // SDXL повертає бінарний потік PNG
-    const res = await env.AI.run(model, inputs);
+    // FLUX.2 на Workers AI приймає multipart-форму: prompt + input_image_0..3 (файли)
+    const form = new FormData();
+    form.append('prompt', prompt);
+    form.append('input_image_0', new Blob([src.buf], { type: src.contentType || 'image/jpeg' }), 'source.jpg');
+    form.append('steps', String(steps));
+    form.append('width', String(width || 1024));
+    form.append('height', String(height || 1024));
+    const fr = new Response(form);
+    const res = await env.AI.run(model, {
+      multipart: { body: fr.body, contentType: fr.headers.get('content-type') },
+    });
+    // Відповідь: JSON { image: <base64> }, але тримаємо гнучкий розбір на всі випадки
+    if (res && typeof res.image === 'string') return { bytes: b64ToBytes(res.image), contentType: 'image/png' };
+    if (typeof res === 'string') return { bytes: b64ToBytes(res), contentType: 'image/png' };
     let ab;
     if (res instanceof ArrayBuffer) ab = res;
     else if (res && typeof res.arrayBuffer === 'function') ab = await res.arrayBuffer();
-    else if (res && (res.body || typeof res.getReader === 'function')) ab = await new Response(res).arrayBuffer();
-    else if (typeof res === 'string') return { bytes: b64ToBytes(res), contentType: 'image/png' };
-    else if (res && typeof res.image === 'string') return { bytes: b64ToBytes(res.image), contentType: 'image/png' };
     else ab = await new Response(res).arrayBuffer();
     if (!ab || ab.byteLength === 0) throw new Error('Порожня відповідь від моделі');
     return { bytes: new Uint8Array(ab), contentType: 'image/png' };
   };
 
-  // Ретраї на тимчасові помилки моделі (3043 Internal server error тощо)
+  // Ретраї на тимчасові помилки моделі (перевантаження, internal error тощо)
   let lastErr;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -100,12 +108,16 @@ async function runCloudflare(env, src, prompt, width, height) {
     } catch (e) {
       lastErr = e;
       const msg = String(e && e.message || e);
-      // не ретраїмо явно фатальні помилки конфігурації
-      if (/binding|no such model|invalid|required propert/i.test(msg)) break;
+      // не ретраїмо явно фатальні помилки конфігурації/ліміту
+      if (/binding|no such model|invalid|required propert|allocation|limit/i.test(msg)) break;
       if (attempt < 3) await new Promise(r => setTimeout(r, 1200 * attempt));
     }
   }
-  throw new Error('Cloudflare Stable Diffusion не зміг обробити фото після кількох спроб: ' + (lastErr && lastErr.message || lastErr) + '. Спробуй ще раз або переключись на Преміум.');
+  const lastMsg = String(lastErr && lastErr.message || lastErr);
+  if (/allocation|limit|quota|429/i.test(lastMsg)) {
+    throw new Error('Вичерпано безкоштовний денний ліміт Workers AI (оновлюється о 02:00 за Києвом). Спробуй завтра або переключись на Gemini/GPT.');
+  }
+  throw new Error('FLUX (Cloudflare) не зміг обробити фото після кількох спроб: ' + lastMsg + '. Спробуй ще раз або переключись на Gemini/GPT.');
 }
 
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
@@ -208,10 +220,11 @@ export async function onRequestPost({ request, env }) {
     const modelOverride = (body.model && String(body.model).trim()) || '';
     const gptQuality = (body.quality && String(body.quality).trim()) || '';
     const gptSize = (body.size && String(body.size).trim()) || '';
+    const cfModel = (body.cfModel === '9b') ? '9b' : '4b'; // модель FLUX для безкоштовного рушія
     let out;
     if (engine === 'gpt') out = await runGPT(env, src, prompt, modelOverride, gptQuality, gptSize);
     else if (engine === 'premium') out = await runPremium(env, src, prompt);
-    else out = await runCloudflare(env, src, prompt, width, height);
+    else out = await runCloudflare(env, src, prompt, width, height, cfModel);
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
     return jsonResp({ ok: true, url, engine });
   } catch (e) {
