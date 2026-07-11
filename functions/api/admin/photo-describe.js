@@ -96,14 +96,22 @@ function quota429Message(data) {
   }
   const isDaily = /perday|per-day|requestsperday/i.test(quotaId);
   const isMinute = /perminute|per-minute|requestsperminute/i.test(quotaId);
-  if (isDaily || (!isMinute && retrySec > 300)) {
-    const r = dailyResetKyiv();
-    const when = r ? ` Оновиться о ${r.at} за Києвом (≈ через ${r.in}).` : '';
-    return 'Вичерпано ДЕННИЙ безкоштовний ліміт Gemini (близько 20 запитів/день на цій моделі).' + when + ' Або підключи біллінг у Google AI Studio, щоб підняти ліміт.';
+  const r = dailyResetKyiv();
+  const dailyWhen = r ? ` Денний ліміт оновиться о ${r.at} за Києвом.` : '';
+
+  // Google чітко сказав, що це ДЕННИЙ ліміт (або задав велику затримку) — впевнене повідомлення
+  if (isDaily || retrySec > 300) {
+    const cd = retrySec > 300 ? ` (≈ через ${Math.floor(retrySec / 3600)} год ${Math.round((retrySec % 3600) / 60)} хв)` : (r ? ` (≈ через ${r.in})` : '');
+    return `Вичерпано ДЕННИЙ безкоштовний ліміт Gemini (близько 20 запитів/день).${dailyWhen}${cd} Або підключи біллінг у Google AI Studio, щоб підняти ліміт.`;
   }
-  // Хвилинний ліміт (RPM ~5/хв)
-  const wait = retrySec > 0 ? `Зачекай ~${retrySec} с` : 'Зачекай ~хвилину';
-  return `Ліміт запитів на хвилину (близько 5/хв). ${wait} і спробуй ще.`;
+  // Google чітко сказав, що це ХВИЛИННИЙ ліміт
+  if (isMinute) {
+    const wait = retrySec > 0 ? `Зачекай ~${retrySec} с` : 'Зачекай ~хвилину (точний час Google не вказав)';
+    return `Ліміт запитів на хвилину (близько 5/хв). ${wait} і спробуй ще.`;
+  }
+  // Google не уточнив тип — чесно показуємо обидва варіанти
+  const wait = retrySec > 0 ? `за ~${retrySec} с` : 'за хвилину';
+  return `Ліміт запитів Gemini вичерпано. Це або хвилинний ліміт (≈5/хв — спробуй ${wait}), або денний (≈20/день).${dailyWhen}`;
 }
 
 export async function onRequestPost({ request, env }) {
