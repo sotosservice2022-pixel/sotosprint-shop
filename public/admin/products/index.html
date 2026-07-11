@@ -376,6 +376,18 @@
   </div>
 
   <!-- 🏷 Код товару (артикул) -->
+  <!-- ➕ Плаваюча кнопка «Додати товар» -->
+  <div class="card no-collapse" id="addBtnCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
+    <h2 id="addBtnHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">➕ Плаваюча кнопка «Додати товар»</h2>
+    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 10px;">
+      <input type="checkbox" id="adminAddBtnEnabled" />
+      <label for="adminAddBtnEnabled" style="margin:0; font-weight:600; font-size:13px;">Показувати плаваючу кнопку «Додати товар» на цій сторінці</label>
+    </div>
+    <div style="font-size: 12px; color: #6b7280; padding: 8px 10px; background: #eff6ff; border-radius: 6px; border: 1px solid #bfdbfe;">
+      💡 Зʼявиться плаваюча кнопка (як «Відкрити сайт»): перетягуй її куди зручно, замочок 🔒 фіксує позицію. Позиція памʼятається в цьому браузері. Зберігається кнопкою <strong>«💾 Зберегти все»</strong>.
+    </div>
+  </div>
+
   <!-- 🤖 AI-опис товару з фото -->
   <div class="card no-collapse" id="aiDescribeCard" style="background:#fff; border-radius:14px; padding:16px; margin-top:14px; box-shadow:0 2px 12px rgba(20,30,60,.05);">
     <h2 id="aiDescribeHeading" style="font-size: 16px; margin: 0 0 12px; color: #374151;">🤖 AI-опис товару з фото</h2>
@@ -543,6 +555,9 @@ async function loadAll() {
       if (allTabEl) allTabEl.checked = appSettings.showAllCategoriesTab !== false;
       if (defNameEl) defNameEl.value = appSettings.defaultCategoryName || 'Усі товари';
       // Коди товарів (артикули)
+      const addBtnEl = document.getElementById('adminAddBtnEnabled');
+      if (addBtnEl) addBtnEl.checked = appSettings.adminAddBtnEnabled !== false;
+      initAddProductFab(appSettings.adminAddBtnEnabled !== false);
       const aiDescEl = document.getElementById('aiDescribeEnabled');
       if (aiDescEl) aiDescEl.checked = appSettings.aiDescribeEnabled === true;
       const aiDescModelEl = document.getElementById('aiDescribeModelInput');
@@ -568,6 +583,7 @@ async function loadAll() {
       // Робимо згортуваними локально (стрілка ▸ зліва від заголовка) — єдиний вигляд для всіх.
       makeCollapsible(document.getElementById('categoriesCard'), document.getElementById('categoriesHeading'), 'collapse_categories', true);
       makeCollapsible(document.getElementById('sortCard'), document.getElementById('sortHeading'), 'collapse_sort', true);
+      makeCollapsible(document.getElementById('addBtnCard'), document.getElementById('addBtnHeading'), 'collapse_addbtn', true);
       makeCollapsible(document.getElementById('aiDescribeCard'), document.getElementById('aiDescribeHeading'), 'collapse_aidescribe', true);
       makeCollapsible(document.getElementById('productCodeCard'), document.getElementById('productCodeHeading'), 'collapse_productcode', true);
     }
@@ -1317,6 +1333,86 @@ window.aiRegenPhoto = async function (i) {
     window.__aiRegenBusy = false;
   }
 };
+
+// === Плаваюча кнопка «Додати товар» (перетягувана, з замочком; позиція в localStorage) ===
+function initAddProductFab(enabled) {
+  const existing = document.getElementById('addProductFab');
+  if (!enabled) { if (existing) existing.remove(); return; }
+  if (existing) return;
+  const POS_KEY = 'admin_addBtnPos', LOCK_KEY = 'admin_addBtnLock';
+  let pos = null, locked = false;
+  try { const c = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); if (c && typeof c.fx === 'number') pos = c; } catch {}
+  try { locked = localStorage.getItem(LOCK_KEY) === '1'; } catch {}
+
+  const box = document.createElement('div');
+  box.id = 'addProductFab';
+  box.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:9998;touch-action:none;user-select:none;';
+  box.innerHTML = `
+    <button type="button" title="Додати новий товар" draggable="false"
+      style="display:inline-flex;align-items:center;gap:7px;padding:11px 16px;background:#0b8aff;color:#fff;border:none;
+      font:700 14px 'Segoe UI',-apple-system,Arial,sans-serif;border-radius:12px;cursor:grab;
+      box-shadow:0 3px 14px rgba(11,138,255,.4);">➕ Додати товар</button>
+    <span data-lock style="position:absolute;bottom:-7px;right:-7px;background:#fff;border:1px solid #e5e7eb;
+      border-radius:50%;width:18px;height:18px;line-height:15px;text-align:center;font-size:10px;cursor:pointer;"></span>`;
+  document.body.appendChild(box);
+  const btn = box.querySelector('button');
+  const lockEl = box.querySelector('[data-lock]');
+
+  function applyPos() {
+    if (!pos) return;
+    const w = box.offsetWidth || 150, h = box.offsetHeight || 44;
+    const x = Math.max(4, Math.min(pos.fx * (window.innerWidth - w), window.innerWidth - w - 4));
+    const y = Math.max(4, Math.min(pos.fy * (window.innerHeight - h), window.innerHeight - h - 4));
+    box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto'; box.style.bottom = 'auto';
+  }
+  function paintLock() {
+    lockEl.textContent = locked ? '🔒' : '🔓';
+    lockEl.style.borderColor = locked ? '#f59e0b' : '#e5e7eb';
+    lockEl.title = locked ? 'Перетягування заблоковано — натисни, щоб розблокувати' : 'Заблокувати перетягування';
+    btn.style.cursor = locked ? 'pointer' : 'grab';
+  }
+  paintLock(); applyPos();
+  window.addEventListener('resize', applyPos);
+  lockEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    locked = !locked; paintLock();
+    try { localStorage.setItem(LOCK_KEY, locked ? '1' : '0'); } catch {}
+  });
+
+  let drag = null;
+  box.addEventListener('pointerdown', (e) => {
+    if (locked || e.target === lockEl) return;
+    const r = box.getBoundingClientRect();
+    drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+    try { box.setPointerCapture(e.pointerId); } catch {}
+  });
+  box.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
+    drag.moved = true;
+    const w = box.offsetWidth || 150, h = box.offsetHeight || 44;
+    const x = Math.max(4, Math.min(e.clientX - drag.dx, window.innerWidth - w - 4));
+    const y = Math.max(4, Math.min(e.clientY - drag.dy, window.innerHeight - h - 4));
+    box.style.left = x + 'px'; box.style.top = y + 'px'; box.style.right = 'auto'; box.style.bottom = 'auto';
+  });
+  box.addEventListener('pointerup', () => {
+    if (drag && drag.moved) {
+      const w = box.offsetWidth || 150, h = box.offsetHeight || 44;
+      pos = {
+        fx: Math.max(0, Math.min(1, parseFloat(box.style.left) / Math.max(1, window.innerWidth - w))),
+        fy: Math.max(0, Math.min(1, parseFloat(box.style.top) / Math.max(1, window.innerHeight - h))),
+      };
+      try { localStorage.setItem(POS_KEY, JSON.stringify(pos)); } catch {}
+      box.__suppressClick = true;
+      setTimeout(() => { box.__suppressClick = false; }, 0);
+    }
+    drag = null;
+  });
+  btn.addEventListener('click', (e) => {
+    if (box.__suppressClick) { e.preventDefault(); return; }
+    if (typeof addProduct === 'function') addProduct();
+  });
+}
 
 // === Модалка перегляду фото товару (гортання ←/→, колесо, видалення) ===
 let pmIndex = 0;
@@ -2298,6 +2394,8 @@ async function saveAll(reopenEditor = true) {
       serverSettings.badgeColors = appSettings.badgeColors;
     }
     // === AI-опис товару з фото ===
+    const addBtnEl = document.getElementById('adminAddBtnEnabled');
+    if (addBtnEl) { serverSettings.adminAddBtnEnabled = addBtnEl.checked; initAddProductFab(addBtnEl.checked); }
     const aiDescEl = document.getElementById('aiDescribeEnabled');
     if (aiDescEl) serverSettings.aiDescribeEnabled = aiDescEl.checked;
     const aiDescModelEl = document.getElementById('aiDescribeModelInput');

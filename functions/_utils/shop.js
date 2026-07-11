@@ -264,6 +264,7 @@ const DEFAULT_SETTINGS = {
   faviconPresetsLocked: false, // 🔒 захист колекції від випадкового видалення
   logoPresetsLocked: false,
   pwaIconPresetsLocked: false,
+  adminAddBtnEnabled: true,    // плаваюча кнопка «Додати товар» на сторінці Товари (перетягувана, з замочком)
   adminSiteBtnEnabled: true,   // плаваюча кнопка «Відкрити сайт» в адмінці (нова вкладка)
   adminSiteBtnPages: {},       // {pageKey:false} — сторінки, де кнопку сховано (порожньо = всюди)
   saveOrderPhotosToStorage: false, // зберігати фото клієнта в R2 і показувати в картці замовлення (Telegram отримує їх завжди)
