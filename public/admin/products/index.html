@@ -1366,7 +1366,12 @@ window.aiDescribeFromPhoto = async function () {
     if (status) { status.textContent = 'Готово — обери, що вставити'; status.style.color = '#16a34a'; }
     renderAiDescribeResult(d);
   } catch (e) {
-    if (status) { status.textContent = '⚠️ ' + e.message; status.style.color = '#b91c1c'; }
+    if (status) { status.textContent = '⚠️ помилка'; status.style.color = '#b91c1c'; }
+    // Повне повідомлення (напр. про денний ліміт + час скидання) — у блок, щоб читалось цілком
+    if (box) {
+      box.style.display = '';
+      box.innerHTML = `<div style="font-size:12px; color:#991b1b; background:#fef2f2; border:1px solid #fecaca; border-radius:8px; padding:8px 10px; line-height:1.45;">⚠️ ${escapeHtml(e.message || 'Помилка')}</div>`;
+    }
   }
 };
 function renderAiDescribeResult(d) {

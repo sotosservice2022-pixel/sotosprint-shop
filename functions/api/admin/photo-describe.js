@@ -63,6 +63,49 @@ const SCHEMA = {
   required: ['name', 'description', 'attributes'],
 };
 
+// Час наступного скидання ДЕННОГО ліміту Gemini: опівночі за тихоокеанським часом (America/Los_Angeles),
+// показуємо у київському часі. Різниця двох однаково-отриманих значень скасовує зсув рантайму.
+function dailyResetKyiv() {
+  try {
+    const now = new Date();
+    const laNow = new Date(now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' }));
+    const laMid = new Date(laNow); laMid.setHours(24, 0, 0, 0);
+    const resetReal = new Date(now.getTime() + (laMid - laNow));
+    const t = resetReal.toLocaleTimeString('uk-UA', { timeZone: 'Europe/Kyiv', hour: '2-digit', minute: '2-digit' });
+    const mins = Math.max(1, Math.round((laMid - laNow) / 60000));
+    const hh = Math.floor(mins / 60), mm = mins % 60;
+    const inTxt = hh > 0 ? `${hh} год ${mm} хв` : `${mm} хв`;
+    return { at: t, in: inTxt };
+  } catch { return null; }
+}
+
+// Формуємо людське повідомлення про ліміт з відповіді Google (error.details: QuotaFailure/RetryInfo).
+function quota429Message(data) {
+  const details = data?.error?.details || [];
+  let quotaId = '';
+  let retrySec = 0;
+  for (const d of details) {
+    const t = String(d['@type'] || '');
+    if (t.includes('QuotaFailure') && Array.isArray(d.violations)) {
+      for (const v of d.violations) quotaId += ' ' + String(v.quotaId || v.quotaMetric || '');
+    }
+    if (t.includes('RetryInfo') && d.retryDelay) {
+      const m = /(\d+(?:\.\d+)?)s/.exec(String(d.retryDelay));
+      if (m) retrySec = Math.ceil(parseFloat(m[1]));
+    }
+  }
+  const isDaily = /perday|per-day|requestsperday/i.test(quotaId);
+  const isMinute = /perminute|per-minute|requestsperminute/i.test(quotaId);
+  if (isDaily || (!isMinute && retrySec > 300)) {
+    const r = dailyResetKyiv();
+    const when = r ? ` Оновиться о ${r.at} за Києвом (≈ через ${r.in}).` : '';
+    return 'Вичерпано ДЕННИЙ безкоштовний ліміт Gemini (близько 20 запитів/день на цій моделі).' + when + ' Або підключи біллінг у Google AI Studio, щоб підняти ліміт.';
+  }
+  // Хвилинний ліміт (RPM ~5/хв)
+  const wait = retrySec > 0 ? `Зачекай ~${retrySec} с` : 'Зачекай ~хвилину';
+  return `Ліміт запитів на хвилину (близько 5/хв). ${wait} і спробуй ще.`;
+}
+
 export async function onRequestPost({ request, env }) {
   if (!(await checkAuthAsync(request, env))) return jsonResp({ ok: false, error: 'Не авторизовано' }, 401);
 
@@ -103,8 +146,9 @@ export async function onRequestPost({ request, env }) {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) {
       const msg = data?.error?.message || ('HTTP ' + r.status);
-      // 429 = вичерпана квота (безкоштовний текст теж має ліміти RPM/RPD)
-      if (r.status === 429) return jsonResp({ ok: false, error: 'Ліміт запитів Gemini вичерпано. Зачекай хвилину і спробуй ще.' }, 429);
+      // 429 = вичерпана квота. Розрізняємо ДЕННИЙ (RPD, ~20/день) і ХВИЛИННИЙ (RPM) ліміт
+      // за деталями відповіді Google, і підказуємо коли спробувати / коли оновиться.
+      if (r.status === 429) return jsonResp({ ok: false, error: quota429Message(data) }, 429);
       if (/no longer available|not found|not supported|deprecated/i.test(String(msg))) {
         return jsonResp({ ok: false, error: 'Модель «' + model + '» більше недоступна. Онови GEMINI_TEXT_MODEL на актуальну (напр. gemini-3.5-flash) або передай іншу.' }, 500);
       }
