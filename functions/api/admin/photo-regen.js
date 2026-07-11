@@ -131,11 +131,10 @@ async function runCloudflare(env, src, prompt, width, height, cfModel) {
 
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
 async function runPremium(env, { buf, contentType }, prompt, modelOverride) {
-  // Ключ: спочатку секрет IMAGE_API_KEY, інакше — збережений в адмінці (KV ai_image_key)
-  let apiKey = env.IMAGE_API_KEY;
-  if (!apiKey && env.SHOP_KV) {
-    try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
-  }
+  // Ключ: ПРІОРИТЕТ — збережений в адмінці (KV), env.IMAGE_API_KEY лише запасний
+  let apiKey = '';
+  if (env.SHOP_KV) { try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {} }
+  if (!apiKey) apiKey = env.IMAGE_API_KEY;
   if (!apiKey) throw new Error('Преміум-рушій не налаштовано: введи ключ Google AI Studio на сторінці (блок «Ключ Gemini») або додай секрет IMAGE_API_KEY.');
   // Модель можна перевизначити з адмінки (поле «Модель Gemini»), інакше env або дефолт.
   const safeModel = modelOverride && /^[a-z0-9][\w.\-:]{1,80}$/i.test(modelOverride) ? modelOverride : '';

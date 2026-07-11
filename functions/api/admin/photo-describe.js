@@ -94,6 +94,15 @@ function quota429Message(data) {
       if (m) retrySec = Math.ceil(parseFloat(m[1]));
     }
   }
+  // Короткий «сирий» хвіст для діагностики (без ключа): який саме quota і що сказав Google.
+  const rawTail = (() => {
+    const q = quotaId.trim();
+    const gm = String(data?.error?.message || '').trim();
+    const bits = [];
+    if (q) bits.push('quota: ' + q.slice(0, 80));
+    if (/free/i.test(q + ' ' + gm)) bits.push('FreeTier');
+    return bits.length ? ` [${bits.join(' · ')}]` : '';
+  })();
   const isDaily = /perday|per-day|requestsperday/i.test(quotaId);
   const isMinute = /perminute|per-minute|requestsperminute/i.test(quotaId);
   const r = dailyResetKyiv();
@@ -102,16 +111,16 @@ function quota429Message(data) {
   // Google чітко сказав, що це ДЕННИЙ ліміт (або задав велику затримку) — впевнене повідомлення
   if (isDaily || retrySec > 300) {
     const cd = retrySec > 300 ? ` (≈ через ${Math.floor(retrySec / 3600)} год ${Math.round((retrySec % 3600) / 60)} хв)` : (r ? ` (≈ через ${r.in})` : '');
-    return `Вичерпано ДЕННИЙ безкоштовний ліміт Gemini (близько 20 запитів/день).${dailyWhen}${cd} Або підключи біллінг у Google AI Studio, щоб підняти ліміт.`;
+    return `Вичерпано ДЕННИЙ безкоштовний ліміт Gemini (близько 20 запитів/день).${dailyWhen}${cd} Або підключи біллінг у Google AI Studio, щоб підняти ліміт.${rawTail}`;
   }
   // Google чітко сказав, що це ХВИЛИННИЙ ліміт
   if (isMinute) {
     const wait = retrySec > 0 ? `Зачекай ~${retrySec} с` : 'Зачекай ~хвилину (точний час Google не вказав)';
-    return `Ліміт запитів на хвилину (близько 5/хв). ${wait} і спробуй ще.`;
+    return `Ліміт запитів на хвилину (близько 5/хв). ${wait} і спробуй ще.${rawTail}`;
   }
   // Google не уточнив тип — чесно показуємо обидва варіанти
   const wait = retrySec > 0 ? `за ~${retrySec} с` : 'за хвилину';
-  return `Ліміт запитів Gemini вичерпано. Це або хвилинний ліміт (≈5/хв — спробуй ${wait}), або денний (≈20/день).${dailyWhen}`;
+  return `Ліміт запитів Gemini вичерпано. Це або хвилинний ліміт (≈5/хв — спробуй ${wait}), або денний (≈20/день).${dailyWhen}${rawTail}`;
 }
 
 export async function onRequestPost({ request, env }) {
@@ -122,11 +131,11 @@ export async function onRequestPost({ request, env }) {
   const imageUrl = body && body.imageUrl;
   if (!imageUrl) return jsonResp({ ok: false, error: 'Немає фото товару. Спершу додай хоча б одне зображення.' }, 400);
 
-  // Ключ Gemini — той самий, що для генерації (KV ai_image_key / env IMAGE_API_KEY)
-  let apiKey = env.IMAGE_API_KEY;
-  if (!apiKey && env.SHOP_KV) {
-    try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
-  }
+  // Ключ Gemini: ПРІОРИТЕТ — збережений в адмінці (KV ai_image_key), бо його власник міняє
+  // «наживо». env.IMAGE_API_KEY — лише запасний (старий секрет деплою НЕ має перекривати новий ключ).
+  let apiKey = '';
+  if (env.SHOP_KV) { try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {} }
+  if (!apiKey) apiKey = env.IMAGE_API_KEY;
   if (!apiKey) return jsonResp({ ok: false, error: 'Не задано ключ Gemini (блок «🔑 Ключ Gemini» на сторінці AI-обробки фото).' }, 400);
 
   // ТЕКСТОВА модель (не -image!): безкоштовна квота є. Можна перевизначити.

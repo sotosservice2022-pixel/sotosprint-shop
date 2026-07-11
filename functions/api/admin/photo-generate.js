@@ -118,10 +118,10 @@ async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
 
 // --- Gemini: генерація (текст + опціональні референси) ---
 async function runPremium(env, prompt, refs, aspectRatio, modelOverride) {
-  let apiKey = env.IMAGE_API_KEY;
-  if (!apiKey && env.SHOP_KV) {
-    try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
-  }
+  // Ключ: ПРІОРИТЕТ — збережений в адмінці (KV), env.IMAGE_API_KEY лише запасний
+  let apiKey = '';
+  if (env.SHOP_KV) { try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {} }
+  if (!apiKey) apiKey = env.IMAGE_API_KEY;
   if (!apiKey) throw new Error('Преміум-рушій не налаштовано: введи ключ Google AI Studio на сторінці (блок «Ключ Gemini») або додай секрет IMAGE_API_KEY.');
   const safeModel = modelOverride && /^[a-z0-9][\w.\-:]{1,80}$/i.test(modelOverride) ? modelOverride : '';
   const model = safeModel || env.IMAGE_API_MODEL || 'gemini-2.5-flash-image';
