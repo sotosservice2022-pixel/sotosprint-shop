@@ -10,12 +10,11 @@
 import { checkAuthAsync, jsonResp, storageUrl } from '../../_utils/shop.js';
 
 const DEFAULT_PROMPT =
-  'Professional e-commerce product photograph of exactly the same items as in the source image. ' +
-  'Keep EVERY object from the source photo — the product AND its retail packaging box, hang tag and accessories. ' +
-  'Do not remove, add or replace anything. Preserve the exact shapes, colors, proportions, logos, ' +
-  'printed text and barcodes as in the source; do not invent or alter any lettering. ' +
-  'Place the same arrangement on a pure white seamless studio background with a soft, subtle, realistic shadow beneath. ' +
-  'Bright even studio lighting, sharp focus, high-resolution clean catalog product shot, centered.';
+  'Professional ecommerce product photography.\n' +
+  'Edit only the photograph.\n' +
+  'DO NOT change: product shape, packaging, colors, logos, labels, text, barcode, accessories.\n' +
+  'Improve: lighting, white balance, exposure, sharpness, perspective, studio background, realistic shadow.\n' +
+  'Photorealistic.';
 
 // base64 -> Uint8Array
 function b64ToBytes(b64) {
