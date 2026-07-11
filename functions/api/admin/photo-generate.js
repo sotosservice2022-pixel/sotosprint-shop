@@ -173,7 +173,13 @@ async function startQwen(env, prompt, imageUrl, sizeStr) {
     return await tryStart('ai');   // міжнародний акаунт — найімовірніший
   } catch (e) {
     if (!e.isAuth) throw e;
-    return await tryStart('cn');   // токен може бути з китайського modelscope.cn
+    try {
+      return await tryStart('cn'); // токен може бути з китайського modelscope.cn
+    } catch (e2) {
+      // Обидва домени відмовили — показуємо повідомлення міжнародного (.ai), воно
+      // зазвичай інформативніше (напр., «Please bind your Alibaba Cloud account…»)
+      throw e2.isAuth ? e : e2;
+    }
   }
 }
 

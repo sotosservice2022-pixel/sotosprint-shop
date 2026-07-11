@@ -173,7 +173,12 @@ async function startQwenEdit(env, request, sourceUrl, prompt) {
     return await tryStart('ai');
   } catch (e) {
     if (!e.isAuth) throw e;
-    return await tryStart('cn');
+    try {
+      return await tryStart('cn');
+    } catch (e2) {
+      // Обидва домени відмовили — показуємо повідомлення міжнародного (.ai)
+      throw e2.isAuth ? e : e2;
+    }
   }
 }
 
