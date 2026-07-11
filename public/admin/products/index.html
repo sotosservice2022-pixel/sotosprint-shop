@@ -922,6 +922,7 @@ function editProduct(idx) {
       <div class="gallery" id="gallery"></div>
       <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною. Кнопка 🪄 на фото — обробити його AI.</div>
       <div id="aiEngineInfo" style="margin-top:8px; font-size:12px; color:#374151; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; padding:7px 10px;"></div>
+      <div id="aiRegenMsg" style="display:none; margin-top:8px; font-size:12.5px; line-height:1.45; border-radius:8px; padding:8px 30px 8px 10px; position:relative;"></div>
     </div>
 
     <div class="section">
@@ -1237,8 +1238,19 @@ function aiEngineLabel(s) {
   if (s.engine === 'gpt') return '🤖 GPT (' + (s.gptModel || 'gpt-5.4-mini') + ') — платно';
   return '💎 Gemini (' + (s.geminiModel || 'gemini-2.5-flash-image') + ') — платно/за квотою';
 }
+function aiRegenMsg(html, kind) {
+  const box = document.getElementById('aiRegenMsg');
+  if (!box) return;
+  if (!html) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const styles = kind === 'error'
+    ? 'background:#fef2f2; border:1px solid #fecaca; color:#991b1b;'
+    : (kind === 'busy' ? 'background:#eff6ff; border:1px solid #bfdbfe; color:#1e3a8a;' : 'background:#ecfdf5; border:1px solid #a7f3d0; color:#166534;');
+  box.style.cssText = 'margin-top:8px; font-size:12.5px; line-height:1.45; border-radius:8px; padding:8px 30px 8px 10px; position:relative; display:block; ' + styles;
+  const close = kind === 'busy' ? '' : '<span onclick="document.getElementById(\'aiRegenMsg\').style.display=\'none\'" title="Сховати" style="position:absolute; top:4px; right:8px; cursor:pointer; font-weight:700;">×</span>';
+  box.innerHTML = html + close;
+}
 window.aiRegenPhoto = async function (i) {
-  if (window.__aiRegenBusy) { if (typeof toast === 'function') toast('Зачекай — попереднє фото ще обробляється'); return; }
+  if (window.__aiRegenBusy) { aiRegenMsg('⏳ Зачекай — попереднє фото ще обробляється.', 'busy'); return; }
   const p = products[currentIdx];
   const img = p && p.images[i];
   const src = img ? (typeof img === 'object' ? img.url : img) : '';
@@ -1256,6 +1268,7 @@ window.aiRegenPhoto = async function (i) {
     area.appendChild(overlay);
   }
   window.__aiRegenBusy = true;
+  aiRegenMsg('🪄 Обробляю фото через <b>' + aiEngineLabel(s) + '</b>… (до хвилини)', 'busy');
   try {
     const body = { sourceUrl: src, engine: s.engine };
     if (s.prompt) body.prompt = s.prompt;
@@ -1274,11 +1287,11 @@ window.aiRegenPhoto = async function (i) {
     p.images.splice(i + 1, 0, { url: d.url, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' });
     renderGallery(p);
     renderList();
-    if (typeof toast === 'function') toast('AI-фото додано в галерею ✓ — не забудь «Зберегти»');
+    aiRegenMsg('✅ AI-фото додано в галерею. Не забудь «Зберегти».', 'ok');
   } catch (e) {
     if (overlay) overlay.remove();
-    if (typeof toast === 'function') toast('⚠️ ' + (e.message || 'Помилка'), 'error');
-    else alert('⚠️ ' + (e.message || 'Помилка'));
+    // Стійке уведомлення з причиною (не зникає само) — щоб було видно чому не обробилось
+    aiRegenMsg('⚠️ ' + escapeHtml(e.message || 'Помилка обробки'), 'error');
   } finally {
     window.__aiRegenBusy = false;
   }

@@ -239,6 +239,22 @@ export async function onRequestPost({ request, env }) {
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
     return jsonResp({ ok: true, url, engine });
   } catch (e) {
-    return jsonResp({ ok: false, error: e.message || String(e) }, 500);
+    return jsonResp({ ok: false, error: friendlyRegenError(e.message || String(e), engine) }, 500);
   }
+}
+
+// Перетворює сиру помилку рушія на зрозумілу причину (найчастіше — немає оплати/кредитів).
+function friendlyRegenError(msg, engine) {
+  const m = String(msg || '');
+  const paid = engine === 'gpt' ? 'OpenAI' : 'Gemini';
+  if (/quota|exceeded|resource_exhausted|429|billing|credit|insufficient|balance|payment|free tier/i.test(m)) {
+    return `❌ ${paid}: немає оплати/кредитів або вичерпано ліміт. Поповни біллінг у кабінеті ${paid}, або переключись на безкоштовний рушій 🆓 FLUX. (${m.slice(0, 160)})`;
+  }
+  if (/api key|unauthenticated|permission|invalid.*key|401|403/i.test(m)) {
+    return `❌ ${paid}: ключ не працює або немає доступу. Перевір ключ у розділі «AI-обробка фото». (${m.slice(0, 160)})`;
+  }
+  if (/not found|no longer available|not supported|deprecated|model/i.test(m) && /model|модел/i.test(m)) {
+    return `❌ ${paid}: обрана модель недоступна. Зміни модель у розділі «AI-обробка фото». (${m.slice(0, 160)})`;
+  }
+  return m;
 }
