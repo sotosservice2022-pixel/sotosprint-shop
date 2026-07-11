@@ -920,7 +920,8 @@ function editProduct(idx) {
     <div class="section">
       <h4>📷 Галерея (до 8 картинок · перша — головна)</h4>
       <div class="gallery" id="gallery"></div>
-      <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною.</div>
+      <div class="hint">Перетягуй першою ту картинку, яка буде в карточці каталога. Клікни на будь-яку — зроби головною. Кнопка 🪄 на фото — обробити його AI.</div>
+      <div id="aiEngineInfo" style="margin-top:8px; font-size:12px; color:#374151; background:#f0f7ff; border:1px solid #bfdbfe; border-radius:8px; padding:7px 10px;"></div>
     </div>
 
     <div class="section">
@@ -1167,6 +1168,7 @@ function renderGallery(p) {
         <img src="${escapeAttr(img.url)}" />
         ${i === 0 ? '<span class="main-tag">Головна</span>' : ''}
         <div class="actions">
+          <button title="🪄 Обробити це фото AI (за замовчуванням)" onclick="aiRegenPhoto(${i})">🪄</button>
           ${i > 0 ? '<button title="Зробити головною" onclick="setMain('+i+')">★</button>' : ''}
           <button title="Удалить" onclick="removeImage('+i+')">×</button>
         </div>
@@ -1206,7 +1208,81 @@ function renderGallery(p) {
     z.innerHTML = `<span class="icon">📷</span><span>Додати фото</span><input type="file" accept="image/*" style="display:none" onchange="onImageSelect(event)" multiple />`;
     el.appendChild(z);
   }
+  // Індикатор поточного дефолтного AI-рушія (щоб бачити, чим саме обробляться фото)
+  const info = document.getElementById('aiEngineInfo');
+  if (info) {
+    const s = aiRegenSettings();
+    info.innerHTML = '🪄 AI за замовчуванням: <b>' + aiEngineLabel(s) + '</b> · <a href="/admin/restore/" target="_blank" style="color:#1d4ed8;">змінити рушій/модель/промпт →</a>';
+  }
 }
+
+// === AI-обробка окремого фото товару (за налаштуваннями сторінки «AI-обробка фото») ===
+// Рушій/модель/промпт беруться з localStorage тієї сторінки (той самий домен → доступно).
+function aiRegenSettings() {
+  let prefs = {}; try { prefs = JSON.parse(localStorage.getItem('restorePagePrefs') || '{}'); } catch {}
+  const engine = ['premium', 'gpt', 'cloudflare'].includes(prefs.engine) ? prefs.engine : 'premium';
+  const cfModel = ['9b', 'dev'].includes(prefs.cfModel) ? prefs.cfModel : '4b';
+  const ls = (k) => { try { return (localStorage.getItem(k) || '').trim(); } catch { return ''; } };
+  return {
+    engine, cfModel,
+    geminiModel: ls('restoreGeminiModel'),
+    gptModel: ls('restoreGptModel'),
+    gptQuality: ls('restoreGptQuality'),
+    gptSize: ls('restoreGptSize'),
+    prompt: ls('restoreRegenPrompt'),
+  };
+}
+function aiEngineLabel(s) {
+  if (s.engine === 'cloudflare') return '🆓 FLUX ' + s.cfModel.toUpperCase() + ' — безкоштовно';
+  if (s.engine === 'gpt') return '🤖 GPT (' + (s.gptModel || 'gpt-5.4-mini') + ') — платно';
+  return '💎 Gemini (' + (s.geminiModel || 'gemini-2.5-flash-image') + ') — платно/за квотою';
+}
+window.aiRegenPhoto = async function (i) {
+  if (window.__aiRegenBusy) { if (typeof toast === 'function') toast('Зачекай — попереднє фото ще обробляється'); return; }
+  const p = products[currentIdx];
+  const img = p && p.images[i];
+  const src = img ? (typeof img === 'object' ? img.url : img) : '';
+  if (!src) return;
+  const s = aiRegenSettings();
+  // Оверлей «обробка» на цьому фото
+  const node = document.querySelectorAll('#gallery .gallery-item')[i];
+  let overlay;
+  if (node) {
+    overlay = document.createElement('div');
+    overlay.style.cssText = 'position:absolute; inset:0; background:rgba(15,23,42,.7); color:#fff; display:flex; align-items:center; justify-content:center; text-align:center; font-size:12px; padding:6px; z-index:5; border-radius:8px;';
+    overlay.textContent = '🪄 AI обробка… (може зайняти до хвилини)';
+    const area = node.querySelector('.image-area') || node;
+    area.style.position = 'relative';
+    area.appendChild(overlay);
+  }
+  window.__aiRegenBusy = true;
+  try {
+    const body = { sourceUrl: src, engine: s.engine };
+    if (s.prompt) body.prompt = s.prompt;
+    if (s.engine === 'cloudflare') body.cfModel = s.cfModel;
+    if (s.engine === 'gpt') { if (s.gptModel) body.model = s.gptModel; if (s.gptQuality) body.quality = s.gptQuality; if (s.gptSize) body.size = s.gptSize; }
+    if (s.engine === 'premium' && s.geminiModel) body.geminiModel = s.geminiModel;
+    const r = await fetch('/api/admin/photo-regen', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (r.status === 401) { location.href = '/admin/login/?return=' + encodeURIComponent(location.pathname); return; }
+    const d = await r.json();
+    if (!d.ok || !d.url) throw new Error(d.error || 'Помилка обробки');
+    // Додаємо результат НОВИМ фото одразу після оригіналу (нічого не втрачаємо)
+    p.images.splice(i + 1, 0, { url: d.url, zoomable: true, link: '', caption: '', capBg: '', capColor: '', capSize: '' });
+    renderGallery(p);
+    renderList();
+    if (typeof toast === 'function') toast('AI-фото додано в галерею ✓ — не забудь «Зберегти»');
+  } catch (e) {
+    if (overlay) overlay.remove();
+    if (typeof toast === 'function') toast('⚠️ ' + (e.message || 'Помилка'), 'error');
+    else alert('⚠️ ' + (e.message || 'Помилка'));
+  } finally {
+    window.__aiRegenBusy = false;
+  }
+};
 
 window.setImgZoom = (i, val) => {
   const p = products[currentIdx];
