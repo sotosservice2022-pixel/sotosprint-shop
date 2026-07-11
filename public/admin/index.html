@@ -332,12 +332,19 @@ function renderCfMini(d) {
       resetTxt = `до скидання: ${hh}год ${mm}хв`;
     }
   }
+  // Workers AI (нейрони): Cloudflare НЕ віддає витрату через API — лише дашборд.
+  // Тому показуємо безкоштовний ліміт (10 000/день) + пряме посилання на реальний лічильник.
+  const aiRow = `<div style="display:flex; justify-content:space-between; font-size:11px; align-items:center; margin-top:2px; border-top:1px dashed #e5e7eb; padding-top:4px;">
+      <span style="color:#6b7280;">🤖 AI (нейрони):</span>
+      <a href="https://dash.cloudflare.com/?to=/:account/ai/workers-ai" target="_blank" rel="noopener" style="color:#6b7280; text-decoration:none;" title="Cloudflare не віддає витрату AI через API — реальний лічильник лише в дашборді">~10&nbsp;000/день · дашборд →</a>
+    </div>`;
   return `
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
       <strong style="font-size:12px; color:${color};">☁️ CF сьогодні</strong>
       <a href="/admin/stats/" style="font-size:11px; color:#6b7280; text-decoration:none;">детально →</a>
     </div>
     ${rows}
+    ${aiRow}
     ${resetTxt ? `<div style="font-size:10px; color:#9ca3af; margin-top:4px;">${resetTxt}</div>` : ''}
   `;
 }

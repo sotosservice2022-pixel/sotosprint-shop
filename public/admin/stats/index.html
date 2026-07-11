@@ -431,6 +431,17 @@ function renderCfUsage(d) {
     { label: 'Class B ops (reads)', value: r2.classBOps, max: null, unit: '/міс', subnote: 'ліміт 10М/міс' },
   ], r2.error));
 
+  // Workers AI (AI-обробка фото) — Cloudflare НЕ віддає витрату нейронів через API,
+  // тому показуємо ліміт + пряме посилання на реальний лічильник у дашборді.
+  sections.push(`<div style="margin-bottom: 14px;">
+      <h3 style="font-size: 13px; margin: 0 0 6px; color:#374151;">🤖 Workers AI (AI-обробка фото)</h3>
+      <div style="padding: 10px; background: #f0f7ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 12px; color:#1e3a8a; line-height:1.5;">
+        Безкоштовно <strong>10&nbsp;000 нейронів/день</strong> (≈80 фото FLUX&nbsp;4B, ≈6 фото FLUX&nbsp;9B). Оновлюється щодня о 02:00 за Києвом.<br>
+        Cloudflare не віддає реальну витрату через API — дивись лічильник у
+        <a href="https://dash.cloudflare.com/?to=/:account/ai/workers-ai" target="_blank" rel="noopener" style="color:#1d4ed8;">дашборді Workers AI ↗</a>.
+      </div>
+    </div>`);
+
   return sections.join('');
 }
 
