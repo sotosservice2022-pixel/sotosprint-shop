@@ -117,13 +117,14 @@ async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
 }
 
 // --- Gemini: генерація (текст + опціональні референси) ---
-async function runPremium(env, prompt, refs, aspectRatio) {
+async function runPremium(env, prompt, refs, aspectRatio, modelOverride) {
   let apiKey = env.IMAGE_API_KEY;
   if (!apiKey && env.SHOP_KV) {
     try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
   }
   if (!apiKey) throw new Error('Преміум-рушій не налаштовано: введи ключ Google AI Studio на сторінці (блок «Ключ Gemini») або додай секрет IMAGE_API_KEY.');
-  const model = env.IMAGE_API_MODEL || 'gemini-2.5-flash-image';
+  const safeModel = modelOverride && /^[a-z0-9][\w.\-:]{1,80}$/i.test(modelOverride) ? modelOverride : '';
+  const model = safeModel || env.IMAGE_API_MODEL || 'gemini-2.5-flash-image';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const parts = [{ text: prompt }];
   for (const ref of refs) {
@@ -318,7 +319,8 @@ export async function onRequestPost({ request, env }) {
       return jsonResp({ ok: true, status: 'completed', url, engine: 'cloudflare' });
     }
     // Gemini → синхронно (швидкий, у таймаут вкладається)
-    const out = await runPremium(env, prompt, refs, FORMAT_TO_AR[format]);
+    const geminiModel = (body.geminiModel && String(body.geminiModel).trim()) || '';
+    const out = await runPremium(env, prompt, refs, FORMAT_TO_AR[format], geminiModel);
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap.premium);
     return jsonResp({ ok: true, status: 'completed', url, engine: 'premium' });
   } catch (e) {

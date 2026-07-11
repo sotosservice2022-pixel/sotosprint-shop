@@ -130,14 +130,16 @@ async function runCloudflare(env, src, prompt, width, height, cfModel) {
 }
 
 // --- Платний рушій: Gemini image (якість як у Nano Banana) ---
-async function runPremium(env, { buf, contentType }, prompt) {
+async function runPremium(env, { buf, contentType }, prompt, modelOverride) {
   // Ключ: спочатку секрет IMAGE_API_KEY, інакше — збережений в адмінці (KV ai_image_key)
   let apiKey = env.IMAGE_API_KEY;
   if (!apiKey && env.SHOP_KV) {
     try { apiKey = await env.SHOP_KV.get('ai_image_key'); } catch (_) {}
   }
   if (!apiKey) throw new Error('Преміум-рушій не налаштовано: введи ключ Google AI Studio на сторінці (блок «Ключ Gemini») або додай секрет IMAGE_API_KEY.');
-  const model = env.IMAGE_API_MODEL || 'gemini-2.5-flash-image';
+  // Модель можна перевизначити з адмінки (поле «Модель Gemini»), інакше env або дефолт.
+  const safeModel = modelOverride && /^[a-z0-9][\w.\-:]{1,80}$/i.test(modelOverride) ? modelOverride : '';
+  const model = safeModel || env.IMAGE_API_MODEL || 'gemini-2.5-flash-image';
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
   const body = {
     contents: [{
@@ -231,8 +233,9 @@ export async function onRequestPost({ request, env }) {
     const gptSize = (body.size && String(body.size).trim()) || '';
     const cfModel = ['9b', 'dev'].includes(body.cfModel) ? body.cfModel : '4b'; // модель FLUX для безкоштовного рушія
     let out;
+    const geminiModel = (body.geminiModel && String(body.geminiModel).trim()) || '';
     if (engine === 'gpt') out = await runGPT(env, src, prompt, modelOverride, gptQuality, gptSize);
-    else if (engine === 'premium') out = await runPremium(env, src, prompt);
+    else if (engine === 'premium') out = await runPremium(env, src, prompt, geminiModel);
     else out = await runCloudflare(env, src, prompt, width, height, cfModel);
     const url = await putToR2(env, out.bytes, out.contentType, prefixMap[engine]);
     return jsonResp({ ok: true, url, engine });

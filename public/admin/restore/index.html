@@ -164,6 +164,13 @@
           <button class="clearKeyBtn ghost" data-provider="gemini" type="button">🗑️ Видалити</button>
         </div>
         <div class="hint keyMsg" id="keyMsg_gemini" style="margin-top:6px;"></div>
+        <div class="field-label" style="margin-top:12px;">Модель Gemini</div>
+        <div class="hint" style="margin-bottom:6px;">
+          За замовч. <code>gemini-2.5-flash-image</code>. Можна вписати іншу (напр. нову Nano Banana 2), якщо Google перейменує чи випустить кращу. Зберігається автоматично.
+          <b>Увага:</b> генерувати картинки вміють ЛИШЕ моделі з <code>-image</code> у назві; <code>gemini-2.5-flash</code> (без -image) — тільки текст.
+        </div>
+        <input id="geminiModel" type="text" placeholder="gemini-2.5-flash-image" style="width:100%; min-width:220px;" autocomplete="off" spellcheck="false" />
+        <div class="hint" id="geminiModelMsg" style="margin-top:6px;"></div>
       </div>
     </details>
 
@@ -457,6 +464,7 @@ async function generateNow() {
         refUrls: genRefUrl ? [genRefUrl] : [],
         model: gptModel || undefined, quality: gptQuality || undefined,
         cfModel: engine === 'cloudflare' ? getCfModel() : undefined,
+        geminiModel: engine === 'premium' ? (getGeminiModel() || undefined) : undefined,
       }),
     });
     const d = await parseAiResponse(r);
@@ -546,7 +554,7 @@ async function processOne(item) {
       const r = await fetch('/api/admin/photo-regen', {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined, cfModel: engine === 'cloudflare' ? getCfModel() : undefined }),
+        body: JSON.stringify({ sourceUrl: item.regenSrcUrl, engine, prompt: prompt || undefined, model: gptModel || undefined, quality: gptQuality || undefined, size: gptSize || undefined, cfModel: engine === 'cloudflare' ? getCfModel() : undefined, geminiModel: engine === 'premium' ? (getGeminiModel() || undefined) : undefined }),
       });
       const d = await parseAiResponse(r);
       item.afterUrl = d.url; item.afterKind = 'regen';
@@ -591,6 +599,7 @@ async function retryGen(id) {
         refUrls: item.refUrl ? [item.refUrl] : [],
         model: gptModel || undefined, quality: gptQuality || undefined,
         cfModel: engine === 'cloudflare' ? getCfModel() : undefined,
+        geminiModel: engine === 'premium' ? (getGeminiModel() || undefined) : undefined,
       }),
     });
     const d = await parseAiResponse(r);
@@ -858,6 +867,10 @@ const GPT_KNOWN_MODELS = ['gpt-5.4-mini', 'gpt-5.5', 'gpt-5.4', 'gpt-5.4-nano', 
 function getGptModel() {
   try { return (localStorage.getItem('restoreGptModel') || '').trim(); } catch { return ''; }
 }
+// Модель Gemini (для рушія 💎 Gemini). '' → дефолт gemini-2.5-flash-image на бекенді.
+function getGeminiModel() {
+  try { return (localStorage.getItem('restoreGeminiModel') || '').trim(); } catch { return ''; }
+}
 function getGptQuality() { try { return localStorage.getItem('restoreGptQuality') || 'medium'; } catch { return 'medium'; } }
 function getGptSize() { try { return localStorage.getItem('restoreGptSize') || '1024x1024'; } catch { return '1024x1024'; } }
 function getGenFormat() { try { return localStorage.getItem('restoreGenFormat') || 'square'; } catch { return 'square'; } }
@@ -909,6 +922,21 @@ document.getElementById('gptModelSelect').onchange = (e) => {
 };
 const gptModelInp = document.getElementById('gptModel');
 if (gptModelInp) gptModelInp.addEventListener('input', (e) => saveGptModel(e.target.value));
+
+// Модель Gemini (текстове поле, зберігається локально)
+(function initGeminiModel() {
+  const inp = document.getElementById('geminiModel');
+  const msg = document.getElementById('geminiModelMsg');
+  if (!inp) return;
+  const saved = getGeminiModel();
+  inp.value = saved;
+  if (msg) { msg.textContent = saved ? ('Модель: ' + saved) : 'Модель за замовчуванням (gemini-2.5-flash-image)'; msg.style.color = '#6b7280'; }
+  inp.addEventListener('input', (e) => {
+    const v = (e.target.value || '').trim();
+    try { if (v) localStorage.setItem('restoreGeminiModel', v); else localStorage.removeItem('restoreGeminiModel'); } catch {}
+    if (msg) { msg.textContent = v ? ('Модель: ' + v) : 'Модель за замовчуванням (gemini-2.5-flash-image)'; msg.style.color = '#16a34a'; }
+  });
+})();
 document.getElementById('gptQuality').onchange = (e) => {
   try { localStorage.setItem('restoreGptQuality', e.target.value); } catch {}
   toast('Якість: ' + e.target.value, 'success');
