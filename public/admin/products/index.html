@@ -775,7 +775,7 @@ function renderList() {
     countEl.textContent = `📦 Товарів: ${total}` + (hidden ? ` (прихованих: ${hidden})` : '');
   }
   if (products.length === 0) {
-    wrap.innerHTML = '<div class="empty">Товаров пока нет. Нажми «+ Добавить товар».</div>';
+    wrap.innerHTML = '<div class="empty">Товарів поки немає. Натисни «+ Додати товар».</div>';
     return;
   }
   wrap.innerHTML = '';
@@ -1218,7 +1218,7 @@ function renderGallery(p) {
         <div class="actions">
           <button title="🪄 Обробити це фото AI (за замовчуванням)" onclick="aiRegenPhoto(${i})">🪄</button>
           ${i > 0 ? '<button title="Зробити головною" onclick="setMain('+i+')">★</button>' : ''}
-          <button title="Удалить" onclick="removeImage('+i+')">×</button>
+          <button title="Видалити" onclick="removeImage('+i+')">×</button>
         </div>
       </div>
       <div class="img-settings">
@@ -2271,7 +2271,7 @@ async function quickToggleEnabled(idx, enabled) {
   }
 }
 async function removeProduct(idx) {
-  if (!confirm(`Удалить товар «${products[idx].name}»?`)) return;
+  if (!confirm(`Видалити товар «${products[idx].name}»?`)) return;
   const [removed] = products.splice(idx, 1); // запам'ятовуємо для відкату
   if (window.currentIdx === idx) hideEditor();
   else if (window.currentIdx > idx) window.currentIdx -= 1; // індекс зсунувся
