@@ -1174,7 +1174,9 @@ function showEditorView() {
   if (top) top.style.display = (mode === 'bottom') ? 'none' : '';
   if (bottom) bottom.style.display = (mode === 'top') ? 'none' : '';
 }
-function closeEditor() {
+// Просто ховає редактор (без збереження). Внутрішнє — використовується там,
+// де збереження вже відбулось або не потрібне.
+function hideEditor() {
   const v = document.getElementById('editorView');
   if (v) v.style.display = 'none';
   document.body.style.overflow = ''; // повертаємо прокрутку списку
@@ -1182,10 +1184,18 @@ function closeEditor() {
   window.currentIdx = null;
   renderList(); // знімаємо підсвічування редагованого рядка
 }
+// «Назад» з редактора: АВТО-зберігаємо зміни на сервер, щоб доданий/відредагований
+// товар не зникав після перезавантаження, якщо власник не натиснув «Зберегти».
+// Поля редактора пишуть у products[] вживу, тож у пам'яті вже все актуальне.
+async function closeEditor() {
+  const hadProduct = window.currentIdx != null && products[window.currentIdx];
+  hideEditor();
+  if (hadProduct) await persistProducts('✅ Збережено');
+}
 // #7: зберегти прямо з редактора і повернутись до списку
 async function saveFromEditor() {
   await saveAll(false); // не переоткривати редактор
-  closeEditor();
+  hideEditor(); // saveAll уже зберіг усе — просто ховаємо (без повторного POST)
 }
 
 // === Галерея ===
@@ -2260,11 +2270,15 @@ async function quickToggleEnabled(idx, enabled) {
     toast('❌ ' + e.message, 'error');
   }
 }
-function removeProduct(idx) {
+async function removeProduct(idx) {
   if (!confirm(`Удалить товар «${products[idx].name}»?`)) return;
-  products.splice(idx, 1);
-  if (window.currentIdx === idx) closeEditor();
+  const [removed] = products.splice(idx, 1); // запам'ятовуємо для відкату
+  if (window.currentIdx === idx) hideEditor();
+  else if (window.currentIdx > idx) window.currentIdx -= 1; // індекс зсунувся
   renderList();
+  // АВТО-зберігаємо, щоб товар не «воскресав» після перезавантаження без «Зберегти».
+  const ok = await persistProducts('🗑 Товар видалено');
+  if (!ok) { products.splice(idx, 0, removed); renderList(); } // не збереглось — повертаємо
 }
 // Наступний артикул ART-00N. Лічильник монотонний (у appSettings) — код закріплюється назавжди.
 function nextSku() {
@@ -2347,6 +2361,47 @@ function sanitizeProducts() {
       p.image = (typeof f === 'object' ? f.url : f) || '';
     }
     else delete p.image;
+  }
+}
+
+// Тихо зберігає ЛИШЕ масив товарів на сервер (без чіпання налаштувань).
+// Використовується для авто-збереження при додаванні/виході з редактора/видаленні,
+// щоб зміни не зникали, коли власник не натиснув «Зберегти все». Показує маленький toast.
+async function persistProducts(msg) {
+  sanitizeProducts();
+  try {
+    // Якщо увімкнені артикули — синхронізуємо монотонний лічильник у налаштуваннях,
+    // інакше після перезавантаження новий товар міг би отримати дубль-артикул.
+    if (appSettings && appSettings.productCodeEnabled === true) {
+      try {
+        const sg = await fetch('/api/admin/settings', { credentials: 'include' });
+        const cur = sg.ok ? ((await sg.json()).settings || {}) : {};
+        const serverCounter = parseInt(cur.productCodeCounter, 10) || 0;
+        const localCounter = parseInt(appSettings.productCodeCounter, 10) || 0;
+        const counter = Math.max(serverCounter, localCounter);
+        if (counter !== serverCounter) {
+          cur.productCodeCounter = counter;
+          await fetch('/api/admin/settings', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', body: JSON.stringify(cur),
+          });
+          appSettings.productCodeCounter = counter;
+        }
+      } catch {}
+    }
+    const r = await fetch('/api/admin/products', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      credentials: 'include', body: JSON.stringify(products),
+    });
+    const data = await r.json();
+    if (!data.ok) throw new Error(data.error);
+    if (msg) toast(msg);
+    setStatus('Збережено ' + new Date().toLocaleTimeString('ru-RU'));
+    return true;
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+    setStatus('Помилка: ' + e.message, true);
+    return false;
   }
 }
 
