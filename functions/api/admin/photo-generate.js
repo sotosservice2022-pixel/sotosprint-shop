@@ -110,8 +110,8 @@ async function runCloudflareGen(env, prompt, refs, sizeStr, cfModel) {
   if (/flagged|3030/i.test(lastMsg)) {
     throw new Error('Модерація Cloudflare помилково забракувала цей запит (буває на нешкідливих товарах). Спробуй: інше фото-приклад, трохи змінити опис, або переключись на Gemini/GPT.');
   }
-  if (/allocation|limit|quota|429/i.test(lastMsg)) {
-    throw new Error('Вичерпано безкоштовний денний ліміт Workers AI (оновлюється о 02:00 за Києвом). Спробуй завтра або переключись на Gemini/GPT.');
+  if (/allocation|quota|429|neuron|exceeded/i.test(lastMsg)) {
+    throw new Error('Вичерпано безкоштовний денний ліміт Workers AI (10 000 нейронів/день, оновлюється о 00:00 UTC ≈ 03:00 за Києвом). Порада: тримай модель FLUX 4B, а не 9B/dev. Або Gemini/GPT. [' + lastMsg.slice(0, 120) + ']');
   }
   throw new Error('FLUX (Cloudflare) не зміг згенерувати зображення: ' + lastMsg + '. Спробуй ще раз або переключись на Gemini/GPT.');
 }
