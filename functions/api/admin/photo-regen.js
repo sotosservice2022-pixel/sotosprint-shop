@@ -121,7 +121,7 @@ async function runCloudflare(env, src, prompt, width, height, cfModel) {
   }
   const lastMsg = String(lastErr && lastErr.message || lastErr);
   if (/flagged|3030/i.test(lastMsg)) {
-    throw new Error('Модерація Cloudflare помилково забракувала це фото (буває на нешкідливих товарах). Спробуй: інший ракурс/фото товару, трохи змінити опис, або переключись на Gemini/GPT.');
+    throw new Error('Cloudflare помилково заблокував це фото своєю автомодерацією (таке буває навіть на звичайних товарах — це не означає, що з фото щось не так). Спробуй: інший ракурс/фото товару, трохи змінити опис, або переключись на Gemini/GPT.');
   }
   if (/allocation|quota|429|neuron|exceeded/i.test(lastMsg)) {
     throw new Error('Вичерпано безкоштовний денний ліміт Workers AI (10 000 нейронів/день, оновлюється о 00:00 UTC ≈ 03:00 за Києвом). Порада: тримай модель FLUX 4B (≈37 нейронів/фото ≈270 фото/день), а не 9B/dev (тисячі нейронів). Або Gemini/GPT. [' + lastMsg.slice(0, 120) + ']');
