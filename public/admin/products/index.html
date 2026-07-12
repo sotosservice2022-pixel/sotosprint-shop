@@ -1268,7 +1268,10 @@ function renderGallery(p) {
 // Рушій/модель/промпт беруться з localStorage тієї сторінки (той самий домен → доступно).
 function aiRegenSettings() {
   let prefs = {}; try { prefs = JSON.parse(localStorage.getItem('restorePagePrefs') || '{}'); } catch {}
-  const engine = ['premium', 'gpt', 'cloudflare'].includes(prefs.engine) ? prefs.engine : 'premium';
+  // Кнопка 🪄 робить «Пересоздання» → беремо дефолтний рушій саме для режиму regen
+  // (engineRegen). Fallback на старий спільний prefs.engine для сумісності.
+  const rawEngine = ['premium', 'gpt', 'cloudflare'].includes(prefs.engineRegen) ? prefs.engineRegen : prefs.engine;
+  const engine = ['premium', 'gpt', 'cloudflare'].includes(rawEngine) ? rawEngine : 'premium';
   const cfModel = ['9b', 'dev'].includes(prefs.cfModel) ? prefs.cfModel : '4b';
   const ls = (k) => { try { return (localStorage.getItem(k) || '').trim(); } catch { return ''; } };
   return {

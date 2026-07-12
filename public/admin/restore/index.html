@@ -333,7 +333,16 @@ async function logout() {
 const LS = 'restorePagePrefs';
 function loadPrefs() { try { return JSON.parse(localStorage.getItem(LS) || '{}'); } catch { return {}; } }
 function savePrefs() {
-  localStorage.setItem(LS, JSON.stringify({ mode, engine, bg: document.getElementById('bgSelect').value, cfModel: document.getElementById('cfModelSelect').value }));
+  const prefs = loadPrefs();
+  prefs.mode = mode;
+  prefs.bg = document.getElementById('bgSelect').value;
+  prefs.cfModel = document.getElementById('cfModelSelect').value;
+  // Рушій зберігаємо ОКРЕМО для кожного режиму — «Пересоздання» і «Створення»
+  // мають власний дефолт незалежно один від одного.
+  if (mode === 'regen') prefs.engineRegen = engine;
+  else if (mode === 'generate') prefs.engineGenerate = engine;
+  prefs.engine = engine; // сумісність: останній обраний рушій (fallback для 🪄 у редакторі)
+  localStorage.setItem(LS, JSON.stringify(prefs));
 }
 
 // ---------- стан ----------
@@ -366,6 +375,15 @@ function setMode(m) {
   document.getElementById('genWrap').style.display = (m === 'generate') ? '' : 'none';
   // у режимі «Створення» основне завантаження ховаємо — приклад додається в самому блоці
   document.getElementById('uploadCard').style.display = (m === 'generate') ? 'none' : '';
+  // Кожен режим памʼятає СВІЙ рушій: застосовуємо збережений саме для цього режиму.
+  if (m === 'regen' || m === 'generate') {
+    const prefs = loadPrefs();
+    let e = (m === 'regen') ? prefs.engineRegen : prefs.engineGenerate;
+    if (!['premium', 'gpt', 'cloudflare'].includes(e)) {
+      e = ['premium', 'gpt', 'cloudflare'].includes(prefs.engine) ? prefs.engine : 'premium';
+    }
+    setEngine(e); // оновить UI рушія і збереже його під поточним режимом
+  }
   savePrefs();
 }
 function setEngine(e) {
@@ -816,10 +834,10 @@ async function confirmAttach() {
   const p = loadPrefs();
   if (p.bg) document.getElementById('bgSelect').value = p.bg;
   if (['9b', '4b', 'dev'].includes(p.cfModel)) document.getElementById('cfModelSelect').value = p.cfModel;
+  // дефолт рушія (на випадок стартового режиму «Покращення», де рушій прихований);
+  // для regen/generate setMode нижче сам підставить збережений рушій цього режиму.
+  engine = ['premium', 'gpt', 'cloudflare'].includes(p.engine) ? p.engine : 'premium';
   setMode(p.mode || 'enhance');
-  let eng = p.engine;
-  if (!['premium', 'gpt', 'cloudflare'].includes(eng)) eng = 'premium';
-  setEngine(eng);
   refreshKeyStatus('gemini');
   refreshKeyStatus('openai');
   initRegenPrompt();  // дефолтний промпт у поле «Розширені»
