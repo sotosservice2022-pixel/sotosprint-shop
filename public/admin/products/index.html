@@ -1187,8 +1187,34 @@ function hideEditor() {
 // «Назад» з редактора: АВТО-зберігаємо зміни на сервер, щоб доданий/відредагований
 // товар не зникав після перезавантаження, якщо власник не натиснув «Зберегти».
 // Поля редактора пишуть у products[] вживу, тож у пам'яті вже все актуальне.
+// Чи є товар порожньою чернеткою (нічого суттєвого не введено)?
+function isDraftEmpty(p) {
+  if (!p) return false;
+  const name = (p.name || '').trim();
+  const nameEmpty = !name || name === 'Новий товар';
+  const noDesc = !(p.description || '').trim();
+  const noPrice = !(parseFloat(p.price) || 0);
+  const noImages = !(Array.isArray(p.images) && p.images.length);
+  const noVideo = !(p.video || '').trim();
+  const noAttrs = !(Array.isArray(p.attributes) && p.attributes.some(a => (a.label || '').trim() || (a.value || '').trim()));
+  const noOpts = !(Array.isArray(p.options) && p.options.some(o => (o.name || '').trim()));
+  return nameEmpty && noDesc && noPrice && noImages && noVideo && noAttrs && noOpts;
+}
 async function closeEditor() {
-  const hadProduct = window.currentIdx != null && products[window.currentIdx];
+  const idx = window.currentIdx;
+  const p = (idx != null) ? products[idx] : null;
+  // Свіжа чернетка, у якій нічого не ввели → не зберігаємо, просто прибираємо.
+  if (p && p._draft && isDraftEmpty(p)) {
+    // повертаємо лічильник артикулів (цей sku був виданий останнім і не збережеться)
+    if (p.sku && appSettings) {
+      const n = parseInt(appSettings.productCodeCounter, 10) || 0;
+      if (n > 0) appSettings.productCodeCounter = n - 1;
+    }
+    products.splice(idx, 1);
+    hideEditor(); // ховає редактор + renderList
+    return;
+  }
+  const hadProduct = p != null;
   hideEditor();
   if (hadProduct) await persistProducts('✅ Збережено');
 }
@@ -2296,6 +2322,7 @@ function addProduct() {
     id, name: 'Новий товар', description: '', price: 0, currency: '₴',
     images: [], video: '', attributes: [], options: [],
     enabled: true, requiresPhoto: false,
+    _draft: true, // свіжа чернетка: якщо вийти нічого не ввівши — не зберігаємо
   };
   // Якщо коди увімкнено — новий товар одразу отримує наступний артикул
   if (appSettings.productCodeEnabled === true) np.sku = nextSku();
@@ -2340,6 +2367,7 @@ async function duplicateProduct(idx) {
 // Чистка товаров перед сохранением (нормализация id, цены, опций, картинок).
 function sanitizeProducts() {
   for (const p of products) {
+    delete p._draft; // якщо товар зберігається — він уже не «чернетка»
     if (!p.id) p.id = 'p' + Math.random().toString(36).slice(2, 8);
     p.price = parseFloat(p.price) || 0;
     if (Array.isArray(p.options)) {
