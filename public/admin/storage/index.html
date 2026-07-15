@@ -104,9 +104,9 @@
     <div class="quota-bar"><div id="quotaFill" style="width: 0%;"></div></div>
     <div style="display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap;">
       <label style="font-size: 13px; color: #374151;">Ліміт сховища (MB):</label>
-      <input type="number" id="quotaInput" min="10" max="10000" step="50" style="width: 100px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
+      <input type="number" id="quotaInput" min="10" max="8000" step="50" style="width: 100px; padding: 6px 9px; border: 1px solid #e5e7eb; border-radius: 6px;" />
       <button class="btn btn-secondary btn-icon" onclick="saveQuota()">Зберегти</button>
-      <span style="font-size: 12px; color: #6b7280;">Cloudflare R2 безкоштовно дає до 10 GB. Можна виставити до 10000 MB.</span>
+      <span style="font-size: 12px; color: #6b7280;">Cloudflare R2 безкоштовно дає до 10 GB. Можна виставити до 8000 MB.</span>
     </div>
   </div>
 
@@ -869,8 +869,9 @@ dropZone.addEventListener('drop', e => {
 });
 
 async function saveQuota() {
-  const v = parseInt(document.getElementById('quotaInput').value, 10);
+  let v = parseInt(document.getElementById('quotaInput').value, 10);
   if (!v || v < 10) return toast('Мінімум 10 MB', 'error');
+  if (v > 8000) { v = 8000; document.getElementById('quotaInput').value = 8000; toast('Максимум 8000 MB — зменшено до ліміту', 'error'); }
   try {
     // Завантажуємо повні settings, оновлюємо quota, зберігаємо
     const r = await fetch('/api/admin/settings', { credentials: 'include' });
